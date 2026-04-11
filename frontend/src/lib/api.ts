@@ -4,6 +4,7 @@ import {
   LeaguesResponse,
   LineupResponse,
   LoginResponse,
+  PlayerSearchResponse,
   PointsResponse,
   ProfileResponse,
   RegisterResponse,
@@ -64,6 +65,45 @@ export function getProfile() {
 
 export function getLineup() {
   return request<LineupResponse>("/lineup");
+}
+
+export function getPlayers(params?: {
+  search?: string;
+  position?: string;
+  teamId?: string;
+  maxSalary?: string;
+  sort?: "salary" | "totalPoints" | "recentAverage";
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.search) {
+    query.set("search", params.search);
+  }
+  if (params?.position) {
+    query.set("position", params.position);
+  }
+  if (params?.teamId) {
+    query.set("teamId", params.teamId);
+  }
+  if (params?.maxSalary) {
+    query.set("maxSalary", params.maxSalary);
+  }
+  if (params?.sort) {
+    query.set("sort", params.sort);
+  }
+  if (params?.limit) {
+    query.set("limit", String(params.limit));
+  }
+
+  const queryString = query.toString();
+  return request<PlayerSearchResponse>(`/players${queryString ? `?${queryString}` : ""}`);
+}
+
+export function createInitialTeam(playerIds: string[]) {
+  return request<LineupResponse>("/team/create", {
+    method: "POST",
+    body: JSON.stringify({ playerIds })
+  });
 }
 
 export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captainId?: string }) {

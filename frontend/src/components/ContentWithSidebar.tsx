@@ -9,10 +9,9 @@ export default function ContentWithSidebar({ children, sidebar }: ContentWithSid
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,3fr)_310px]">
       <div className="space-y-5">{children}</div>
       <div>{sidebar}</div>
     </div>
   );
 }
-

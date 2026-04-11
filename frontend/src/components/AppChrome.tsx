@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { SyntheticEvent, useMemo, useState } from "react";
 import DesignDocPanel from "@/components/DesignDocPanel";
 
 interface AppChromeProps {
@@ -21,6 +21,23 @@ const navItems = [
   { href: "/help", label: "Help" }
 ];
 
+const heroPlayers = [
+  { code: "203507", number: "34", className: "h-[116px] bg-[linear-gradient(180deg,#0b5b3a,#00471b)]" },
+  { code: "201939", number: "30", className: "z-[1] -ml-3 h-[132px] bg-[linear-gradient(180deg,#f2c35b,#1d428a)]" },
+  { code: "1630162", number: "5", className: "-ml-3 h-[120px] bg-[linear-gradient(180deg,#1d428a,#0c2340)]" }
+];
+
+function onHeroImageError(event: SyntheticEvent<HTMLImageElement>, code: string) {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied !== "true") {
+    image.dataset.fallbackApplied = "true";
+    image.src = `https://cdn.nba.com/headshots/nba/latest/520x380/${code}.png`;
+    return;
+  }
+
+  image.hidden = true;
+}
+
 export default function AppChrome({ children }: AppChromeProps) {
   const pathname = usePathname();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -29,41 +46,46 @@ export default function AppChrome({ children }: AppChromeProps) {
 
   return (
     <div className="min-h-screen bg-surface-base text-txt-strong">
-      <header className="shadow-panel">
-        <div className="h-4 bg-brand-pink" />
-        <div className="bg-[linear-gradient(135deg,#eef0f3_0%,#eceff4_45%,#e7ebf2_100%)]">
-          <div className="mx-auto flex w-full max-w-[1400px] items-end justify-between px-5 pb-3 pt-5">
-            <div>
-              <div className="flex items-end gap-3">
-                <div className="flex h-24 w-14 items-center justify-center rounded bg-brand-blue text-2xl font-bold text-white">NBA</div>
-                <div>
-                  <div className="text-6xl font-semibold uppercase tracking-wide text-[#2d63cf]">Fantasy</div>
-                  <p className="-mt-1 text-2xl uppercase tracking-tight text-slate-900">Salary Cap Edition</p>
-                </div>
-              </div>
-            </div>
+      <header className="nba-site-header">
+        <div className="h-[18px] bg-brand-pink" />
 
-            <div className="hidden items-end gap-2 md:flex">
-              <div className="h-28 w-20 rounded-t-full bg-[radial-gradient(circle_at_30%_30%,#ffffff,transparent_40%),linear-gradient(180deg,#2f4b9a,#0f172a)] opacity-80" />
-              <div className="h-32 w-24 rounded-t-full bg-[radial-gradient(circle_at_30%_30%,#ffffff,transparent_40%),linear-gradient(180deg,#facc15,#92400e)]" />
-              <div className="h-28 w-20 rounded-t-full bg-[radial-gradient(circle_at_30%_30%,#ffffff,transparent_40%),linear-gradient(180deg,#38bdf8,#1e3a8a)]" />
+        <div className="nba-hero">
+          <div className="mx-auto flex min-h-[126px] w-full max-w-[1400px] items-end justify-between gap-4 px-4 pb-3 pt-4 sm:px-5 lg:min-h-[146px] lg:pb-4">
+            <Link href="/" className="flex items-end gap-4" aria-label="NBA Fantasy home">
+              <div className="nba-logo-mark">NBA</div>
+              <div className="pb-1">
+                <div className="nba-wordmark text-[3.4rem] sm:text-[4.7rem] lg:text-[5.5rem]">Fantasy</div>
+                <p className="-mt-1 text-[1.35rem] font-bold uppercase leading-none tracking-tight text-[#111] sm:text-[1.65rem]">
+                  Salary Cap Edition
+                </p>
+              </div>
+            </Link>
+
+            <div className="hidden h-[132px] items-end gap-0 md:flex" aria-hidden="true">
+              {heroPlayers.map((player) => (
+                <div key={player.code} className={`nba-hero-player ${player.className}`}>
+                  <img
+                    src={`/nba/headshots/${player.code}.png`}
+                    alt=""
+                    onError={(event) => onHeroImageError(event, player.code)}
+                  />
+                  <span>{player.number}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        <nav className="bg-brand-blue">
-          <div className="mx-auto flex w-full max-w-[1400px] overflow-x-auto px-5">
+        <nav className="bg-brand-darkBlue">
+          <div className="mx-auto flex w-full max-w-[1400px] overflow-x-auto px-3 pt-2 sm:px-5">
             {navItems.map((item) => {
               const isActive = item.href === "/" ? activePath === "/" : activePath.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`mr-1 border-x border-t border-[#0f2d65] px-5 py-3 text-sm font-semibold whitespace-nowrap transition ${
-                    isActive
-                      ? "bg-brand-yellow text-slate-900"
-                      : "bg-white text-slate-900 hover:bg-slate-100"
-                  }`}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`ism-nav__tab ${isActive ? "active" : ""}`}
                 >
                   {item.label}
                 </Link>
@@ -74,7 +96,7 @@ export default function AppChrome({ children }: AppChromeProps) {
       </header>
 
       <main
-        className="mx-auto w-full max-w-[1400px] px-5 py-5 transition-all duration-300"
+        className="mx-auto w-full max-w-[1400px] px-3 py-5 transition-all duration-300 sm:px-5"
         style={{ marginRight: panelOpen ? PANEL_WIDTH : 0 }}
       >
         {children}
@@ -84,4 +106,3 @@ export default function AppChrome({ children }: AppChromeProps) {
     </div>
   );
 }
-

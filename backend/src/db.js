@@ -54,6 +54,66 @@ function initSchema() {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS teams (
+      id INTEGER PRIMARY KEY,
+      code INTEGER,
+      name TEXT NOT NULL,
+      short_name TEXT NOT NULL,
+      city TEXT,
+      conference TEXT,
+      division TEXT,
+      raw_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS element_types (
+      id INTEGER PRIMARY KEY,
+      plural_name TEXT NOT NULL,
+      singular_name TEXT NOT NULL,
+      short_name TEXT NOT NULL,
+      squad_select INTEGER NOT NULL,
+      raw_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS players (
+      id INTEGER PRIMARY KEY,
+      code INTEGER,
+      first_name TEXT NOT NULL,
+      second_name TEXT NOT NULL,
+      web_name TEXT NOT NULL,
+      known_name TEXT,
+      team_id INTEGER NOT NULL,
+      team_short_name TEXT NOT NULL,
+      element_type INTEGER NOT NULL,
+      position_short TEXT NOT NULL,
+      now_cost INTEGER NOT NULL,
+      salary REAL NOT NULL,
+      total_points INTEGER NOT NULL,
+      event_points INTEGER NOT NULL,
+      points_per_game REAL NOT NULL,
+      selected_by_percent REAL NOT NULL,
+      status TEXT NOT NULL,
+      can_select INTEGER NOT NULL,
+      can_transact INTEGER NOT NULL,
+      news TEXT,
+      points_scored INTEGER NOT NULL,
+      rebounds INTEGER NOT NULL,
+      assists INTEGER NOT NULL,
+      blocks INTEGER NOT NULL,
+      steals INTEGER NOT NULL,
+      raw_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (team_id) REFERENCES teams(id),
+      FOREIGN KEY (element_type) REFERENCES element_types(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS game_rules (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -89,6 +149,12 @@ const insertSession = db.prepare(
   `INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)`
 );
 const deleteSession = db.prepare(`DELETE FROM sessions WHERE token = ?`);
+const getRule = db.prepare(`SELECT value FROM game_rules WHERE key = ?`);
+const upsertRule = db.prepare(`
+  INSERT INTO game_rules (key, value, updated_at)
+  VALUES (?, ?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+`);
 const getStateByUserId = db.prepare(`
   SELECT
     team_name AS teamName,
@@ -134,6 +200,13 @@ const updateStateByUserId = db.prepare(`
     updated_at = ?
   WHERE user_id = ?
 `);
+
+const countPlayers = db.prepare(`SELECT COUNT(*) AS count FROM players`);
+const getAllTeams = db.prepare(`SELECT id, code, name, short_name AS shortName FROM teams ORDER BY name`);
+const getAllElementTypes = db.prepare(
+  `SELECT id, singular_name AS singularName, short_name AS shortName, squad_select AS squadSelect FROM element_types ORDER BY id`
+);
+const getAllRules = db.prepare(`SELECT key, value, updated_at AS updatedAt FROM game_rules ORDER BY key`);
 
 const registerUserTx = db.transaction((account, gameId, passwordHash) => {
   const createdAt = new Date().toISOString();
@@ -195,6 +268,168 @@ function getStateForUser(userId) {
   };
 }
 
+function normalizePlayerRow(row) {
+  const playerCode = row.code ? String(row.code) : null;
+  const teamCode = row.teamCode ? String(row.teamCode) : null;
+  const totalPoints = Number((Number(row.totalPoints) / 10).toFixed(1));
+  const points = Number((Number(row.points) / 10).toFixed(1));
+  const recentAverage = Number((Number(row.recentAverage) / 10).toFixed(1));
+  const color = row.position === "FC" ? "hot" : "cold";
+
+  return {
+    id: String(row.id),
+    code: playerCode,
+    name: row.name,
+    teamId: row.teamId ? Number(row.teamId) : null,
+    teamCode,
+    team: row.team,
+    position: row.position,
+    salary: Number(row.salary),
+    totalPoints,
+    points,
+    recentAverage,
+    selectedByPercent: Number(row.selectedByPercent),
+    status: row.status,
+    canSelect: Boolean(row.canSelect),
+    canTransact: Boolean(row.canTransact),
+    color,
+    headshotUrl: playerCode ? `/nba/headshots/${playerCode}.png` : null,
+    headshotFallbackUrl: playerCode ? `https://cdn.nba.com/headshots/nba/latest/520x380/${playerCode}.png` : null,
+    teamLogoUrl: teamCode ? `/nba/team-logos/${teamCode}.png` : null,
+    teamLogoFallbackUrl: teamCode ? `https://cdn.nba.com/logos/nba/${teamCode}/global/L/logo.svg` : null,
+    nextOpponent: "TBD",
+    upcoming: ["TBD", "TBD"]
+  };
+}
+
+function getPlayersByIds(playerIds) {
+  const ids = [...new Set(playerIds.map((id) => Number(id)).filter(Number.isFinite))];
+  if (!ids.length) {
+    return [];
+  }
+
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = db
+    .prepare(`
+      SELECT
+        p.id,
+        p.code,
+        p.web_name AS name,
+        p.team_id AS teamId,
+        t.code AS teamCode,
+        p.team_short_name AS team,
+        p.position_short AS position,
+        p.salary,
+        p.total_points AS totalPoints,
+        p.event_points AS points,
+        p.points_per_game AS recentAverage,
+        p.selected_by_percent AS selectedByPercent,
+        p.status,
+        p.can_select AS canSelect,
+        p.can_transact AS canTransact
+      FROM players p
+      LEFT JOIN teams t ON t.id = p.team_id
+      WHERE p.id IN (${placeholders})
+    `)
+    .all(...ids);
+
+  return rows.map(normalizePlayerRow);
+}
+
+function searchPlayerPool(filters = {}) {
+  const clauses = ["p.can_select = 1"];
+  const params = {};
+
+  if (filters.search) {
+    clauses.push("(p.web_name LIKE @search OR p.first_name LIKE @search OR p.second_name LIKE @search)");
+    params.search = `%${filters.search}%`;
+  }
+
+  if (filters.position) {
+    clauses.push("p.position_short = @position");
+    params.position = filters.position;
+  }
+
+  if (filters.teamId) {
+    clauses.push("p.team_id = @teamId");
+    params.teamId = Number(filters.teamId);
+  }
+
+  if (filters.maxSalary) {
+    clauses.push("p.salary <= @maxSalary");
+    params.maxSalary = Number(filters.maxSalary);
+  }
+
+  if (Array.isArray(filters.excludeIds) && filters.excludeIds.length) {
+    const ids = filters.excludeIds.map((id) => Number(id)).filter(Number.isFinite);
+    if (ids.length) {
+      clauses.push(`p.id NOT IN (${ids.map((_, index) => `@exclude${index}`).join(",")})`);
+      ids.forEach((id, index) => {
+        params[`exclude${index}`] = id;
+      });
+    }
+  }
+
+  const limit = Math.min(Math.max(Number(filters.limit ?? 80), 1), 200);
+  const sortSql =
+    {
+      salary: "p.salary DESC, p.total_points DESC",
+      totalPoints: "p.total_points DESC, p.salary DESC",
+      recentAverage: "p.points_per_game DESC, p.salary DESC"
+    }[filters.sort] ?? "p.salary DESC, p.total_points DESC";
+  const rows = db
+    .prepare(`
+      SELECT
+        p.id,
+        p.code,
+        p.web_name AS name,
+        p.team_id AS teamId,
+        t.code AS teamCode,
+        p.team_short_name AS team,
+        p.position_short AS position,
+        p.salary,
+        p.total_points AS totalPoints,
+        p.event_points AS points,
+        p.points_per_game AS recentAverage,
+        p.selected_by_percent AS selectedByPercent,
+        p.status,
+        p.can_select AS canSelect,
+        p.can_transact AS canTransact
+      FROM players p
+      LEFT JOIN teams t ON t.id = p.team_id
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY ${sortSql}
+      LIMIT ${limit}
+    `)
+    .all(params);
+
+  return rows.map(normalizePlayerRow);
+}
+
+function getPlayerDataSummary() {
+  return {
+    players: countPlayers.get().count,
+    teams: getAllTeams.all(),
+    elementTypes: getAllElementTypes.all(),
+    firstDeadline: getRuleValue("first_deadline", null),
+    weeklyFreeTransfers: Number(getRuleValue("weekly_free_transfers", "2")),
+    initialBudget: Number(getRuleValue("initial_budget", "100"))
+  };
+}
+
+function getRuleValue(key, fallback) {
+  const row = getRule.get(key);
+  return row ? row.value : fallback;
+}
+
+function setRuleValue(key, value) {
+  upsertRule.run(key, String(value), new Date().toISOString());
+}
+
+function getGameRules() {
+  return getAllRules.all();
+}
+
 function saveStateForUser(userId, state) {
   const updatedAt = new Date().toISOString();
 
@@ -232,5 +467,11 @@ export {
   deleteSession,
   getAuthenticatedUserByToken,
   getStateForUser,
-  saveStateForUser
+  saveStateForUser,
+  getPlayersByIds,
+  searchPlayerPool,
+  getPlayerDataSummary,
+  getRuleValue,
+  setRuleValue,
+  getGameRules
 };

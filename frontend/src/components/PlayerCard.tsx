@@ -1,3 +1,6 @@
+"use client";
+
+import { SyntheticEvent } from "react";
 import { Player } from "@/lib/types";
 
 interface PlayerCardProps {
@@ -6,33 +9,78 @@ interface PlayerCardProps {
   captain?: boolean;
 }
 
+function shortName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return name.toUpperCase();
+  }
+
+  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`.toUpperCase();
+}
+
+function useFallbackImage(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
+  const image = event.currentTarget;
+  if (fallback && image.dataset.fallbackApplied !== "true") {
+    image.dataset.fallbackApplied = "true";
+    image.src = fallback;
+    return;
+  }
+
+  image.hidden = true;
+}
+
 export default function PlayerCard({ player, showPoints, captain }: PlayerCardProps) {
-  const tone = player.color === "hot" ? "from-[#ec1459] to-[#be1244]" : "from-[#2d63cf] to-[#1f4ea1]";
+  const isHot = player.color === "hot";
+  const footerValue = showPoints ? String(player.points ?? 0) : player.salary.toFixed(1);
+  const headshotUrl = player.headshotUrl ?? player.headshotFallbackUrl;
+  const teamLogoUrl = player.teamLogoUrl ?? player.teamLogoFallbackUrl;
 
   return (
-    <article className="w-full max-w-[210px] overflow-hidden rounded border border-slate-200 bg-white shadow-panel">
-      <header className="flex items-center justify-between border-b border-slate-200 px-3 py-1 text-xs text-slate-500">
-        <span>{player.position}</span>
-        {captain ? <span className="font-semibold text-brand-pink">Captain</span> : <span>{player.team}</span>}
-      </header>
+    <article className={`player-card ${isHot ? "player-card--hot" : ""}`}>
+      <span className="player-card__info" aria-hidden="true">i</span>
+      {teamLogoUrl ? (
+        <img
+          className="player-card__logo"
+          src={teamLogoUrl}
+          alt=""
+          aria-hidden="true"
+          onError={(event) => useFallbackImage(event, player.teamLogoFallbackUrl)}
+        />
+      ) : null}
+      <span className="player-card__team">{player.team}</span>
 
-      <div className="px-3 py-3">
-        <div className="flex items-end justify-between">
-          <h3 className="text-2xl font-semibold uppercase leading-none">{player.name}</h3>
-          <span className="text-3xl font-semibold text-brand-blue">{player.team}</span>
-        </div>
+      {captain ? (
+        <span className="absolute left-8 top-2 z-[3] rounded-sm bg-brand-yellow px-2 py-0.5 text-[0.65rem] font-bold uppercase text-black shadow">
+          Captain
+        </span>
+      ) : null}
 
-        {!showPoints ? (
-          <p className="mt-2 text-xs text-slate-500">
-            Next: {player.nextOpponent ?? "TBD"} | Upcoming: {(player.upcoming ?? []).join(", ") || "TBD"}
-          </p>
+      <div className="player-card__photo" aria-hidden="true">
+        {headshotUrl ? (
+          <img
+            className="player-card__headshot"
+            src={headshotUrl}
+            alt=""
+            onError={(event) => useFallbackImage(event, player.headshotFallbackUrl)}
+          />
         ) : null}
       </div>
 
-      <footer className={`bg-gradient-to-r px-3 py-2 text-center text-3xl font-semibold text-white ${tone}`}>
-        {showPoints ? player.points ?? 0 : player.salary.toFixed(1)}
-      </footer>
+      <div className="player-card__name">{shortName(player.name)}</div>
+
+      {!showPoints ? (
+        <div className="player-card__meta">
+          <span>Next {player.nextOpponent ?? "TBD"}</span>
+          <span>{(player.upcoming ?? []).slice(0, 2).join(" / ") || "Upcoming"}</span>
+        </div>
+      ) : (
+        <div className="player-card__meta">
+          <span>{player.position}</span>
+          <span>{player.status ?? "Available"}</span>
+        </div>
+      )}
+
+      <footer className="player-card__score">{footerValue}</footer>
     </article>
   );
 }
-

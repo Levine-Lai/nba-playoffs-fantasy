@@ -271,32 +271,38 @@ export function buildInitialUserState(gameId) {
     teamName: `${gameId} Squad`,
     managerName: gameId,
     overallPoints: 0,
-    overallRank: 999,
-    totalPlayers: 63815,
+    overallRank: 0,
+    totalPlayers: 0,
     gamedayPoints: 0,
     fanLeague: "Playoff Friends",
-    captainId: "p1",
-    starters: clone(STARTERS_TEMPLATE),
-    bench: clone(BENCH_TEMPLATE),
-    market: clone(MARKET_TEMPLATE),
+    captainId: "",
+    starters: [],
+    bench: [],
+    market: [],
     usedThisWeek: 0,
     weeklyFreeLimit: 2,
     totalTransfers: 0,
-    rosterValue: 102.7,
-    bank: 0.3,
+    rosterValue: 0,
+    bank: 100,
     history: []
   };
 }
 
 export function buildLeaguesForUser(state, gameId) {
   const leagues = clone(DEFAULT_LEAGUES);
+  const currentRank = state.overallRank > 0 ? state.overallRank : 0;
   leagues.privateClassic = [
-    { id: "user-private", name: `${gameId} Private League`, rank: Math.max(1, state.overallRank), lastRank: Math.max(1, state.overallRank + 3) },
+    {
+      id: "user-private",
+      name: `${gameId} Private League`,
+      rank: currentRank,
+      lastRank: currentRank > 0 ? currentRank + 3 : 0
+    },
     ...leagues.privateClassic
   ];
   leagues.global = leagues.global.map((item) =>
     item.name === "Overall"
-      ? { ...item, rank: state.overallRank, lastRank: Math.max(1, state.overallRank + 12) }
+      ? { ...item, rank: currentRank, lastRank: currentRank > 0 ? currentRank + 12 : 0 }
       : item
   );
   return leagues;

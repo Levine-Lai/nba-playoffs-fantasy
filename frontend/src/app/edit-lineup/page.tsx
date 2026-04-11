@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ContentWithSidebar from "@/components/ContentWithSidebar";
+import InitialTeamBuilder from "@/components/InitialTeamBuilder";
 import PlayerCard from "@/components/PlayerCard";
 import RightSidebar from "@/components/RightSidebar";
 import { getLineup, saveLineup } from "@/lib/api";
@@ -47,6 +48,14 @@ export default function EditLineupPage() {
     );
   }
 
+  if (!data.hasTeam) {
+    return (
+      <ContentWithSidebar sidebar={<RightSidebar />}>
+        <InitialTeamBuilder initialBudget={data.budget} onCreated={setData} />
+      </ContentWithSidebar>
+    );
+  }
+
   async function onSave() {
     if (!data) {
       return;
@@ -54,7 +63,11 @@ export default function EditLineupPage() {
 
     setFeedback(null);
     try {
-      const next = await saveLineup({ captainId: data.lineup.captainId });
+      const next = await saveLineup({
+        captainId: data.lineup.captainId,
+        starters: data.lineup.starters,
+        bench: data.lineup.bench
+      });
       setData(next);
       setFeedback("Line-up saved for this gameweek.");
     } catch (error) {
@@ -78,13 +91,42 @@ export default function EditLineupPage() {
     });
   }
 
+  function swapStarterWithBench(starterIndex: number, benchIndex: number) {
+    setData((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const starters = [...prev.lineup.starters];
+      const bench = [...prev.lineup.bench];
+      const nextStarter = bench[benchIndex];
+      const nextBench = starters[starterIndex];
+
+      if (!nextStarter || !nextBench) {
+        return prev;
+      }
+
+      starters[starterIndex] = nextStarter;
+      bench[benchIndex] = nextBench;
+
+      return {
+        ...prev,
+        lineup: {
+          ...prev.lineup,
+          starters,
+          bench
+        }
+      };
+    });
+  }
+
   return (
     <ContentWithSidebar sidebar={<RightSidebar />}>
       <section className="panel">
         <div className="panel-body">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-4xl font-semibold uppercase">{data.gameweek.label}</h1>
-            <button className="rounded bg-brand-yellow px-5 py-2 text-base font-semibold" type="button" onClick={onSave}>
+            <button className="nba-button-yellow text-base" type="button" onClick={onSave}>
               Save Your Team
             </button>
           </div>
@@ -100,15 +142,22 @@ export default function EditLineupPage() {
         <div className="panel-head">Starting 5</div>
         <div className="panel-body">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {data.lineup.starters.map((player) => (
+            {data.lineup.starters.map((player, index) => (
               <div key={player.id} className="space-y-2">
                 <PlayerCard player={player} captain={data.lineup.captainId === player.id} />
                 <button
-                  className="w-full rounded border border-slate-300 bg-slate-50 py-1 text-xs font-semibold hover:bg-slate-100"
+                  className="w-full rounded-sm border border-slate-300 bg-slate-50 py-1 text-xs font-semibold hover:bg-slate-100"
                   type="button"
                   onClick={() => selectCaptain(player.id)}
                 >
                   Make Captain
+                </button>
+                <button
+                  className="w-full rounded-sm border border-slate-300 bg-slate-50 py-1 text-xs font-semibold hover:bg-slate-100"
+                  type="button"
+                  onClick={() => swapStarterWithBench(index, Math.min(index, data.lineup.bench.length - 1))}
+                >
+                  Move To Bench
                 </button>
               </div>
             ))}
@@ -120,15 +169,22 @@ export default function EditLineupPage() {
         <div className="panel-head">Bench</div>
         <div className="panel-body">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            {data.lineup.bench.map((player) => (
+            {data.lineup.bench.map((player, index) => (
               <div key={player.id} className="space-y-2">
                 <PlayerCard player={player} captain={data.lineup.captainId === player.id} />
                 <button
-                  className="w-full rounded border border-slate-300 bg-slate-50 py-1 text-xs font-semibold hover:bg-slate-100"
+                  className="w-full rounded-sm border border-slate-300 bg-slate-50 py-1 text-xs font-semibold hover:bg-slate-100"
                   type="button"
                   onClick={() => selectCaptain(player.id)}
                 >
                   Make Captain
+                </button>
+                <button
+                  className="w-full rounded-sm border border-slate-300 bg-slate-50 py-1 text-xs font-semibold hover:bg-slate-100"
+                  type="button"
+                  onClick={() => swapStarterWithBench(Math.min(index, data.lineup.starters.length - 1), index)}
+                >
+                  Start Player
                 </button>
               </div>
             ))}

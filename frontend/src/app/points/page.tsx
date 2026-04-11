@@ -36,6 +36,20 @@ export default function PointsPage() {
     );
   }
 
+  if (data.visible === false) {
+    return (
+      <section className="panel">
+        <div className="panel-head">Points Locked</div>
+        <div className="panel-body space-y-3 text-sm text-slate-700">
+          <p>{data.message ?? "Points will unlock after the first deadline."}</p>
+          <Link href="/edit-lineup" className="inline-flex rounded bg-brand-blue px-4 py-2 font-semibold text-white">
+            Manage Line-up
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <ContentWithSidebar sidebar={<RightSidebar />}>
       <section className="panel">
@@ -46,15 +60,15 @@ export default function PointsPage() {
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <article className="rounded bg-gradient-to-r from-[#ec1459] to-[#be1244] p-4 text-center text-white">
+            <article className="nba-stat-card">
               <p className="text-sm">Average GD Pts</p>
               <p className="text-5xl font-semibold">{data.summary.average}</p>
             </article>
-            <article className="rounded bg-gradient-to-r from-[#ec1459] to-[#be1244] p-4 text-center text-white">
+            <article className="nba-stat-card">
               <p className="text-sm">Final GD Points</p>
               <p className="text-5xl font-semibold">{data.summary.final}</p>
             </article>
-            <article className="rounded bg-gradient-to-r from-[#ec1459] to-[#be1244] p-4 text-center text-white">
+            <article className="nba-stat-card">
               <p className="text-sm">Top GD Points</p>
               <p className="text-5xl font-semibold">{data.summary.top}</p>
             </article>

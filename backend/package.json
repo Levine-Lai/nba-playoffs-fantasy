@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "import:data": "node src/importBootstrapData.js",
+    "rule:set": "node src/setRule.js",
+    "db:users": "node src/listUsers.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

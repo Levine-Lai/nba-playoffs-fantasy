@@ -1,9 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { SyntheticEvent, useEffect, useMemo, useState } from "react";
 import { getSchedule } from "@/lib/api";
-import { ScheduleResponse } from "@/lib/types";
+import { ScheduleResponse, TeamAsset } from "@/lib/types";
+
+function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
+  const image = event.currentTarget;
+  if (fallback && image.dataset.fallbackApplied !== "true") {
+    image.dataset.fallbackApplied = "true";
+    image.src = fallback;
+    return;
+  }
+
+  image.hidden = true;
+}
+
+function TeamLabel({ team, align = "left" }: { team?: TeamAsset; align?: "left" | "right" }) {
+  const logoUrl = team?.logoUrl ?? team?.logoFallbackUrl;
+
+  return (
+    <div className={`flex items-center gap-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
+      {align === "left" && logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          className="h-10 w-10 object-contain"
+          onError={(event) => onLogoError(event, team?.logoFallbackUrl)}
+        />
+      ) : null}
+      <p className={`text-base font-semibold ${align === "right" ? "text-right" : "text-left"}`}>{team?.name ?? "TBD"}</p>
+      {align === "right" && logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          className="h-10 w-10 object-contain"
+          onError={(event) => onLogoError(event, team?.logoFallbackUrl)}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 export default function SchedulePage() {
   const [data, setData] = useState<ScheduleResponse | null>(null);
@@ -40,7 +77,7 @@ export default function SchedulePage() {
         <div className="panel-head">Access Required</div>
         <div className="panel-body space-y-3 text-sm text-slate-700">
           <p>{error ?? "Please log in first."}</p>
-          <Link href="/" className="inline-flex rounded bg-brand-blue px-4 py-2 font-semibold text-white">
+          <Link href="/" className="nba-button-blue">
             Back To Login
           </Link>
         </div>
@@ -52,32 +89,32 @@ export default function SchedulePage() {
     <div className="panel">
       <div className="panel-head">Schedule</div>
       <div className="panel-body space-y-4">
-        <div className="grid items-center gap-3 rounded border border-slate-200 p-3 md:grid-cols-[200px_1fr_200px]">
-          <button className="rounded bg-brand-blue px-3 py-2 text-white">Previous</button>
+        <div className="grid items-center gap-3 rounded-sm border border-slate-200 p-3 md:grid-cols-[200px_1fr_200px]">
+          <button className="nba-button-blue">Previous</button>
           <div className="text-center">
             <p className="text-4xl font-semibold uppercase">{data.gameweek}</p>
             <p className="text-sm text-slate-500">{data.deadline}</p>
           </div>
-          <button className="rounded bg-brand-blue px-3 py-2 text-white">Next</button>
+          <button className="nba-button-blue">Next</button>
         </div>
 
         {grouped.map((group) => (
-          <section key={group.date} className="rounded border border-slate-200">
-            <h2 className="border-b border-slate-200 bg-slate-100 px-4 py-2 text-center text-sm font-semibold">
+          <section key={group.date} className="overflow-hidden rounded-sm border border-slate-200">
+            <h2 className="border-b border-slate-200 bg-[#eef1f3] px-4 py-2 text-center text-sm font-semibold">
               {new Date(group.date).toDateString()}
             </h2>
 
-            <div className="divide-y divide-slate-200">
+            <div className="divide-y divide-slate-200 bg-white">
               {group.games.map((game) => (
                 <article key={game.id} className="grid items-center gap-2 px-4 py-3 md:grid-cols-[1fr_120px_1fr]">
-                  <p className="text-base font-semibold">{game.home}</p>
+                  <TeamLabel team={game.homeTeam ?? { name: game.home }} />
                   <div className="text-center">
                     <div className="inline-block rounded border border-brand-blue px-3 py-1 text-2xl font-semibold text-brand-blue">
                       {game.tipoff}
                     </div>
                     <p className="text-xs text-slate-500">@</p>
                   </div>
-                  <p className="text-right text-base font-semibold">{game.away}</p>
+                  <TeamLabel team={game.awayTeam ?? { name: game.away }} align="right" />
                 </article>
               ))}
             </div>
@@ -87,4 +124,3 @@ export default function SchedulePage() {
     </div>
   );
 }
-

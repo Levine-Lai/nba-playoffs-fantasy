@@ -2,7 +2,10 @@ export type PlayerColor = "hot" | "cold";
 
 export interface Player {
   id: string;
+  code?: string | null;
   name: string;
+  teamId?: number | null;
+  teamCode?: string | null;
   team: string;
   position: string;
   salary: number;
@@ -10,6 +13,16 @@ export interface Player {
   upcoming?: string[];
   points?: number;
   color?: PlayerColor;
+  totalPoints?: number;
+  recentAverage?: number;
+  selectedByPercent?: number;
+  canSelect?: boolean;
+  canTransact?: boolean;
+  status?: string;
+  headshotUrl?: string | null;
+  headshotFallbackUrl?: string | null;
+  teamLogoUrl?: string | null;
+  teamLogoFallbackUrl?: string | null;
 }
 
 export interface Lineup {
@@ -26,6 +39,10 @@ export interface Gameweek {
 
 export interface LineupResponse {
   gameweek: Gameweek;
+  hasTeam: boolean;
+  budget: number;
+  rosterValue: number;
+  bank: number;
   lineup: Lineup;
   transactions: {
     freeLeft: number;
@@ -57,6 +74,8 @@ export interface ProfileResponse {
 }
 
 export interface PointsResponse {
+  visible?: boolean;
+  message?: string;
   gameweek: Gameweek;
   summary: {
     average: number;
@@ -68,12 +87,22 @@ export interface PointsResponse {
 
 export interface TransferMarketPlayer {
   id: string;
+  code?: string | null;
   name: string;
+  teamId?: number | null;
+  teamCode?: string | null;
   team: string;
   position: string;
   salary: number;
   recentAverage: number;
-  trend: "up" | "down";
+  trend?: "up" | "down";
+  points?: number;
+  totalPoints?: number;
+  selectedByPercent?: number;
+  headshotUrl?: string | null;
+  headshotFallbackUrl?: string | null;
+  teamLogoUrl?: string | null;
+  teamLogoFallbackUrl?: string | null;
 }
 
 export interface TransferHistoryItem {
@@ -86,6 +115,9 @@ export interface TransferHistoryItem {
 }
 
 export interface TransactionsResponse {
+  gameweek: Gameweek;
+  hasTeam: boolean;
+  transferMode: "LIMITLESS" | "LIMITED";
   freeTransfersLeft: number;
   usedThisWeek: number;
   weeklyFreeLimit: number;
@@ -115,7 +147,16 @@ export interface ScheduleGame {
   tipoff: string;
   home: string;
   away: string;
+  homeTeam?: TeamAsset;
+  awayTeam?: TeamAsset;
   status: "upcoming" | "live" | "final";
+}
+
+export interface TeamAsset {
+  name: string;
+  code?: string | null;
+  logoUrl?: string | null;
+  logoFallbackUrl?: string | null;
 }
 
 export interface ScheduleResponse {
@@ -147,5 +188,29 @@ export interface AuthUser {
   account: string;
   gameId: string;
   displayName: string;
+}
+
+export interface PlayerDataMeta {
+  players: number;
+  teams: Array<{
+    id: number;
+    code?: number | null;
+    name: string;
+    shortName: string;
+  }>;
+  elementTypes: Array<{
+    id: number;
+    singularName: string;
+    shortName: string;
+    squadSelect: number;
+  }>;
+  firstDeadline: string | null;
+  weeklyFreeTransfers: number;
+  initialBudget: number;
+}
+
+export interface PlayerSearchResponse {
+  players: Player[];
+  meta: PlayerDataMeta;
 }
 

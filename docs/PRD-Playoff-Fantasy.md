@@ -3,8 +3,8 @@
 ## Version
 | Field | Value |
 |---|---|
-| Document Version | v0.1 |
-| Date | 2026-04-09 |
+| Document Version | v0.2 |
+| Date | 2026-04-10 |
 | Status | Review-ready |
 
 ## 1. Overview
@@ -12,7 +12,7 @@
 Current fantasy gameplay ends with regular season. Users want a playoff mode to keep competing with friends.
 
 ### 1.2 Product Summary
-Users set a 10-player squad before playoff rounds, get weekly free transfers, earn points from real player performances, and compete in league rankings.
+Users set a 10-player squad before playoff rounds, get weekly free transfers, earn points from real player performances, and compete in league rankings. MVP uses the NBA Fantasy bootstrap API as the initial player database source.
 
 ### 1.3 Goals
 - Business goal: retain engagement during playoff period.
@@ -52,27 +52,42 @@ D --> B
 
 ### 2.3 Global Rules (MVP)
 - Roster size fixed to 10 players.
+- Initial roster must contain exactly 5 Back Court (`BC`) and 5 Front Court (`FC`) players.
+- Initial roster budget defaults to 100.
+- New accounts start with an empty roster and must create a team before editing lineup, viewing points, or making transfers.
 - 5 starters count toward daily score.
 - Captain receives 1.5x score multiplier.
 - Weekly free transfer quota defaults to 2. [Assumption]
+- Transfers are unlimited before the configured first deadline.
+- Points are hidden before the configured first deadline.
 
 ## 3. Functional Requirements
 ### 3.1 Home
-- Login with email/password.
-- Return token and user profile (mock in MVP).
-- Show error when required fields are missing.
+- Register with account, game ID, password, and confirm password.
+- Login with account and password.
+- Return token and user profile.
+- Show error when required fields are missing, passwords do not match, account exists, or game ID exists.
 
 ### 3.2 Edit line-up
+- If user has no roster, show the initial team builder.
+- Initial team builder shows selected squad on the left and player selection on the right.
+- Player selection supports search, position filter, team filter, max cost filter, and sorting.
+- Create Team validates 10 unique players, 5 `BC`, 5 `FC`, and total salary <= 100.
 - Show gameweek and deadline.
 - Show starters and bench cards.
 - Allow captain selection.
 - Save lineup.
 
 ### 3.3 Points
+- Before first deadline, show locked state and do not display daily points.
+- If user has no roster, ask user to create the initial team first.
 - Show average/final/top game-day points.
 - Show player point cards for starters and bench.
 
 ### 3.4 Transactions
+- If user has no roster, ask user to create the initial team first.
+- Before first deadline, show limitless transfer mode.
+- After first deadline, enforce weekly free transfer quota.
 - Show free transfers left and finance metrics.
 - Select outgoing and incoming players.
 - Confirm transfer and refresh lineup/market.
@@ -105,8 +120,9 @@ D --> B
 - Capture API-level error logs.
 
 ### 4.4 Integration
-- MVP uses in-memory state.
-- Future integration with real NBA data APIs. [To confirm]
+- MVP stores accounts, rosters, teams, players, and game rules in SQLite.
+- Player data is imported from `https://nbafantasy.nba.com/api/bootstrap-static/`.
+- Future work should add live playoff schedule and box-score scoring integration. [To confirm]
 
 ## 5. Data Dictionary
 ### 5.1 Player
@@ -115,21 +131,46 @@ D --> B
 | id | string | Yes | Player ID |
 | name | string | Yes | Player name |
 | team | string | Yes | Team code |
-| position | string | Yes | G/F/C |
+| position | string | Yes | BC/FC |
 | salary | number | Yes | Salary value |
 | points | number | No | Daily fantasy points |
+| canSelect | boolean | No | Whether player can be selected |
+| canTransact | boolean | No | Whether player can be transferred |
 
-### 5.2 Transaction
+### 5.2 User State
+| Field | Type | Required | Description |
+|---|---|---|---|
+| userId | number | Yes | Account owner |
+| starters | Player[] | Yes | Starting 5 |
+| bench | Player[] | Yes | Bench 5 |
+| captainId | string | No | Captain player ID |
+| rosterValue | number | Yes | Sum of roster salary |
+| bank | number | Yes | Budget remaining |
+| usedThisWeek | number | Yes | Transfers used in the current week |
+
+### 5.3 Transaction
 | Field | Type | Required | Description |
 |---|---|---|---|
 | outPlayerId | string | Yes | Outgoing player ID |
 | inPlayerId | string | Yes | Incoming player ID |
 | timestamp | ISO string | No | Transaction timestamp |
 
+### 5.4 Game Rules
+| Field | Type | Required | Description |
+|---|---|---|---|
+| initial_budget | number | Yes | Default 100 |
+| weekly_free_transfers | number | Yes | Default 2 |
+| first_deadline | ISO string | Yes | Unlock point scoring and switch transfers from limitless to limited |
+
 ## 6. Acceptance Criteria
 - Login endpoint returns token.
+- New account starts with empty roster.
+- Initial team builder can create a legal 10-player roster.
+- Illegal initial teams are rejected when over budget or not 5 `BC` + 5 `FC`.
 - Edit line-up can save captain choice.
+- Points are locked before first deadline.
 - Points page renders summary and player cards.
+- Transactions are limitless before first deadline and limited after first deadline.
 - Transactions can complete at least one transfer and show history.
 - Leagues/Schedule/Help pages render expected sections.
 - Frontend `npx tsc --noEmit` passes.
@@ -140,4 +181,5 @@ D --> B
 2. Should over-limit transfers apply score penalty (for example -4)?
 3. Should bench auto-substitute before tipoff lock?
 4. Is league admin flow required in MVP?
-5. Which real data source is preferred for production?
+5. Which live box-score source is preferred for production scoring?
+6. Should first playoff deadline be set manually by league admin or inferred from schedule import?

@@ -15,6 +15,17 @@ A playoff-focused NBA fantasy game prototype with initial frontend and backend s
   - Login with `account` + `password`
   - Token-based session
   - Each account has an independent lineup and transfer history
+- NBA Fantasy bootstrap import:
+  - Imports teams, player positions, salary, selected %, availability, total/event points
+  - Stores game rules in SQLite (`initial_budget`, `first_deadline`, `weekly_free_transfers`)
+- Initial team builder:
+  - New accounts start with an empty roster and 100 budget
+  - Pick exactly 10 players: 5 `BC` + 5 `FC`
+  - Create Team saves starters, bench, captain, roster value, and bank
+- Rule-based gameplay:
+  - Points page stays locked before `first_deadline`
+  - Transactions are limitless before `first_deadline`
+  - After `first_deadline`, weekly free transfers default to 2
 
 ## Tech Stack
 - Frontend: Next.js 14, React, Tailwind CSS, TypeScript
@@ -28,7 +39,9 @@ playoffs/
     src/
       db.js
       gameTemplate.js
+      importBootstrapData.js
       server.js
+      setRule.js
     data/
       playoff-fantasy.db
   frontend/
@@ -58,7 +71,23 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api
 
 You can copy `frontend/.env.local.example`.
 
-### 3. Run in development
+### 3. Import NBA Fantasy player data
+```bash
+npm run import:data
+```
+
+This pulls from:
+```txt
+https://nbafantasy.nba.com/api/bootstrap-static/
+```
+
+The import creates/updates:
+- `teams`
+- `element_types`
+- `players`
+- `game_rules`
+
+### 4. Run in development
 ```bash
 npm run dev
 ```
@@ -78,6 +107,9 @@ npm run dev:frontend
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
 - `GET /api/profile`
+- `GET /api/meta/player-data`
+- `GET /api/players`
+- `POST /api/team/create`
 - `GET /api/lineup`
 - `PUT /api/lineup`
 - `GET /api/points/today`
@@ -94,19 +126,71 @@ npm run dev:frontend
    - account (for login)
    - game ID (display name in game)
    - password + confirm password
-3. After auto-login, go to `Edit line-up` / `Transactions` to manage your own team.
-4. Create a second account and verify state isolation (different lineup/transfer history).
+3. After auto-login, go to `Edit line-up`.
+4. If the roster is empty, pick 10 players in the initial team builder:
+   - 5 `BC`
+   - 5 `FC`
+   - total salary <= 100
+5. Click `Create Team`, then use `Edit line-up` and `Transactions` normally.
+6. Create a second account and verify state isolation (different lineup/transfer history).
+
+## Database Editing
+SQLite file:
+```txt
+backend/data/playoff-fantasy.db
+```
+
+List current game rules:
+```bash
+npm run rule:set
+```
+
+Change the first deadline:
+```bash
+npm run rule:set -- first_deadline 2026-04-18T23:00:00Z
+```
+
+Change weekly free transfers:
+```bash
+npm run rule:set -- weekly_free_transfers 2
+```
+
+Change initial budget:
+```bash
+npm run rule:set -- initial_budget 100
+```
+
+Re-import player data from the NBA Fantasy API:
+```bash
+npm run import:data
+```
+
+By default, re-import preserves rules you already changed. To force rule values during import:
+```powershell
+$env:PLAYOFF_FIRST_DEADLINE="2026-04-18T23:00:00Z"; npm run import:data
+$env:PLAYOFF_INITIAL_BUDGET="100"; npm run import:data
+$env:PLAYOFF_WEEKLY_FREE_TRANSFERS="2"; npm run import:data
+```
+
+For manual edits, you can open the SQLite DB in a GUI like DB Browser for SQLite. The most useful tables are:
+- `users`: login account and game ID
+- `user_states`: each user's roster, bank, transfer history
+- `players`: imported player pool
+- `teams`: imported NBA teams
+- `element_types`: `BC` / `FC` roster position config
+- `game_rules`: budget, deadline, free-transfer settings
 
 ## Validation Completed
 - Frontend type-check: `npx tsc --noEmit`
 - Frontend production build: `npm run build` (in `frontend`)
 - Backend syntax check: `node --check backend/src/server.js`
 - Backend runtime health: `/api/health` returns `ok`
+- NBA Fantasy bootstrap import: 665 players imported locally
 
 ## Current Limitations
-- NBA player/schedule data is still mock content.
+- Player data comes from NBA Fantasy bootstrap, but live playoff box-score scoring is not wired yet.
+- Schedule data is still mock content.
 - No password reset/email verification.
-- No real NBA data provider integration yet.
 - Session token is intentionally simple for private-game usage.
 
 ## Suggested Next Steps

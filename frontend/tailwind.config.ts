@@ -6,25 +6,29 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          blue: "#1f4ea1",
-          darkBlue: "#183c7e",
-          yellow: "#f4d23c",
-          pink: "#e5165a",
-          steel: "#b9c0c7"
+          blue: "#2a63d2",
+          darkBlue: "#1d428a",
+          yellow: "#ffdb4d",
+          yellowLight: "#ffea8a",
+          pink: "#c8102e",
+          magenta: "#e7358d",
+          steel: "#c4ced4"
         },
         surface: {
-          base: "#e8eaed",
-          card: "#f3f4f6",
-          line: "#d3d7dc"
+          base: "#eef0f2",
+          card: "#fafafa",
+          line: "#d8d8d8",
+          header: "#c4ced4"
         },
         txt: {
-          strong: "#0f172a",
-          mid: "#334155",
+          strong: "#262626",
+          mid: "#333d47",
           light: "#6b7280"
         }
       },
       boxShadow: {
-        panel: "0 1px 4px rgba(15, 23, 42, 0.12)"
+        panel: "1px 2px 10px 2px rgba(0, 0, 0, 0.10)",
+        card: "0 7px 18px rgba(29, 66, 138, 0.16)"
       }
     }
   },
@@ -32,4 +36,3 @@ const config: Config = {
 };
 
 export default config;
-

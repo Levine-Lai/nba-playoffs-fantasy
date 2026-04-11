@@ -107,13 +107,13 @@ export default function DesignDocPanel({ open, onOpenChange, width = 420 }: Desi
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        className="fixed bottom-6 right-6 z-40 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg"
+        className="fixed bottom-6 right-6 z-40 rounded-full bg-brand-darkBlue px-4 py-2 text-sm font-semibold text-white shadow-lg"
       >
         Design Docs {designDocs.length}
       </button>
 
       <aside
-        className="fixed right-0 top-[84px] z-30 h-[calc(100vh-84px)] border-l border-slate-300 bg-white shadow-panel transition-transform duration-300"
+        className="fixed right-0 top-[150px] z-30 h-[calc(100vh-150px)] border-l border-slate-300 bg-white shadow-panel transition-transform duration-300"
         style={{ width, transform: open ? "translateX(0)" : `translateX(${width}px)` }}
       >
         <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
