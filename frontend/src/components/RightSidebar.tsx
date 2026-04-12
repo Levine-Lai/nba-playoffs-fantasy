@@ -54,37 +54,32 @@ export default function RightSidebar() {
         </div>
       </section>
 
-      <section className="sidebar-card">
-        <h4 className="sidebar-card__head">Fan League</h4>
-        <div className="grid place-items-center px-4 py-5 text-center">
-          <div className="grid h-28 w-28 place-items-center rounded-full bg-black text-sm font-bold uppercase leading-tight tracking-[0.2em] text-white shadow-card">
-            {data.profile.fanLeague || "Fan League"}
+      {data.profile.fanLeague ? (
+        <section className="sidebar-card">
+          <h4 className="sidebar-card__head">Fan League</h4>
+          <div className="grid place-items-center px-4 py-5 text-center">
+            <div className="grid h-28 w-28 place-items-center rounded-full bg-black text-sm font-bold uppercase leading-tight tracking-[0.2em] text-white shadow-card">
+              {data.profile.fanLeague}
+            </div>
+            <p className="mt-4 text-sm font-semibold text-brand-darkBlue">View {data.profile.fanLeague} Fan League &gt;</p>
           </div>
-          <p className="mt-4 text-sm font-semibold text-brand-darkBlue">View {data.profile.fanLeague} Fan League &gt;</p>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="sidebar-card">
-        <h4 className="sidebar-card__head">Leagues</h4>
-        <div className="bg-[#eef1f3] px-4 py-1 text-xs font-bold uppercase text-slate-700">Global Leagues</div>
-        <div>
-          {data.leagues.global.slice(0, 5).map((item) => (
-            <div key={item.id} className="sidebar-row">
-              <span className="font-semibold text-brand-darkBlue">{item.name}</span>
-              <span className="font-semibold">#{item.rank}</span>
-            </div>
-          ))}
-        </div>
-        <div className="bg-[#eef1f3] px-4 py-1 text-xs font-bold uppercase text-slate-700">Classic Leagues</div>
-        <div>
-          {data.leagues.privateClassic.slice(0, 5).map((item) => (
-            <div key={item.id} className="sidebar-row">
-              <span className="font-semibold text-brand-darkBlue">{item.name}</span>
-              <span className="font-semibold">#{item.rank}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+      {data.leagues.privateClassic.length ? (
+        <section className="sidebar-card">
+          <h4 className="sidebar-card__head">Leagues</h4>
+          <div className="bg-[#eef1f3] px-4 py-1 text-xs font-bold uppercase text-slate-700">Private Classic</div>
+          <div>
+            {data.leagues.privateClassic.slice(0, 5).map((item) => (
+              <div key={item.id} className="sidebar-row">
+                <span className="font-semibold text-brand-darkBlue">{item.name}</span>
+                <span className="font-semibold">#{item.rank}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="sidebar-card">
         <h4 className="sidebar-card__head">Transactions And Finance</h4>

@@ -4,7 +4,6 @@ import bcrypt from "bcryptjs";
 import {
   registerUserTx,
   getUserByAccount,
-  getUserByGameId,
   createSession,
   deleteSession,
   getAuthenticatedUserByToken,
@@ -14,14 +13,16 @@ import {
   getPlayersByIds,
   searchPlayerPool,
   getPlayerDataSummary,
-  getRuleValue
+  getRuleValue,
+  listPrivateLeaguesForUser,
+  createPrivateLeague,
+  joinPrivateLeague
 } from "./db.js";
 import {
   GAMEWEEK,
   POINTS_BASELINE,
   SCHEDULE,
-  HELP_RULES,
-  buildLeaguesForUser
+  HELP_RULES
 } from "./gameTemplate.js";
 
 const app = express();
@@ -189,6 +190,12 @@ function calcFinalPoints(state) {
   return Number((startersTotal + captainBonus).toFixed(1));
 }
 
+function isValidStarterMix(starters) {
+  const bcCount = starters.filter((player) => player.position === "BC").length;
+  const fcCount = starters.filter((player) => player.position === "FC").length;
+  return starters.length === 5 && ((bcCount === 3 && fcCount === 2) || (bcCount === 2 && fcCount === 3));
+}
+
 function withVisiblePoints(players) {
   if (!isBeforeFirstDeadline()) {
     return players;
@@ -207,6 +214,7 @@ function getLineupPayload(state) {
     budget: getInitialBudget(),
     rosterValue: state.rosterValue,
     bank: state.bank,
+    captainDecisionLocked: false,
     lineup: {
       starters: withVisiblePoints(state.starters),
       bench: withVisiblePoints(state.bench),
@@ -250,13 +258,15 @@ function getDisplayProfileState(state) {
       overallPoints: 0,
       overallRank: 0,
       totalPlayers: 0,
-      gamedayPoints: 0
+      gamedayPoints: 0,
+      fanLeague: ""
     };
   }
 
   return {
     ...state,
-    gamedayPoints: calcFinalPoints(state)
+    gamedayPoints: calcFinalPoints(state),
+    fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
   };
 }
 
@@ -384,7 +394,8 @@ function createInitialTeamForState(state, playerIds) {
 
   state.starters = [...bc.slice(0, 2), ...fc.slice(0, 3)];
   state.bench = [...bc.slice(2), ...fc.slice(3)];
-  state.captainId = state.starters[0]?.id ?? "";
+  state.captainId = "";
+  state.captainDecisionLocked = false;
   state.rosterValue = rosterValue;
   state.bank = Number((budget - rosterValue).toFixed(1));
   state.weeklyFreeLimit = getWeeklyFreeTransfers();
@@ -407,7 +418,10 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.post("/api/auth/register", (req, res) => {
-  const { account, gameId, password, confirmPassword } = req.body ?? {};
+  const account = String(req.body?.account ?? "").trim();
+  const gameId = String(req.body?.gameId ?? "").trim();
+  const password = String(req.body?.password ?? "");
+  const confirmPassword = String(req.body?.confirmPassword ?? "");
 
   if (!account || !gameId || !password || !confirmPassword) {
     res.status(400).json({ message: "account, gameId, password, and confirmPassword are required." });
@@ -429,11 +443,6 @@ app.post("/api/auth/register", (req, res) => {
     return;
   }
 
-  if (getUserByGameId.get(gameId)) {
-    res.status(400).json({ message: "Game ID already exists." });
-    return;
-  }
-
   try {
     const passwordHash = bcrypt.hashSync(password, 10);
     const user = registerUserTx(account, gameId, passwordHash);
@@ -446,7 +455,8 @@ app.post("/api/auth/register", (req, res) => {
 });
 
 app.post("/api/auth/login", (req, res) => {
-  const { account, password } = req.body ?? {};
+  const account = String(req.body?.account ?? "").trim();
+  const password = String(req.body?.password ?? "");
 
   if (!account || !password) {
     res.status(400).json({ message: "account and password are required." });
@@ -530,7 +540,7 @@ app.get("/api/profile", authRequired, (req, res) => {
     saveStateForUser(req.authUser.id, state);
   }
 
-  const leagues = buildLeaguesForUser(displayState, req.authUser.gameId);
+  const privateClassic = listPrivateLeaguesForUser(req.authUser.id);
 
   res.json({
     profile: {
@@ -549,8 +559,8 @@ app.get("/api/profile", authRequired, (req, res) => {
       bank: state.bank
     },
     leagues: {
-      global: leagues.global,
-      privateClassic: leagues.privateClassic
+      global: [],
+      privateClassic
     }
   });
 });
@@ -572,31 +582,42 @@ app.put("/api/lineup", authRequired, (req, res) => {
 
   const next = req.body ?? {};
 
-  if (next.captainId) {
-    const allPlayers = [...state.starters, ...state.bench];
-    const captainExists = allPlayers.some((player) => player.id === next.captainId);
-    if (!captainExists) {
-      res.status(400).json({ message: "Captain must be selected from your roster." });
-      return;
-    }
-    state.captainId = next.captainId;
+  const proposedStarters = Array.isArray(next.starters) ? next.starters : state.starters;
+  const proposedBench = Array.isArray(next.bench) ? next.bench : state.bench;
+
+  if (proposedStarters.length !== 5) {
+    res.status(400).json({ message: "starters must contain 5 players." });
+    return;
   }
 
-  if (Array.isArray(next.starters)) {
-    if (next.starters.length !== 5) {
-      res.status(400).json({ message: "starters must contain 5 players." });
-      return;
-    }
-    state.starters = next.starters;
+  if (proposedBench.length !== 5) {
+    res.status(400).json({ message: "bench must contain 5 players." });
+    return;
   }
 
-  if (Array.isArray(next.bench)) {
-    if (next.bench.length !== 5) {
-      res.status(400).json({ message: "bench must contain 5 players." });
-      return;
-    }
-    state.bench = next.bench;
+  if (!isValidStarterMix(proposedStarters)) {
+    res.status(400).json({ message: "Starting 5 must stay in a 3BC/2FC or 3FC/2BC shape." });
+    return;
   }
+
+  const currentIds = [...state.starters, ...state.bench].map((player) => player.id).sort();
+  const proposedIds = [...proposedStarters, ...proposedBench].map((player) => player.id).sort();
+  if (currentIds.join("|") !== proposedIds.join("|")) {
+    res.status(400).json({ message: "Line-up save can only reorder players already in your roster." });
+    return;
+  }
+
+  const proposedCaptainId = next.captainId ?? state.captainId;
+
+  if (proposedCaptainId && !proposedStarters.some((player) => player.id === proposedCaptainId)) {
+    res.status(400).json({ message: "Captain must be selected from your Starting 5." });
+    return;
+  }
+
+  state.starters = proposedStarters;
+  state.bench = proposedBench;
+  state.captainId = proposedCaptainId ?? "";
+  state.captainDecisionLocked = false;
 
   saveStateForUser(req.authUser.id, state);
   res.json(getLineupPayload(state));
@@ -619,9 +640,9 @@ app.get("/api/points/today", authRequired, (req, res) => {
       message: "Points will unlock after the first deadline.",
       gameweek: getGameweekPayload(),
       summary: {
-        average: POINTS_BASELINE.average,
+        average: 0,
         final: 0,
-        top: POINTS_BASELINE.top
+        top: 0
       },
       lineup: {
         starters: withVisiblePoints(state.starters),
@@ -690,7 +711,85 @@ app.get("/api/leagues", authRequired, (req, res) => {
     return;
   }
 
-  res.json(buildLeaguesForUser(state, req.authUser.gameId));
+  res.json({
+    privateClassic: listPrivateLeaguesForUser(req.authUser.id),
+    publicClassic: [],
+    global: []
+  });
+});
+
+app.get("/api/leagues/:leagueId", authRequired, (req, res) => {
+  const state = safeLoadState(req.authUser.id, res);
+  if (!state) {
+    return;
+  }
+
+  const leagues = listPrivateLeaguesForUser(req.authUser.id);
+  const league = leagues.find((item) => item.id === String(req.params.leagueId));
+
+  if (!league) {
+    res.status(404).json({ message: "League not found." });
+    return;
+  }
+
+  res.json({ league });
+});
+
+app.post("/api/leagues/create", authRequired, (req, res) => {
+  const name = String(req.body?.name ?? "").trim();
+
+  if (!name) {
+    res.status(400).json({ message: "League name is required." });
+    return;
+  }
+
+  if (name.length > 30) {
+    res.status(400).json({ message: "League name must be 30 characters or fewer." });
+    return;
+  }
+
+  try {
+    const league = createPrivateLeague(req.authUser.id, name);
+    const leagues = {
+      privateClassic: listPrivateLeaguesForUser(req.authUser.id),
+      publicClassic: [],
+      global: []
+    };
+
+    res.status(201).json({
+      league: {
+        id: String(league.id),
+        name: league.name,
+        code: league.code
+      },
+      leagues
+    });
+  } catch (error) {
+    res.status(500).json({ message: error instanceof Error ? error.message : "Failed to create league." });
+  }
+});
+
+app.post("/api/leagues/join", authRequired, (req, res) => {
+  const code = String(req.body?.code ?? "").trim().toUpperCase();
+  const result = joinPrivateLeague(req.authUser.id, code);
+
+  if (!result.ok) {
+    res.status(400).json({ message: result.error });
+    return;
+  }
+
+  res.status(201).json({
+    league: {
+      id: String(result.league.id),
+      name: result.league.name,
+      code: result.league.code
+    },
+    leagues: {
+      privateClassic: listPrivateLeaguesForUser(req.authUser.id),
+      publicClassic: [],
+      global: []
+    }
+  });
 });
 
 app.get("/api/schedule", authRequired, (_req, res) => {

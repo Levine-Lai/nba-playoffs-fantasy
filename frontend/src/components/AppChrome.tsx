@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SyntheticEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import DesignDocPanel from "@/components/DesignDocPanel";
 
 interface AppChromeProps {
@@ -21,23 +21,6 @@ const navItems = [
   { href: "/help", label: "Help" }
 ];
 
-const heroPlayers = [
-  { code: "203507", number: "34", className: "h-[116px] bg-[linear-gradient(180deg,#0b5b3a,#00471b)]" },
-  { code: "201939", number: "30", className: "z-[1] -ml-3 h-[132px] bg-[linear-gradient(180deg,#f2c35b,#1d428a)]" },
-  { code: "1630162", number: "5", className: "-ml-3 h-[120px] bg-[linear-gradient(180deg,#1d428a,#0c2340)]" }
-];
-
-function onHeroImageError(event: SyntheticEvent<HTMLImageElement>, code: string) {
-  const image = event.currentTarget;
-  if (image.dataset.fallbackApplied !== "true") {
-    image.dataset.fallbackApplied = "true";
-    image.src = `https://cdn.nba.com/headshots/nba/latest/520x380/${code}.png`;
-    return;
-  }
-
-  image.hidden = true;
-}
-
 export default function AppChrome({ children }: AppChromeProps) {
   const pathname = usePathname();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -50,9 +33,9 @@ export default function AppChrome({ children }: AppChromeProps) {
         <div className="h-[18px] bg-brand-pink" />
 
         <div className="nba-hero">
-          <div className="mx-auto flex min-h-[126px] w-full max-w-[1400px] items-end justify-between gap-4 px-4 pb-3 pt-4 sm:px-5 lg:min-h-[146px] lg:pb-4">
+          <div className="mx-auto flex min-h-[126px] w-full max-w-[1400px] items-center justify-between gap-4 px-4 pb-3 pt-4 sm:px-5 lg:min-h-[146px] lg:pb-4">
             <Link href="/" className="flex items-end gap-4" aria-label="NBA Fantasy home">
-              <div className="nba-logo-mark">NBA</div>
+              <img src="/LOGO.png" alt="NBA logo" className="h-[84px] w-auto object-contain sm:h-[100px] lg:h-[112px]" />
               <div className="pb-1">
                 <div className="nba-wordmark text-[3.4rem] sm:text-[4.7rem] lg:text-[5.5rem]">Fantasy</div>
                 <p className="-mt-1 text-[1.35rem] font-bold uppercase leading-none tracking-tight text-[#111] sm:text-[1.65rem]">
@@ -60,19 +43,6 @@ export default function AppChrome({ children }: AppChromeProps) {
                 </p>
               </div>
             </Link>
-
-            <div className="hidden h-[132px] items-end gap-0 md:flex" aria-hidden="true">
-              {heroPlayers.map((player) => (
-                <div key={player.code} className={`nba-hero-player ${player.className}`}>
-                  <img
-                    src={`/nba/headshots/${player.code}.png`}
-                    alt=""
-                    onError={(event) => onHeroImageError(event, player.code)}
-                  />
-                  <span>{player.number}</span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
 

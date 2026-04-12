@@ -192,18 +192,9 @@ export const POINTS_BASELINE = {
 };
 
 export const DEFAULT_LEAGUES = {
-  privateClassic: [
-    { id: "l1", name: "HopeLess NBA", rank: 9, lastRank: 9 },
-    { id: "l2", name: "2026 Playoff League", rank: 22, lastRank: 21 },
-    { id: "l3", name: "Karol's X Fantasy", rank: 19, lastRank: 18 }
-  ],
+  privateClassic: [],
   publicClassic: [],
-  global: [
-    { id: "gl1", name: "Toronto Raptors", rank: 11, lastRank: 11 },
-    { id: "gl2", name: "China", rank: 17, lastRank: 17 },
-    { id: "gl3", name: "Playoff Week 1 - Day 1", rank: 791, lastRank: 752 },
-    { id: "gl4", name: "Overall", rank: 814, lastRank: 775 }
-  ]
+  global: []
 };
 
 export const SCHEDULE = {
@@ -274,8 +265,9 @@ export function buildInitialUserState(gameId) {
     overallRank: 0,
     totalPlayers: 0,
     gamedayPoints: 0,
-    fanLeague: "Playoff Friends",
+    fanLeague: "",
     captainId: "",
+    captainDecisionLocked: false,
     starters: [],
     bench: [],
     market: [],
@@ -289,21 +281,5 @@ export function buildInitialUserState(gameId) {
 }
 
 export function buildLeaguesForUser(state, gameId) {
-  const leagues = clone(DEFAULT_LEAGUES);
-  const currentRank = state.overallRank > 0 ? state.overallRank : 0;
-  leagues.privateClassic = [
-    {
-      id: "user-private",
-      name: `${gameId} Private League`,
-      rank: currentRank,
-      lastRank: currentRank > 0 ? currentRank + 3 : 0
-    },
-    ...leagues.privateClassic
-  ];
-  leagues.global = leagues.global.map((item) =>
-    item.name === "Overall"
-      ? { ...item, rank: currentRank, lastRank: currentRank > 0 ? currentRank + 12 : 0 }
-      : item
-  );
-  return leagues;
+  return clone(DEFAULT_LEAGUES);
 }

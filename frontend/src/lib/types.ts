@@ -43,6 +43,7 @@ export interface LineupResponse {
   budget: number;
   rosterValue: number;
   bank: number;
+  captainDecisionLocked: boolean;
   lineup: Lineup;
   transactions: {
     freeLeft: number;
@@ -131,14 +132,41 @@ export interface TransactionsResponse {
 export interface LeagueEntry {
   id: string;
   name: string;
+  code?: string;
   rank: number;
   lastRank: number;
+  memberCount?: number;
+  isOwner?: boolean;
+  members?: LeagueMemberEntry[];
+}
+
+export interface LeagueMemberEntry {
+  userId: string;
+  gameId: string;
+  teamName: string;
+  managerName: string;
+  rank: number;
+  gamedayPoints: number;
+  totalPoints: number;
 }
 
 export interface LeaguesResponse {
   privateClassic: LeagueEntry[];
   publicClassic: LeagueEntry[];
   global: LeagueEntry[];
+}
+
+export interface LeagueMutationResponse {
+  league: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  leagues: LeaguesResponse;
+}
+
+export interface LeagueDetailResponse {
+  league: LeagueEntry;
 }
 
 export interface ScheduleGame {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, FormEvent, SyntheticEvent, useEffect, useMemo, useState } from "react";
+import { SyntheticEvent, useEffect, useMemo, useState } from "react";
 import { createInitialTeam, getPlayers } from "@/lib/api";
 import { LineupResponse, Player, PlayerDataMeta } from "@/lib/types";
 
@@ -8,6 +8,8 @@ interface InitialTeamBuilderProps {
   initialBudget: number;
   onCreated: (lineup: LineupResponse) => void;
 }
+
+type SortMode = "salary" | "totalPoints" | "recentAverage";
 
 function onImageError(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
   const image = event.currentTarget;
@@ -20,14 +22,31 @@ function onImageError(event: SyntheticEvent<HTMLImageElement>, fallback?: string
   image.hidden = true;
 }
 
+function parseView(view: string) {
+  if (!view || view === "all") {
+    return { position: undefined, teamId: undefined };
+  }
+
+  if (view.startsWith("position:")) {
+    return { position: view.replace("position:", ""), teamId: undefined };
+  }
+
+  if (view.startsWith("team:")) {
+    return { position: undefined, teamId: view.replace("team:", "") };
+  }
+
+  return { position: undefined, teamId: undefined };
+}
+
+const MAX_COST_OPTIONS = Array.from({ length: 38 }, (_, index) => (23 - index * 0.5).toFixed(1));
+
 export default function InitialTeamBuilder({ initialBudget, onCreated }: InitialTeamBuilderProps) {
   const [selected, setSelected] = useState<Player[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [meta, setMeta] = useState<PlayerDataMeta | null>(null);
   const [search, setSearch] = useState("");
-  const [position, setPosition] = useState("");
-  const [teamId, setTeamId] = useState("");
-  const [sort, setSort] = useState<"salary" | "totalPoints" | "recentAverage">("salary");
+  const [view, setView] = useState("all");
+  const [sort, setSort] = useState<SortMode>("salary");
   const [maxSalary, setMaxSalary] = useState("");
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -40,27 +59,26 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
   const fcCount = selected.filter((player) => player.position === "FC").length;
   const rosterSlots = useMemo(() => Array.from({ length: 10 }, (_, index) => selected[index] ?? null), [selected]);
   const groupedPlayers = useMemo(() => {
-    if (position) {
-      return [{ label: position === "BC" ? "Back Court" : "Front Court", tone: position, players }];
-    }
-
     return [
       { label: "Front Court", tone: "FC", players: players.filter((player) => player.position === "FC") },
       { label: "Back Court", tone: "BC", players: players.filter((player) => player.position === "BC") }
     ].filter((group) => group.players.length);
-  }, [players, position]);
+  }, [players]);
 
-  async function loadPlayers(next?: { search?: string; position?: string; teamId?: string; maxSalary?: string }) {
+  const displayedPlayerCount = groupedPlayers.reduce((sum, group) => sum + group.players.length, 0);
+
+  async function loadPlayers() {
     setLoading(true);
     setMessage(null);
     try {
+      const parsedView = parseView(view);
       const response = await getPlayers({
-        search: next?.search ?? search,
-        position: next?.position ?? position,
-        teamId: next?.teamId ?? teamId,
-        maxSalary: next?.maxSalary ?? maxSalary,
+        search: search || undefined,
+        position: parsedView.position || undefined,
+        teamId: parsedView.teamId || undefined,
+        maxSalary: maxSalary || undefined,
         sort,
-        limit: 80
+        limit: 120
       });
       setPlayers(response.players);
       setMeta(response.meta);
@@ -72,9 +90,9 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
   }
 
   useEffect(() => {
-    loadPlayers();
+    void loadPlayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [view, sort, search, maxSalary]);
 
   function addPlayer(player: Player) {
     setMessage(null);
@@ -108,11 +126,6 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
 
   function removePlayer(playerId: string) {
     setSelected((prev) => prev.filter((player) => player.id !== playerId));
-  }
-
-  async function onSearch(event: FormEvent) {
-    event.preventDefault();
-    await loadPlayers();
   }
 
   async function onCreateTeam() {
@@ -195,93 +208,108 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
 
           <section className="sidebar-card">
             <div className="sidebar-card__head">Player Selection</div>
-            <form className="grid gap-2 border-b border-slate-200 bg-[#fafafa] p-3 md:grid-cols-2 xl:grid-cols-[140px_150px_1fr_145px_120px_auto]" onSubmit={onSearch}>
-              <select
-                value={position}
-                onChange={(event) => setPosition(event.target.value)}
-                className="rounded-sm border px-3 py-2 text-sm"
-                aria-label="View"
-              >
-                <option value="">All players</option>
-                <option value="BC">Back Court</option>
-                <option value="FC">Front Court</option>
-              </select>
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value as "salary" | "totalPoints" | "recentAverage")}
-                className="rounded-sm border px-3 py-2 text-sm"
-                aria-label="Sorted by"
-              >
-                <option value="salary">Salary</option>
-                <option value="totalPoints">Total points</option>
-                <option value="recentAverage">Average points</option>
-              </select>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="rounded-sm border px-3 py-2 text-sm"
-                placeholder="Search player"
-              />
-              <select
-                value={teamId}
-                onChange={(event) => setTeamId(event.target.value)}
-                className="rounded-sm border px-3 py-2 text-sm"
-              >
-                <option value="">All teams</option>
-                {meta?.teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={maxSalary}
-                onChange={(event) => setMaxSalary(event.target.value)}
-                className="rounded-sm border px-3 py-2 text-sm"
-                inputMode="decimal"
-                placeholder="Max cost"
-              />
-              <button type="submit" className="nba-button-blue min-h-0 px-4 py-2 text-sm">
-                {loading ? "Loading" : "Search"}
-              </button>
-            </form>
+            <div className="space-y-4 bg-white p-4">
+              <label className="block text-sm text-slate-700">
+                <span className="mb-2 block text-[1.05rem]">View</span>
+                <select value={view} onChange={(event) => setView(event.target.value)} className="w-full rounded-sm border px-4 py-3 text-[1.05rem]">
+                  <option value="all">All players</option>
+                  <option value="position:FC">Front Court</option>
+                  <option value="position:BC">Back Court</option>
+                  {meta?.teams
+                    .slice()
+                    .sort((left, right) => left.name.localeCompare(right.name))
+                    .map((team) => (
+                      <option key={team.id} value={`team:${team.id}`}>
+                        {team.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
 
-            <div className="max-h-[620px] overflow-auto">
-              <table className="table-shell">
-                <thead>
-                  <tr>
-                    <th>Player</th>
-                    <th>Team</th>
-                    <th>Status</th>
-                    <th>Cost</th>
-                    <th>Total</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedPlayers.length ? groupedPlayers.map((group) => (
-                    <Fragment key={group.label}>
-                      <tr>
-                        <td colSpan={6} className={group.tone === "FC" ? "selection-band-fc" : "selection-band-bc"}>
-                          {group.label}
-                        </td>
-                      </tr>
-                      {group.players.map((player) => (
-                        <tr key={player.id}>
-                          <td>
-                            <div className="flex items-center gap-2">
+              <label className="block text-sm text-slate-700">
+                <span className="mb-2 block text-[1.05rem]">Sorted by</span>
+                <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} className="w-full rounded-sm border px-4 py-3 text-[1.05rem]">
+                  <option value="salary">Salary</option>
+                  <option value="totalPoints">Total points</option>
+                  <option value="recentAverage">Average points</option>
+                </select>
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-2 block text-[1.05rem]">Search player list</span>
+                <div className="flex items-center overflow-hidden rounded-sm border bg-[#efefef]">
+                  <div className="grid h-12 w-12 place-items-center bg-brand-yellow text-xl font-bold text-black">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2" />
+                      <path d="M16 16L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="h-12 flex-1 border-0 bg-[#efefef] px-3 text-[1rem] outline-none"
+                    placeholder="Search player"
+                  />
+                </div>
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-2 block text-[1.05rem]">Max cost</span>
+                <select value={maxSalary} onChange={(event) => setMaxSalary(event.target.value)} className="w-full rounded-sm border px-4 py-3 text-[1.05rem]">
+                  <option value="">Any price</option>
+                  {MAX_COST_OPTIONS.map((price) => (
+                    <option key={price} value={price}>
+                      {price}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="text-center text-[1.05rem] font-semibold text-brand-darkBlue">
+                {loading ? "Loading players..." : `${displayedPlayerCount} players shown`}
+              </p>
+            </div>
+
+            <div className="builder-selection-list">
+              <div className="builder-selection-head">
+                <div>Player</div>
+                <div>Team</div>
+                <div>Cost</div>
+                <div />
+              </div>
+
+              {groupedPlayers.length ? (
+                groupedPlayers.map((group) => (
+                  <div key={group.label}>
+                    <div className={group.tone === "FC" ? "selection-band-fc px-4 py-4 text-[1rem]" : "selection-band-bc px-4 py-4 text-[1rem]"}>
+                      {group.label}
+                    </div>
+                    {group.players.map((player) => {
+                      const picked = selectedIds.has(player.id);
+                      const limitReached =
+                        selected.length >= 10 ||
+                        (player.position === "BC" && bcCount >= 5) ||
+                        (player.position === "FC" && fcCount >= 5) ||
+                        budgetLeft - Number(player.salary) < 0;
+                      const addDisabled = picked || limitReached;
+                      return (
+                        <div key={player.id} className="builder-selection-row">
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-sm bg-[#eef1f3]">
                               {player.headshotUrl || player.headshotFallbackUrl ? (
                                 <img
                                   src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
                                   alt=""
-                                  className="h-10 w-10 rounded-sm bg-[#eef1f3] object-cover object-top"
+                                  className="h-full w-full object-cover object-top"
                                   onError={(event) => onImageError(event, player.headshotFallbackUrl)}
                                 />
                               ) : null}
-                              <div>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
                                 <span className="font-semibold uppercase text-brand-darkBlue">{player.name}</span>
                                 <span
-                                  className={`ml-2 rounded-sm px-1.5 py-0.5 text-[0.7rem] font-bold ${
+                                  className={`rounded-sm px-1.5 py-0.5 text-[0.7rem] font-bold ${
                                     player.position === "FC"
                                       ? "bg-[rgba(200,16,46,0.12)] text-brand-pink"
                                       : "bg-[rgba(42,99,210,0.12)] text-brand-blue"
@@ -291,31 +319,27 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
                                 </span>
                               </div>
                             </div>
-                          </td>
-                          <td>{player.team}</td>
-                          <td>{player.status ?? "Available"}</td>
-                          <td className="font-semibold">{player.salary.toFixed(1)}</td>
-                          <td>{player.totalPoints ?? 0}</td>
-                          <td>
+                          </div>
+                          <div>{player.team}</div>
+                          <div className="font-semibold">{player.salary.toFixed(1)}</div>
+                          <div className="text-right">
                             <button
                               type="button"
                               onClick={() => addPlayer(player)}
-                              disabled={selectedIds.has(player.id)}
-                              className="nba-button-yellow min-h-0 px-3 py-1 text-xs disabled:opacity-40"
+                              disabled={addDisabled}
+                              className="nba-button-yellow min-h-0 px-4 py-2 text-sm disabled:opacity-40"
                             >
-                              {selectedIds.has(player.id) ? "Picked" : "Add"}
+                              {picked ? "Picked" : "Add"}
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </Fragment>
-                  )) : (
-                    <tr>
-                      <td colSpan={6} className="text-center text-slate-500">No players found.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-6 text-center text-sm text-slate-500">No players found.</div>
+              )}
             </div>
           </section>
         </div>

@@ -1,6 +1,8 @@
 import {
   AuthUser,
   HelpResponse,
+  LeagueDetailResponse,
+  LeagueMutationResponse,
   LeaguesResponse,
   LineupResponse,
   LoginResponse,
@@ -106,7 +108,7 @@ export function createInitialTeam(playerIds: string[]) {
   });
 }
 
-export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captainId?: string }) {
+export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captainId?: string; captainDecisionLocked?: boolean }) {
   return request<LineupResponse>("/lineup", {
     method: "PUT",
     body: JSON.stringify(lineup)
@@ -130,6 +132,24 @@ export function createTransfer(outPlayerId: string, inPlayerId: string) {
 
 export function getLeagues() {
   return request<LeaguesResponse>("/leagues");
+}
+
+export function getLeague(leagueId: string) {
+  return request<LeagueDetailResponse>(`/leagues/${leagueId}`);
+}
+
+export function createLeague(name: string) {
+  return request<LeagueMutationResponse>("/leagues/create", {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
+}
+
+export function joinLeague(code: string) {
+  return request<LeagueMutationResponse>("/leagues/join", {
+    method: "POST",
+    body: JSON.stringify({ code })
+  });
 }
 
 export function getSchedule() {

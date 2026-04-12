@@ -91,9 +91,7 @@ button:disabled {
 
   .nba-hero {
     overflow: hidden;
-    background:
-      radial-gradient(ellipse at 68% 40%, rgba(196, 206, 212, 0.34) 0 1px, transparent 1px 8px),
-      linear-gradient(100deg, #fff 0%, #fff 35%, #f5f7f9 58%, #fff 100%);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
   }
 
   .nba-wordmark {
@@ -489,6 +487,43 @@ button:disabled {
     line-height: 1;
   }
 
+  .builder-selection-list {
+    max-height: 720px;
+    overflow: auto;
+    background: #fff;
+  }
+
+  .builder-selection-head,
+  .builder-selection-row {
+    display: grid;
+    grid-template-columns: minmax(280px, 1.8fr) 110px 90px 100px;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .builder-selection-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: 1px solid var(--nba-line);
+    background: #fff;
+    color: #333d47;
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 0.95rem 1rem;
+  }
+
+  .builder-selection-row {
+    border-bottom: 1px solid var(--nba-line);
+    padding: 0.9rem 1rem;
+    font-size: 0.95rem;
+    background: #fff;
+  }
+
+  .builder-selection-row:hover {
+    background: #fafafa;
+  }
+
   .selection-band-fc {
     background: linear-gradient(90deg, var(--nba-red), var(--nba-pink)) !important;
     color: #fff;
@@ -508,6 +543,409 @@ button:disabled {
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
+
+  .court-shell {
+    background: #fff;
+    padding: 1rem;
+  }
+
+  .court-formation {
+    border: 1px solid var(--nba-line);
+    border-top: 0;
+    background: #fff;
+  }
+
+  .court-row {
+    display: flex;
+    justify-content: center;
+    gap: 2.4rem;
+    padding: 1.4rem 1rem;
+  }
+
+  .court-row--top {
+    background: #fff;
+  }
+
+  .court-row--bottom {
+    background: #fff;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .court-bench {
+    display: flex;
+    justify-content: center;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+  }
+
+  .court-slot {
+    display: grid;
+    place-items: center;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  }
+
+  .court-slot--highlighted {
+    background: rgba(255, 187, 130, 0.55);
+    box-shadow: inset 0 0 0 2px rgba(239, 194, 29, 0.9);
+  }
+
+  .court-slot--active {
+    background: rgba(255, 187, 130, 0.75);
+    box-shadow: inset 0 0 0 2px rgba(239, 194, 29, 0.9);
+  }
+
+  .court-card {
+    position: relative;
+    width: 176px;
+    overflow: hidden;
+    border: 1px solid #d7dde5;
+    border-bottom: 5px solid var(--nba-blue-dark);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 10px 22px rgba(29, 66, 138, 0.12);
+    color: #111;
+    text-align: left;
+  }
+
+  .court-card--fc {
+    border-bottom-color: var(--nba-pink);
+  }
+
+  .court-card--bc {
+    border-bottom-color: var(--nba-blue-dark);
+  }
+
+  .court-card--compact {
+    width: 150px;
+  }
+
+  .court-card--interactive {
+    cursor: pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  }
+
+  .court-card--interactive:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(29, 66, 138, 0.18);
+  }
+
+  .court-card--interactive:disabled {
+    cursor: not-allowed;
+  }
+
+  .court-card--dimmed {
+    opacity: 0.5;
+  }
+
+  .court-card--highlighted {
+    box-shadow: 0 0 0 3px rgba(255, 219, 77, 0.9), 0 14px 28px rgba(29, 66, 138, 0.16);
+  }
+
+  .court-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.4rem 0;
+  }
+
+  .court-card__info {
+    display: grid;
+    height: 20px;
+    width: 20px;
+    place-items: center;
+    border: 1px solid #111;
+    border-radius: 999px;
+    background: #fff;
+    color: #111;
+    font-family: Georgia, serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .court-card__captain {
+    display: grid;
+    height: 30px;
+    width: 30px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--nba-yellow);
+    color: #111;
+    font-family: var(--font-action);
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .court-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.2rem 0.55rem 0;
+  }
+
+  .court-card__logo {
+    height: 34px;
+    width: 34px;
+    object-fit: contain;
+  }
+
+  .court-card__logo[hidden] {
+    display: none;
+  }
+
+  .court-card__team {
+    margin-left: auto;
+    color: var(--nba-blue-dark);
+    font-family: var(--font-action);
+    font-size: 2rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .court-card--fc .court-card__team {
+    color: var(--nba-pink);
+  }
+
+  .court-card__photo {
+    position: relative;
+    height: 106px;
+    margin-top: 0.1rem;
+  }
+
+  .court-card__photo--portrait {
+    height: 170px;
+    margin-top: 0;
+  }
+
+  .court-card__headshot,
+  .court-card__fallback-logo {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 92px;
+    transform: translate(-50%, -50%);
+    object-fit: contain;
+  }
+
+  .court-card__headshot--portrait {
+    width: 136px;
+    top: calc(50% + 6px);
+  }
+
+  .court-card__headshot[hidden] {
+    display: none;
+  }
+
+  .court-card__name {
+    border-top: 4px solid var(--nba-blue-dark);
+    padding: 0.55rem 0.5rem 0.4rem;
+    color: #111;
+    font-family: var(--font-action);
+    font-size: 1.2rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .court-card--fc .court-card__name {
+    border-top-color: var(--nba-pink);
+  }
+
+  .court-card--compact .court-card__name {
+    min-height: 46px;
+  }
+
+  .court-card__schedule {
+    padding: 0 0.35rem 0.4rem;
+  }
+
+  .court-card__schedule-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    border-top: 1px solid var(--nba-line);
+    padding: 0.45rem 0.35rem;
+    font-size: 0.82rem;
+  }
+
+  .court-card__schedule-row--label {
+    justify-content: center;
+  }
+
+  .court-card__schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid var(--nba-line);
+  }
+
+  .court-card__schedule-grid span {
+    border-right: 1px solid var(--nba-line);
+    padding: 0.45rem 0.25rem;
+    font-size: 0.72rem;
+    text-align: center;
+  }
+
+  .court-card__schedule-grid span:last-child {
+    border-right: 0;
+  }
+
+  .court-card__schedule--portrait {
+    padding-bottom: 0;
+  }
+
+  .court-card__points-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.15rem;
+    border-top: 1px solid var(--nba-line);
+    padding: 0.45rem 0.55rem 0.5rem;
+    color: var(--nba-blue-dark);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .court-card__points-inline strong {
+    font-family: var(--font-action);
+    font-size: 1.15rem;
+    font-style: italic;
+    line-height: 1;
+  }
+
+  .court-card--fc .court-card__points-inline {
+    color: var(--nba-pink);
+  }
+
+  .captain-bar {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) minmax(220px, 320px) minmax(180px, 240px);
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--nba-blue), var(--nba-blue-dark));
+    color: #fff;
+    padding: 0.45rem;
+  }
+
+  .captain-bar__title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.8rem;
+    font-family: var(--font-action);
+    font-size: 1rem;
+    font-style: italic;
+    font-weight: 700;
+  }
+
+  .captain-bar__button {
+    border: 0;
+    border-radius: 4px;
+    background: var(--nba-yellow);
+    color: #111;
+    font-family: var(--font-action);
+    font-size: 1rem;
+    font-weight: 700;
+    min-height: 54px;
+  }
+
+  .captain-bar__button--active {
+    background: #ffe989;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45);
+  }
+
+  .captain-bar__button--save {
+    background: #fff;
+    color: var(--nba-blue-dark);
+  }
+
+  .lineup-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.42);
+  }
+
+  .lineup-modal {
+    width: min(100%, 640px);
+    overflow: hidden;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+  }
+
+  .lineup-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: linear-gradient(180deg, var(--nba-grey-blue), var(--nba-grey-light));
+    padding: 1rem 1.1rem;
+  }
+
+  .lineup-modal__title {
+    font-family: var(--font-action);
+    font-size: clamp(1.7rem, 3vw, 2.2rem);
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .lineup-modal__close {
+    display: grid;
+    height: 48px;
+    width: 48px;
+    place-items: center;
+    border: 0;
+    border-radius: 4px;
+    background: var(--nba-pink);
+    color: #fff;
+  }
+
+  .lineup-modal__body {
+    padding: 1.1rem;
+  }
+
+  .lineup-modal__actions {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .lineup-modal__action {
+    border-radius: 4px;
+    border: 2px solid var(--nba-blue);
+    background: #fff;
+    color: var(--nba-blue);
+    font-family: var(--font-action);
+    font-size: 1.05rem;
+    font-weight: 700;
+    min-height: 54px;
+  }
+
+  .lineup-modal__action--yellow {
+    border-color: rgba(239, 194, 29, 0.95);
+    background: #ffde58;
+    color: #111;
+  }
+
+  .lineup-save-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
 }
 
 @media (max-width: 640px) {
@@ -519,5 +957,30 @@ button:disabled {
   .nba-logo-mark {
     height: 72px;
     width: 44px;
+  }
+
+  .court-row {
+    gap: 0.8rem;
+    padding: 1rem 0.4rem;
+  }
+
+  .court-card {
+    width: 144px;
+  }
+
+  .court-card--compact {
+    width: 132px;
+  }
+
+  .captain-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1180px) {
+  .builder-selection-head,
+  .builder-selection-row {
+    grid-template-columns: minmax(220px, 1.6fr) 90px 70px 82px;
+    gap: 0.55rem;
   }
 }
