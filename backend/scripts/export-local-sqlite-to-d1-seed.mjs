@@ -98,16 +98,11 @@ const insertOrder = [
   "private_league_members"
 ];
 
-const statements = [
-  "PRAGMA foreign_keys = OFF;",
-  "BEGIN TRANSACTION;"
-];
+const statements = [];
 
 for (const tableName of deleteOrder) {
   statements.push(`DELETE FROM ${tableName};`);
 }
-
-statements.push("DELETE FROM sqlite_sequence WHERE name IN ('users', 'private_leagues');");
 
 for (const tableName of insertOrder) {
   const columns = tableColumns[tableName];
@@ -131,9 +126,6 @@ if (scheduleCache) {
     )
   );
 }
-
-statements.push("COMMIT;");
-statements.push("PRAGMA foreign_keys = ON;");
 
 const outputPath = writeSqlFile(outputRelativePath, statements);
 console.log(`Exported local SQLite data to ${outputPath}`);

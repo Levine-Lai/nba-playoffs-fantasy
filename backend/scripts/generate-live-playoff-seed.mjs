@@ -301,7 +301,6 @@ const boxscores = (
 
 const now = new Date().toISOString();
 const statements = [
-  "BEGIN TRANSACTION;",
   "DELETE FROM app_state WHERE key = 'live_schedule_cache';",
   "DELETE FROM game_rules WHERE key = 'first_deadline';"
 ];
@@ -324,8 +323,6 @@ if (!boxscores.length) {
       updated_at: now
     })
   );
-  statements.push("COMMIT;");
-
   const outputPath = writeSqlFile(outputRelativePath, statements);
   console.log("No playoff box scores available yet. Generated schedule-only seed.");
   console.log(`Seed file: ${outputPath}`);
@@ -541,8 +538,6 @@ statements.push(
     updated_at: now
   })
 );
-statements.push("COMMIT;");
-
 const outputPath = writeSqlFile(outputRelativePath, statements);
 console.log(`Generated live playoff seed SQL at ${outputPath}`);
 console.log(`Playoff games: ${playoffGames.length}, started games: ${startedPlayoffGames.length}, imported players: ${players.size}`);

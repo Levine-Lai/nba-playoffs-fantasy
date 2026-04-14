@@ -28,7 +28,6 @@ if (!response.ok) {
 const data = await response.json();
 const now = new Date().toISOString();
 const statements = [
-  "BEGIN TRANSACTION;",
   "DELETE FROM players;",
   "DELETE FROM element_types;",
   "DELETE FROM teams;",
@@ -158,8 +157,6 @@ statements.push(
     updated_at: now
   })
 );
-
-statements.push("COMMIT;");
 
 const outputPath = writeSqlFile(outputRelativePath, statements);
 console.log(`Generated bootstrap seed SQL at ${outputPath}`);

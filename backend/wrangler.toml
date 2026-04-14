@@ -10,6 +10,6 @@ LIVE_TIME_ZONE = "Asia/Shanghai"
 [[d1_databases]]
 binding = "PLAYOFF_FANTASY_DB"
 database_name = "playoff-fantasy-db"
-database_id = "00000000-0000-0000-0000-000000000000"
-preview_database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "b6478bcc-2db6-4e68-8023-ac1d56a9c1fa"
+preview_database_id = "b6478bcc-2db6-4e68-8023-ac1d56a9c1fa"
 migrations_dir = "migrations"
