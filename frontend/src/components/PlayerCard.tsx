@@ -34,6 +34,7 @@ export default function PlayerCard({ player, showPoints, captain }: PlayerCardPr
   const footerValue = showPoints ? String(player.points ?? 0) : player.salary.toFixed(1);
   const headshotUrl = player.headshotUrl ?? player.headshotFallbackUrl;
   const teamLogoUrl = player.teamLogoUrl ?? player.teamLogoFallbackUrl;
+  const nextOpponentLogoUrl = player.nextOpponentLogoUrl ?? player.nextOpponentLogoFallbackUrl;
 
   return (
     <article className={`player-card ${isHot ? "player-card--hot" : ""}`}>
@@ -70,7 +71,18 @@ export default function PlayerCard({ player, showPoints, captain }: PlayerCardPr
 
       {!showPoints ? (
         <div className="player-card__meta">
-          <span>Next {player.nextOpponent ?? "TBD"}</span>
+          <span className="inline-flex items-center gap-2">
+            <span>Next {player.nextOpponent ?? "TBD"}</span>
+            {nextOpponentLogoUrl ? (
+              <img
+                className="h-4 w-4 object-contain"
+                src={nextOpponentLogoUrl}
+                alt=""
+                aria-hidden="true"
+                onError={(event) => useFallbackImage(event, player.nextOpponentLogoFallbackUrl)}
+              />
+            ) : null}
+          </span>
           <span>{(player.upcoming ?? []).slice(0, 2).join(" / ") || "Upcoming"}</span>
         </div>
       ) : (

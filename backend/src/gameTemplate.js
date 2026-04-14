@@ -182,7 +182,7 @@ export const MARKET_TEMPLATE = [
 
 export const GAMEWEEK = {
   id: 1,
-  label: "PLAYOFF WEEK 1 - DAY 2",
+  label: "Gameweek1 Gameday1",
   deadline: "2026-04-10T06:30:00Z"
 };
 
@@ -198,7 +198,7 @@ export const DEFAULT_LEAGUES = {
 };
 
 export const SCHEDULE = {
-  gameweek: "PLAYOFF WEEK 1 - DAY 2",
+  gameweek: "Gameweek1 Gameday1",
   deadline: "Fri 10 Apr 06:30",
   games: [
     {

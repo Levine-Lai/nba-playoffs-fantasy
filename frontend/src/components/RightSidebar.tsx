@@ -9,9 +9,32 @@ export default function RightSidebar() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getProfile()
-      .then(setData)
-      .catch((err) => setError(err.message));
+    let active = true;
+
+    const load = () => {
+      getProfile()
+        .then((payload) => {
+          if (!active) {
+            return;
+          }
+          setData(payload);
+          setError(null);
+        })
+        .catch((err) => {
+          if (!active) {
+            return;
+          }
+          setError(err.message);
+        });
+    };
+
+    load();
+    const timer = window.setInterval(load, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   if (error) {

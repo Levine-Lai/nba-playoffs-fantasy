@@ -16,9 +16,32 @@ export default function PointsPage() {
   const starterBackCourt = data ? data.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);
 
   useEffect(() => {
-    getPointsToday()
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load points."));
+    let active = true;
+
+    const load = () => {
+      getPointsToday()
+        .then((payload) => {
+          if (!active) {
+            return;
+          }
+          setData(payload);
+          setError(null);
+        })
+        .catch((err) => {
+          if (!active) {
+            return;
+          }
+          setError(err instanceof Error ? err.message : "Failed to load points.");
+        });
+    };
+
+    load();
+    const timer = window.setInterval(load, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   if (!data && !error) {
@@ -48,6 +71,7 @@ export default function PointsPage() {
             <p className="text-sm text-slate-600">Daily points snapshot</p>
           </div>
 
+          {data.message ? <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">{data.message}</p> : null}
           {data.visible === false ? <p className="rounded bg-slate-100 p-3 text-sm text-slate-700">{data.message ?? "Points will unlock after the first deadline."}</p> : null}
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">

@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, "..", "data");
 const dbPath = path.join(dataDir, "playoff-fantasy.db");
+const scheduleCachePath = path.join(dataDir, "live-schedule-cache.json");
 
 fs.mkdirSync(dataDir, { recursive: true });
 
@@ -445,13 +446,60 @@ function getStateForUser(userId) {
   };
 }
 
-function normalizePlayerRow(row) {
+function loadScheduleCache() {
+  if (!fs.existsSync(scheduleCachePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(scheduleCachePath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function buildNextMatchupByTeam() {
+  const cache = loadScheduleCache();
+  const games = Array.isArray(cache?.games) ? cache.games : [];
+  const lookup = new Map();
+
+  games
+    .filter((game) => game?.status !== "final")
+    .slice()
+    .sort((left, right) => new Date(left.date ?? 0).getTime() - new Date(right.date ?? 0).getTime())
+    .forEach((game) => {
+      const homeTeam = game.homeTeam ?? null;
+      const awayTeam = game.awayTeam ?? null;
+
+      if (homeTeam?.code && awayTeam && !lookup.has(String(homeTeam.code))) {
+        lookup.set(String(homeTeam.code), {
+          opponent: awayTeam,
+          gamedayLabel: game.gamedayLabel ?? null,
+          tipoff: game.tipoff ?? null
+        });
+      }
+
+      if (awayTeam?.code && homeTeam && !lookup.has(String(awayTeam.code))) {
+        lookup.set(String(awayTeam.code), {
+          opponent: homeTeam,
+          gamedayLabel: game.gamedayLabel ?? null,
+          tipoff: game.tipoff ?? null
+        });
+      }
+    });
+
+  return lookup;
+}
+
+function normalizePlayerRow(row, nextMatchupByTeam = new Map()) {
   const playerCode = row.code ? String(row.code) : null;
   const teamCode = row.teamCode ? String(row.teamCode) : null;
   const totalPoints = Number((Number(row.totalPoints) / 10).toFixed(1));
   const points = Number((Number(row.points) / 10).toFixed(1));
   const recentAverage = Number((Number(row.recentAverage) / 10).toFixed(1));
   const color = row.position === "FC" ? "hot" : "cold";
+  const nextMatchup = teamCode ? nextMatchupByTeam.get(teamCode) ?? null : null;
+  const nextOpponent = nextMatchup?.opponent?.triCode || nextMatchup?.opponent?.name || "TBD";
 
   return {
     id: String(row.id),
@@ -474,8 +522,11 @@ function normalizePlayerRow(row) {
     headshotFallbackUrl: playerCode ? `https://cdn.nba.com/headshots/nba/latest/520x380/${playerCode}.png` : null,
     teamLogoUrl: teamCode ? `/nba/team-logos/${teamCode}.png` : null,
     teamLogoFallbackUrl: teamCode ? `https://cdn.nba.com/logos/nba/${teamCode}/global/L/logo.svg` : null,
-    nextOpponent: "TBD",
-    upcoming: ["TBD", "TBD"]
+    nextOpponent,
+    nextOpponentName: nextMatchup?.opponent?.name ?? null,
+    nextOpponentLogoUrl: nextMatchup?.opponent?.logoUrl ?? null,
+    nextOpponentLogoFallbackUrl: nextMatchup?.opponent?.logoFallbackUrl ?? null,
+    upcoming: nextMatchup ? [nextMatchup.gamedayLabel ?? "Upcoming", nextMatchup.tipoff ?? "-"] : ["TBD", "TBD"]
   };
 }
 
@@ -510,7 +561,8 @@ function getPlayersByIds(playerIds) {
     `)
     .all(...ids);
 
-  return rows.map(normalizePlayerRow);
+  const nextMatchupByTeam = buildNextMatchupByTeam();
+  return rows.map((row) => normalizePlayerRow(row, nextMatchupByTeam));
 }
 
 function searchPlayerPool(filters = {}) {
@@ -580,7 +632,8 @@ function searchPlayerPool(filters = {}) {
     `)
     .all(params);
 
-  return rows.map(normalizePlayerRow);
+  const nextMatchupByTeam = buildNextMatchupByTeam();
+  return rows.map((row) => normalizePlayerRow(row, nextMatchupByTeam));
 }
 
 function getPlayerDataSummary() {

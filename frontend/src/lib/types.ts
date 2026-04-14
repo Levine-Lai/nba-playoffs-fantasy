@@ -10,6 +10,9 @@ export interface Player {
   position: string;
   salary: number;
   nextOpponent?: string;
+  nextOpponentName?: string | null;
+  nextOpponentLogoUrl?: string | null;
+  nextOpponentLogoFallbackUrl?: string | null;
   upcoming?: string[];
   points?: number;
   color?: PlayerColor;
@@ -97,6 +100,10 @@ export interface TransferMarketPlayer {
   salary: number;
   recentAverage: number;
   trend?: "up" | "down";
+  nextOpponent?: string;
+  nextOpponentName?: string | null;
+  nextOpponentLogoUrl?: string | null;
+  nextOpponentLogoFallbackUrl?: string | null;
   points?: number;
   totalPoints?: number;
   selectedByPercent?: number;
@@ -173,16 +180,25 @@ export interface ScheduleGame {
   id: string;
   date: string;
   tipoff: string;
+  gamedayKey?: string;
+  gamedayLabel?: string;
+  gamedayDateLabel?: string;
+  gamedayIndex?: number;
   home: string;
   away: string;
   homeTeam?: TeamAsset;
   awayTeam?: TeamAsset;
   status: "upcoming" | "live" | "final";
+  homeScore?: number | null;
+  awayScore?: number | null;
+  statusText?: string;
+  stageLabel?: string;
 }
 
 export interface TeamAsset {
   name: string;
   code?: string | null;
+  triCode?: string;
   logoUrl?: string | null;
   logoFallbackUrl?: string | null;
 }

@@ -1,6 +1,11 @@
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
+import { execFile } from "child_process";
+import fs from "fs";
+import path from "path";
+import { promisify } from "util";
+import { fileURLToPath } from "url";
 import {
   registerUserTx,
   getUserByAccount,
@@ -24,9 +29,47 @@ import {
   SCHEDULE,
   HELP_RULES
 } from "./gameTemplate.js";
+import {
+  annotateGamesWithGamedays,
+  findCurrentOrNextGameday,
+  isPostseasonGameId,
+  normalizeScheduleDateKey
+} from "./scheduleUtils.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const liveScheduleCachePath = path.join(__dirname, "..", "data", "live-schedule-cache.json");
+const LIVE_SCHEDULE_URL = "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/staticData/scheduleLeagueV2_1.json";
+const LIVE_BOX_SCORE_URL = "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData/boxscore/boxscore_{gameId}.json";
+const LIVE_TIME_ZONE = "Asia/Shanghai";
+const LIVE_REQUEST_TIMEOUT_MS = 8000;
+const LIVE_PYTHON_TIMEOUT_MS = 30000;
+const LIVE_SCHEDULE_TTL_MS = 60 * 1000;
+const LIVE_BOX_TTL_MS = 20 * 1000;
+const liveHttpCache = new Map();
+const execFileAsync = promisify(execFile);
+const PYTHON_FETCH_SCRIPT = `
+import json
+import sys
+import urllib.error
+import urllib.request
+
+url = sys.argv[1]
+tolerate_missing = sys.argv[2] == "1"
+
+try:
+    with urllib.request.urlopen(url, timeout=25) as response:
+        payload = json.load(response)
+except urllib.error.HTTPError as error:
+    if tolerate_missing and error.code in (403, 404):
+        print("null")
+        raise SystemExit(0)
+    raise
+
+print(json.dumps(payload))
+`.trim();
 
 app.use(cors());
 app.use(express.json());
@@ -49,6 +92,15 @@ function isBeforeFirstDeadline() {
 }
 
 function getGameweekPayload() {
+  const cachedSchedule = readLiveScheduleCache();
+  if (cachedSchedule?.currentGameday?.label) {
+    return {
+      id: Number(cachedSchedule.currentGameday.index ?? GAMEWEEK.id),
+      label: cachedSchedule.currentGameday.label,
+      deadline: cachedSchedule.currentGameday.deadline ?? getFirstDeadline()
+    };
+  }
+
   return {
     ...GAMEWEEK,
     deadline: getFirstDeadline()
@@ -76,8 +128,11 @@ function enrichRosterPlayers(players = []) {
     return {
       ...player,
       ...fresh,
-      nextOpponent: player.nextOpponent ?? fresh.nextOpponent,
-      upcoming: player.upcoming ?? fresh.upcoming
+      nextOpponent: fresh.nextOpponent ?? player.nextOpponent,
+      nextOpponentName: fresh.nextOpponentName ?? player.nextOpponentName,
+      nextOpponentLogoUrl: fresh.nextOpponentLogoUrl ?? player.nextOpponentLogoUrl,
+      nextOpponentLogoFallbackUrl: fresh.nextOpponentLogoFallbackUrl ?? player.nextOpponentLogoFallbackUrl,
+      upcoming: fresh.upcoming?.length ? fresh.upcoming : player.upcoming
     };
   });
 }
@@ -131,15 +186,462 @@ function buildTeamAsset(name) {
   };
 }
 
+function buildLiveRequestHeaders() {
+  return {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    Accept: "application/json, text/plain, */*"
+  };
+}
+
+function readLiveScheduleCache() {
+  if (!fs.existsSync(liveScheduleCachePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(liveScheduleCachePath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchJsonWithCache(url, ttlMs, { tolerateMissing = false } = {}) {
+  const now = Date.now();
+  const cached = liveHttpCache.get(url);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LIVE_REQUEST_TIMEOUT_MS);
+
+  try {
+    let data;
+
+    try {
+      const response = await fetch(url, {
+        headers: buildLiveRequestHeaders(),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        if (tolerateMissing && (response.status === 403 || response.status === 404)) {
+          data = null;
+        } else {
+          throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+        }
+      } else {
+        data = await response.json();
+      }
+    } catch {
+      const result = await execFileAsync("python", ["-c", PYTHON_FETCH_SCRIPT, url, tolerateMissing ? "1" : "0"], {
+        timeout: LIVE_PYTHON_TIMEOUT_MS,
+        maxBuffer: 64 * 1024 * 1024
+      });
+      data = result.stdout.trim() ? JSON.parse(result.stdout) : null;
+    }
+
+    liveHttpCache.set(url, {
+      data,
+      expiresAt: now + ttlMs
+    });
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function formatDateInTimeZone(dateInput, options, timeZone = LIVE_TIME_ZONE) {
+  const date = new Date(dateInput);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    ...options
+  }).format(date);
+}
+
+function formatTimeInTimeZone(dateInput, timeZone = LIVE_TIME_ZONE) {
+  return formatDateInTimeZone(
+    dateInput,
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    },
+    timeZone
+  );
+}
+
+function normalizeLiveGameStatus(gameStatus) {
+  const statusNumber = Number(gameStatus ?? 0);
+  if (statusNumber >= 3) {
+    return "final";
+  }
+  if (statusNumber >= 2) {
+    return "live";
+  }
+  return "upcoming";
+}
+
+function buildOfficialTeamAsset(team) {
+  if (!team) {
+    return null;
+  }
+
+  return {
+    name: `${team.teamCity ?? ""} ${team.teamName ?? ""}`.trim() || team.teamTricode || "TBD",
+    code: team.teamId ? String(team.teamId) : null,
+    triCode: team.teamTricode ?? "",
+    id: team.teamId ? Number(team.teamId) : null,
+    logoUrl: team.teamId ? `/nba/team-logos/${team.teamId}.png` : null,
+    logoFallbackUrl: team.teamId ? `https://cdn.nba.com/logos/nba/${team.teamId}/global/L/logo.svg` : null
+  };
+}
+
+function toNullableNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function getPostseasonStageLabel(gameId) {
+  const id = String(gameId ?? "");
+  if (id.startsWith("005")) {
+    return "Play-In Tournament";
+  }
+
+  if (id.startsWith("002")) {
+    return "Regular Season Finale";
+  }
+
+  if (!id.startsWith("004") || id.length < 10) {
+    return "NBA";
+  }
+
+  const seriesCode = Number(id.slice(5, 8));
+  if (seriesCode >= 1 && seriesCode <= 8) {
+    return "First Round";
+  }
+  if (seriesCode >= 21 && seriesCode <= 24) {
+    return "Conference Semifinals";
+  }
+  if (seriesCode >= 31 && seriesCode <= 32) {
+    return "Conference Finals";
+  }
+  if (seriesCode === 41) {
+    return "NBA Finals";
+  }
+
+  return "NBA Playoffs";
+}
+
+async function getOfficialScheduleGames() {
+  const payload = await fetchJsonWithCache(LIVE_SCHEDULE_URL, LIVE_SCHEDULE_TTL_MS);
+  const rawGames = payload?.leagueSchedule?.gameDates?.flatMap((gameDate) => gameDate.games ?? []) ?? [];
+
+  const postseasonGames = rawGames.filter((game) => isPostseasonGameId(game.gameId));
+
+  return annotateGamesWithGamedays(
+    postseasonGames
+    .map((game) => {
+      const homeTeam = buildOfficialTeamAsset(game.homeTeam);
+      const awayTeam = buildOfficialTeamAsset(game.awayTeam);
+      const date = game.gameDateTimeUTC ?? game.gameDateEst ?? null;
+      const gamedayKey = normalizeScheduleDateKey(game.gameDateEst ?? date);
+
+      return {
+        id: String(game.gameId),
+        date,
+        gamedayKey,
+        tipoff: formatTimeInTimeZone(date),
+        home: homeTeam?.name ?? "TBD",
+        away: awayTeam?.name ?? "TBD",
+        status: normalizeLiveGameStatus(game.gameStatus),
+        statusText: game.gameStatusText ?? "",
+        homeScore: toNullableNumber(game.homeTeam?.score ?? game.homeTeam?.points),
+        awayScore: toNullableNumber(game.awayTeam?.score ?? game.awayTeam?.points),
+        gameLabel: game.gameLabel ?? "",
+        seriesText: game.seriesText ?? "",
+        stageLabel: getPostseasonStageLabel(game.gameId),
+        homeTeam,
+        awayTeam,
+        homeTriCode: homeTeam?.triCode ?? "",
+        awayTriCode: awayTeam?.triCode ?? ""
+      };
+    })
+    .filter((game) => game.date && game.gamedayKey),
+    (game) => game.gamedayKey
+  );
+}
+
+async function getOfficialSlateContext() {
+  const games = await getOfficialScheduleGames();
+  const currentGameday = findCurrentOrNextGameday(games);
+  const slateDateKey = currentGameday?.gamedayKey ?? null;
+
+  if (!slateDateKey) {
+    return null;
+  }
+
+  const slateGames = games
+    .filter((game) => game.gamedayKey === slateDateKey)
+    .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+
+  if (!slateGames.length) {
+    return null;
+  }
+
+  return {
+    slateDateKey,
+    gamedayLabel: slateGames[0].gamedayLabel,
+    gamedayIndex: slateGames[0].gamedayIndex,
+    gamedayDateLabel: slateGames[0].gamedayDateLabel,
+    deadlineLabel: formatDateInTimeZone(slateGames[0].date, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }),
+    games: slateGames
+  };
+}
+
+async function fillScheduleScores(games) {
+  const targets = games.filter((game) => game.status !== "upcoming" && (game.homeScore === null || game.awayScore === null));
+  if (!targets.length) {
+    return games;
+  }
+
+  const scoreEntries = await Promise.all(
+    targets.map(async (game) => {
+      const payload = await getOfficialBoxScore(game.id).catch(() => null);
+      const officialGame = payload?.game;
+      if (!officialGame) {
+        return null;
+      }
+
+      return [
+        game.id,
+        {
+          homeScore: toNullableNumber(officialGame.homeTeam?.score),
+          awayScore: toNullableNumber(officialGame.awayTeam?.score),
+          statusText: officialGame.gameStatusText ?? game.statusText
+        }
+      ];
+    })
+  );
+
+  const scoreMap = new Map(scoreEntries.filter(Boolean));
+  return games.map((game) => {
+    const scores = scoreMap.get(game.id);
+    if (!scores) {
+      return game;
+    }
+
+    return {
+      ...game,
+      homeScore: scores.homeScore ?? game.homeScore,
+      awayScore: scores.awayScore ?? game.awayScore,
+      statusText: scores.statusText ?? game.statusText
+    };
+  });
+}
+
+async function getOfficialScheduleTimeline(referenceDate = new Date()) {
+  const games = await getOfficialScheduleGames();
+  const currentGameday = findCurrentOrNextGameday(games);
+
+  if (!currentGameday) {
+    return null;
+  }
+
+  const selectedGames = games
+    .filter((game) => Number(game.gamedayIndex ?? 0) >= Number(currentGameday.gamedayIndex ?? 0))
+    .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+
+  if (!selectedGames.length) {
+    return null;
+  }
+
+  const hydratedGames = await fillScheduleScores(selectedGames);
+
+  return {
+    gameweek: currentGameday.gamedayLabel,
+    deadline: formatDateInTimeZone(hydratedGames[0].date, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }),
+    games: hydratedGames
+  };
+}
+
+async function getOfficialBoxScore(gameId) {
+  return fetchJsonWithCache(LIVE_BOX_SCORE_URL.replace("{gameId}", String(gameId)), LIVE_BOX_TTL_MS, {
+    tolerateMissing: true
+  });
+}
+
+function calculateFantasyPointsFromBoxScore(statistics = {}) {
+  const points = Number(statistics.points ?? 0);
+  const rebounds = Number(statistics.reboundsTotal ?? 0);
+  const assists = Number(statistics.assists ?? 0);
+  const steals = Number(statistics.steals ?? 0);
+  const blocks = Number(statistics.blocks ?? 0);
+  const turnovers = Number(statistics.turnovers ?? 0);
+
+  return Number((points + rebounds * 1.2 + assists * 1.5 + steals * 3 + blocks * 3 - turnovers).toFixed(1));
+}
+
+function buildUpcomingSlateCells(game) {
+  if (!game) {
+    return ["-", "-", "-", "-"];
+  }
+
+  return [game.tipoff || "-", game.status === "upcoming" ? "PRE" : game.status.toUpperCase(), "-", "-"];
+}
+
+async function buildOfficialLivePointsPreview(state) {
+  const slate = await getOfficialSlateContext();
+  if (!slate?.games?.length) {
+    return null;
+  }
+
+  const roster = [...state.starters, ...state.bench];
+  const gamesByTeam = new Map();
+  slate.games.forEach((game) => {
+    if (game.homeTriCode) {
+      gamesByTeam.set(game.homeTriCode, game);
+    }
+    if (game.awayTriCode) {
+      gamesByTeam.set(game.awayTriCode, game);
+    }
+  });
+
+  const relevantGameIds = [
+    ...new Set(
+      roster
+        .map((player) => gamesByTeam.get(player.team))
+        .filter((game) => game && game.status !== "upcoming")
+        .map((game) => game.id)
+    )
+  ];
+
+  const boxScores = await Promise.all(
+    relevantGameIds.map(async (gameId) => {
+      const payload = await getOfficialBoxScore(gameId);
+      return payload?.game ? [String(gameId), payload.game] : null;
+    })
+  );
+
+  const boxScoreByGameId = new Map(boxScores.filter(Boolean));
+
+  const hydratePlayer = (player) => {
+    const game = gamesByTeam.get(player.team);
+    const opponent =
+      game?.homeTriCode === player.team ? game?.awayTriCode || "TBD" : game?.homeTriCode || "TBD";
+
+    let livePoints = 0;
+    if (game && game.status !== "upcoming") {
+      const boxScore = boxScoreByGameId.get(String(game.id));
+      const officialPlayerId = Number(player.code ?? 0);
+
+      if (boxScore && Number.isFinite(officialPlayerId) && officialPlayerId > 0) {
+        const candidates = [...(boxScore.homeTeam?.players ?? []), ...(boxScore.awayTeam?.players ?? [])];
+        const officialPlayer = candidates.find((candidate) => Number(candidate.personId) === officialPlayerId);
+        if (officialPlayer) {
+          livePoints = calculateFantasyPointsFromBoxScore(officialPlayer.statistics ?? {});
+        }
+      }
+    }
+
+    return {
+      ...player,
+      points: livePoints,
+      nextOpponent: opponent,
+      upcoming: buildUpcomingSlateCells(game)
+    };
+  };
+
+  const starters = state.starters.map(hydratePlayer);
+  const bench = state.bench.map(hydratePlayer);
+  const starterPoints = starters.map((player) => Number(player.points ?? 0));
+  const finalPoints = calcFinalPoints({
+    ...state,
+    starters,
+    bench
+  });
+
+  return {
+    visible: true,
+    message: isBeforeFirstDeadline() ? "Regular-season live preview from official NBA data." : undefined,
+    gameweek: {
+      id: slate.gamedayIndex ?? GAMEWEEK.id,
+      label: slate.gamedayLabel ?? GAMEWEEK.label,
+      deadline: slate.deadlineLabel
+    },
+    summary: {
+      average: starterPoints.length ? Number((starterPoints.reduce((sum, value) => sum + value, 0) / starterPoints.length).toFixed(1)) : 0,
+      final: finalPoints,
+      top: starterPoints.length ? Number(Math.max(...starterPoints).toFixed(1)) : 0
+    },
+    lineup: {
+      starters,
+      bench,
+      captainId: state.captainId
+    },
+    finalPoints
+  };
+}
+
 function buildSchedulePayload() {
+  const liveCache = readLiveScheduleCache();
+  if (Array.isArray(liveCache?.games) && liveCache.games.length) {
+    return {
+      gameweek: liveCache.gameweek ?? "Gameweek1 Gameday1",
+      deadline: liveCache.deadline ? formatDateTimeLabel(liveCache.deadline) : "",
+      games: liveCache.games.map((game) => ({
+        ...game,
+        homeTeam: game.homeTeam ?? undefined,
+        awayTeam: game.awayTeam ?? undefined
+      }))
+    };
+  }
+
   return {
     ...SCHEDULE,
+    gameweek: "Gameweek1 Gameday1",
     games: SCHEDULE.games.map((game) => ({
       ...game,
+      gamedayKey: game.date,
+      gamedayLabel: "Gameweek1 Gameday1",
+      gamedayDateLabel: new Date(game.date).toDateString(),
+      gamedayIndex: 1,
       homeTeam: buildTeamAsset(game.home),
       awayTeam: buildTeamAsset(game.away)
     }))
   };
+}
+
+function formatDateTimeLabel(dateInput) {
+  const date = new Date(dateInput);
+  if (!Number.isFinite(date.getTime())) {
+    return String(dateInput ?? "");
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function buildPublicUser(user) {
@@ -316,7 +818,7 @@ function replacePlayerForState(state, outPlayerId, inPlayerId) {
     return { ok: false, error: "Transfer would exceed your budget." };
   }
 
-  targetPool.splice(targetIndex, 1, {
+    targetPool.splice(targetIndex, 1, {
     id: incoming.id,
     code: incoming.code,
     name: incoming.name,
@@ -332,6 +834,9 @@ function replacePlayerForState(state, outPlayerId, inPlayerId) {
     teamLogoUrl: incoming.teamLogoUrl,
     teamLogoFallbackUrl: incoming.teamLogoFallbackUrl,
     nextOpponent: "TBD",
+    nextOpponentName: null,
+    nextOpponentLogoUrl: null,
+    nextOpponentLogoFallbackUrl: null,
     upcoming: ["TBD", "TBD"]
   });
 
@@ -528,41 +1033,47 @@ app.post("/api/team/create", authRequired, (req, res) => {
   res.status(201).json(result.payload);
 });
 
-app.get("/api/profile", authRequired, (req, res) => {
-  const state = safeLoadState(req.authUser.id, res);
-  if (!state) {
-    return;
-  }
-
-  const displayState = getDisplayProfileState(state);
-  if (!isBeforeFirstDeadline()) {
-    state.gamedayPoints = displayState.gamedayPoints;
-    saveStateForUser(req.authUser.id, state);
-  }
-
-  const privateClassic = listPrivateLeaguesForUser(req.authUser.id);
-
-  res.json({
-    profile: {
-      teamName: displayState.teamName,
-      managerName: displayState.managerName,
-      overallPoints: displayState.overallPoints,
-      overallRank: displayState.overallRank,
-      totalPlayers: displayState.totalPlayers,
-      gamedayPoints: displayState.gamedayPoints,
-      fanLeague: displayState.fanLeague
-    },
-    transactions: {
-      freeLeft: Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
-      total: state.totalTransfers,
-      rosterValue: state.rosterValue,
-      bank: state.bank
-    },
-    leagues: {
-      global: [],
-      privateClassic
+app.get("/api/profile", authRequired, async (req, res) => {
+  try {
+    const state = safeLoadState(req.authUser.id, res);
+    if (!state) {
+      return;
     }
-  });
+
+    const displayState = getDisplayProfileState(state);
+    const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(state).catch(() => null) : null;
+
+    if (!isBeforeFirstDeadline()) {
+      state.gamedayPoints = displayState.gamedayPoints;
+      saveStateForUser(req.authUser.id, state);
+    }
+
+    const privateClassic = listPrivateLeaguesForUser(req.authUser.id);
+
+    res.json({
+      profile: {
+        teamName: displayState.teamName,
+        managerName: displayState.managerName,
+        overallPoints: displayState.overallPoints,
+        overallRank: displayState.overallRank,
+        totalPlayers: displayState.totalPlayers,
+        gamedayPoints: livePreview?.finalPoints ?? displayState.gamedayPoints,
+        fanLeague: displayState.fanLeague
+      },
+      transactions: {
+        freeLeft: Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
+        total: state.totalTransfers,
+        rosterValue: state.rosterValue,
+        bank: state.bank
+      },
+      leagues: {
+        global: [],
+        privateClassic
+      }
+    });
+  } catch {
+    res.status(500).json({ message: "Failed to load profile." });
+  }
 });
 
 app.get("/api/lineup", authRequired, (req, res) => {
@@ -623,26 +1134,54 @@ app.put("/api/lineup", authRequired, (req, res) => {
   res.json(getLineupPayload(state));
 });
 
-app.get("/api/points/today", authRequired, (req, res) => {
-  const state = safeLoadState(req.authUser.id, res);
-  if (!state) {
-    return;
-  }
+app.get("/api/points/today", authRequired, async (req, res) => {
+  try {
+    const state = safeLoadState(req.authUser.id, res);
+    if (!state) {
+      return;
+    }
 
-  if (!hasCreatedTeam(state)) {
-    res.status(400).json({ message: "Create your initial team first." });
-    return;
-  }
+    if (!hasCreatedTeam(state)) {
+      res.status(400).json({ message: "Create your initial team first." });
+      return;
+    }
 
-  if (isBeforeFirstDeadline()) {
+    const livePreview = await buildOfficialLivePointsPreview(state).catch(() => null);
+    if (livePreview) {
+      res.json(livePreview);
+      return;
+    }
+
+    if (isBeforeFirstDeadline()) {
+      res.json({
+        visible: false,
+        message: "Points will unlock after the first deadline.",
+        gameweek: getGameweekPayload(),
+        summary: {
+          average: 0,
+          final: 0,
+          top: 0
+        },
+        lineup: {
+          starters: withVisiblePoints(state.starters),
+          bench: withVisiblePoints(state.bench),
+          captainId: state.captainId
+        }
+      });
+      return;
+    }
+
+    const finalPoints = calcFinalPoints(state);
+    state.gamedayPoints = finalPoints;
+    saveStateForUser(req.authUser.id, state);
+
     res.json({
-      visible: false,
-      message: "Points will unlock after the first deadline.",
+      visible: true,
       gameweek: getGameweekPayload(),
       summary: {
-        average: 0,
-        final: 0,
-        top: 0
+        average: POINTS_BASELINE.average,
+        final: finalPoints,
+        top: POINTS_BASELINE.top
       },
       lineup: {
         starters: withVisiblePoints(state.starters),
@@ -650,27 +1189,9 @@ app.get("/api/points/today", authRequired, (req, res) => {
         captainId: state.captainId
       }
     });
-    return;
+  } catch {
+    res.status(500).json({ message: "Failed to load points." });
   }
-
-  const finalPoints = calcFinalPoints(state);
-  state.gamedayPoints = finalPoints;
-  saveStateForUser(req.authUser.id, state);
-
-  res.json({
-    visible: true,
-    gameweek: getGameweekPayload(),
-    summary: {
-      average: POINTS_BASELINE.average,
-      final: finalPoints,
-      top: POINTS_BASELINE.top
-    },
-    lineup: {
-      starters: withVisiblePoints(state.starters),
-      bench: withVisiblePoints(state.bench),
-      captainId: state.captainId
-    }
-  });
 });
 
 app.get("/api/transactions/options", authRequired, (req, res) => {
@@ -792,8 +1313,35 @@ app.post("/api/leagues/join", authRequired, (req, res) => {
   });
 });
 
-app.get("/api/schedule", authRequired, (_req, res) => {
-  res.json(buildSchedulePayload());
+app.get("/api/schedule", authRequired, async (_req, res) => {
+  try {
+    const officialTimeline = await getOfficialScheduleTimeline().catch(() => null);
+    if (officialTimeline?.games?.length) {
+      res.json({
+        gameweek: officialTimeline.gameweek,
+        deadline: officialTimeline.deadline,
+        games: officialTimeline.games.map((game) => ({
+          id: game.id,
+          date: game.date,
+          tipoff: game.tipoff,
+          home: game.home,
+          away: game.away,
+          homeTeam: game.homeTeam ?? undefined,
+          awayTeam: game.awayTeam ?? undefined,
+          status: game.status,
+          homeScore: game.homeScore,
+          awayScore: game.awayScore,
+          statusText: game.statusText,
+          stageLabel: game.stageLabel
+        }))
+      });
+      return;
+    }
+
+    res.json(buildSchedulePayload());
+  } catch {
+    res.status(500).json({ message: "Failed to load schedule." });
+  }
 });
 
 app.get("/api/help/rules", authRequired, (_req, res) => {

@@ -45,6 +45,7 @@ export default function CourtPlayerCard({
   onClick
 }: CourtPlayerCardProps) {
   const isFrontCourt = player.position === "FC";
+  const nextOpponentLogoUrl = player.nextOpponentLogoUrl ?? player.nextOpponentLogoFallbackUrl;
   const cardClassName = [
     "court-card",
     isFrontCourt ? "court-card--fc" : "court-card--bc",
@@ -93,26 +94,37 @@ export default function CourtPlayerCard({
 
       <div className="court-card__name">{formatCardName(player.name)}</div>
 
-      <div className={`court-card__schedule ${showPoints ? "court-card__schedule--portrait" : ""}`}>
-        <div className="court-card__schedule-row">
-          <span>Next</span>
-          <span>{player.nextOpponent ?? "TBD"}</span>
+      {showPoints ? (
+        <div className="court-card__points-only">
+          <strong>{Number(player.points ?? 0).toFixed(1)}</strong>
         </div>
-        <div className="court-card__schedule-row court-card__schedule-row--label">
-          <span>Upcoming</span>
-        </div>
-        <div className="court-card__schedule-grid">
-          {(player.upcoming ?? ["-", "-", "-", "-"]).slice(0, 4).map((item, index) => (
-            <span key={`${player.id}-${index}`}>{item || "-"}</span>
-          ))}
-        </div>
-        {showPoints ? (
-          <div className="court-card__points-inline">
-            <span>Pts</span>
-            <strong>{Number(player.points ?? 0).toFixed(1)}</strong>
+      ) : (
+        <div className="court-card__schedule">
+          <div className="court-card__schedule-row">
+            <span>Next</span>
+            <span className="inline-flex items-center gap-2">
+              {nextOpponentLogoUrl ? (
+                <img
+                  src={nextOpponentLogoUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-4 w-4 object-contain"
+                  onError={(event) => useFallbackImage(event, player.nextOpponentLogoFallbackUrl)}
+                />
+              ) : null}
+              <span>{player.nextOpponent ?? "TBD"}</span>
+            </span>
           </div>
-        ) : null}
-      </div>
+          <div className="court-card__schedule-row court-card__schedule-row--label">
+            <span>Upcoming</span>
+          </div>
+          <div className="court-card__schedule-grid">
+            {(player.upcoming ?? ["-", "-", "-", "-"]).slice(0, 4).map((item, index) => (
+              <span key={`${player.id}-${index}`}>{item || "-"}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 

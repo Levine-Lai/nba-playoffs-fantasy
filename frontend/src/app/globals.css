@@ -795,31 +795,24 @@ button:disabled {
     border-right: 0;
   }
 
-  .court-card__schedule--portrait {
-    padding-bottom: 0;
+  .court-card__points-only {
+    display: grid;
+    min-height: 72px;
+    place-items: center;
+    margin-top: 0.2rem;
+    background: var(--nba-blue-dark);
+    color: #fff;
   }
 
-  .court-card__points-inline {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 0.15rem;
-    border-top: 1px solid var(--nba-line);
-    padding: 0.45rem 0.55rem 0.5rem;
-    color: var(--nba-blue-dark);
-    font-size: 0.82rem;
-    font-weight: 700;
-  }
-
-  .court-card__points-inline strong {
+  .court-card__points-only strong {
     font-family: var(--font-action);
-    font-size: 1.15rem;
+    font-size: 2.35rem;
     font-style: italic;
     line-height: 1;
   }
 
-  .court-card--fc .court-card__points-inline {
-    color: var(--nba-pink);
+  .court-card--fc .court-card__points-only {
+    background: linear-gradient(90deg, #ef476f, #d81b60);
   }
 
   .captain-bar {

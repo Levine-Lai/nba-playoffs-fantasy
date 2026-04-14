@@ -87,6 +87,24 @@ The import creates/updates:
 - `players`
 - `game_rules`
 
+### 3.1 Optional: try official NBA live playoff import
+```bash
+npm run import:data:live --prefix backend
+```
+
+This command does **not** replace the default bootstrap import. It is an opt-in importer that tries to read:
+- official NBA schedule JSON from the NBA S3 mirror
+- official NBA live box score JSON from the NBA S3 mirror
+
+Current behavior:
+- if official playoff box scores are available, it builds a live playoff player pool and enables the cached live schedule
+- if official playoff box scores are not available yet, it only refreshes the local live schedule cache and keeps the existing player pool unchanged
+
+Important note:
+- direct requests to `stats.nba.com` / `cdn.nba.com` can return `403` in some environments
+- this prototype currently uses the official NBA S3 mirror as the safer live-data path
+- the backend will only switch schedule display to the live cache when the cache is marked `ready=true`
+
 ### 4. Run in development
 ```bash
 npm run dev
@@ -192,6 +210,7 @@ For manual edits, you can open the SQLite DB in a GUI like DB Browser for SQLite
 - Schedule data is still mock content.
 - No password reset/email verification.
 - Session token is intentionally simple for private-game usage.
+- Official NBA live playoff import exists as an experimental path, but it should not be treated as the default source until playoff box scores are consistently available.
 
 ## Suggested Next Steps
 1. Integrate real NBA schedule and player box score data.

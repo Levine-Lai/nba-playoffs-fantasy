@@ -1,0 +1,431 @@
+{
+  "ready": false,
+  "updatedAt": "2026-04-13T08:13:13.424Z",
+  "deadline": "2026-04-14T23:30:00Z",
+  "gameweek": "Gameweek1 Gameday1",
+  "currentGameday": {
+    "key": "2026-04-14",
+    "label": "Gameweek1 Gameday1",
+    "dateLabel": "Tue, Apr 14",
+    "index": 1,
+    "gameweekNumber": 1,
+    "gamedayNumber": 1,
+    "deadline": "2026-04-14T23:30:00Z"
+  },
+  "games": [
+    {
+      "id": "0052500111",
+      "date": "2026-04-14T23:30:00Z",
+      "tipoff": "07:30",
+      "gamedayKey": "2026-04-14",
+      "gamedayLabel": "Gameweek1 Gameday1",
+      "gamedayDateLabel": "Tue, Apr 14",
+      "gamedayIndex": 1,
+      "home": "Charlotte Hornets",
+      "away": "Miami Heat",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Charlotte Hornets",
+        "code": "1610612766",
+        "triCode": "CHA",
+        "logoUrl": "/nba/team-logos/1610612766.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612766/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Miami Heat",
+        "code": "1610612748",
+        "triCode": "MIA",
+        "logoUrl": "/nba/team-logos/1610612748.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612748/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0052500121",
+      "date": "2026-04-15T02:00:00Z",
+      "tipoff": "10:00",
+      "gamedayKey": "2026-04-14",
+      "gamedayLabel": "Gameweek1 Gameday1",
+      "gamedayDateLabel": "Tue, Apr 14",
+      "gamedayIndex": 1,
+      "home": "Phoenix Suns",
+      "away": "Portland Trail Blazers",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Phoenix Suns",
+        "code": "1610612756",
+        "triCode": "PHX",
+        "logoUrl": "/nba/team-logos/1610612756.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612756/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Portland Trail Blazers",
+        "code": "1610612757",
+        "triCode": "POR",
+        "logoUrl": "/nba/team-logos/1610612757.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612757/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0052500101",
+      "date": "2026-04-15T23:30:00Z",
+      "tipoff": "07:30",
+      "gamedayKey": "2026-04-15",
+      "gamedayLabel": "Gameweek1 Gameday2",
+      "gamedayDateLabel": "Wed, Apr 15",
+      "gamedayIndex": 2,
+      "home": "Philadelphia 76ers",
+      "away": "Orlando Magic",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Philadelphia 76ers",
+        "code": "1610612755",
+        "triCode": "PHI",
+        "logoUrl": "/nba/team-logos/1610612755.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612755/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Orlando Magic",
+        "code": "1610612753",
+        "triCode": "ORL",
+        "logoUrl": "/nba/team-logos/1610612753.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612753/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0052500131",
+      "date": "2026-04-16T02:00:00Z",
+      "tipoff": "10:00",
+      "gamedayKey": "2026-04-15",
+      "gamedayLabel": "Gameweek1 Gameday2",
+      "gamedayDateLabel": "Wed, Apr 15",
+      "gamedayIndex": 2,
+      "home": "LA Clippers",
+      "away": "Golden State Warriors",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "LA Clippers",
+        "code": "1610612746",
+        "triCode": "LAC",
+        "logoUrl": "/nba/team-logos/1610612746.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612746/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Golden State Warriors",
+        "code": "1610612744",
+        "triCode": "GSW",
+        "logoUrl": "/nba/team-logos/1610612744.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612744/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0052500201",
+      "date": "2026-04-17T23:30:00Z",
+      "tipoff": "07:30",
+      "gamedayKey": "2026-04-17",
+      "gamedayLabel": "Gameweek1 Gameday3",
+      "gamedayDateLabel": "Fri, Apr 17",
+      "gamedayIndex": 3,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0052500211",
+      "date": "2026-04-18T02:00:00Z",
+      "tipoff": "10:00",
+      "gamedayKey": "2026-04-17",
+      "gamedayLabel": "Gameweek1 Gameday3",
+      "gamedayDateLabel": "Fri, Apr 17",
+      "gamedayIndex": 3,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500131",
+      "date": "2026-04-18T17:00:00Z",
+      "tipoff": "01:00",
+      "gamedayKey": "2026-04-18",
+      "gamedayLabel": "Gameweek1 Gameday4",
+      "gamedayDateLabel": "Sat, Apr 18",
+      "gamedayIndex": 4,
+      "home": "Cleveland Cavaliers",
+      "away": "Toronto Raptors",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Cleveland Cavaliers",
+        "code": "1610612739",
+        "triCode": "CLE",
+        "logoUrl": "/nba/team-logos/1610612739.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612739/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Toronto Raptors",
+        "code": "1610612761",
+        "triCode": "TOR",
+        "logoUrl": "/nba/team-logos/1610612761.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612761/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0042500161",
+      "date": "2026-04-18T19:30:00Z",
+      "tipoff": "03:30",
+      "gamedayKey": "2026-04-18",
+      "gamedayLabel": "Gameweek1 Gameday4",
+      "gamedayDateLabel": "Sat, Apr 18",
+      "gamedayIndex": 4,
+      "home": "Denver Nuggets",
+      "away": "Minnesota Timberwolves",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Denver Nuggets",
+        "code": "1610612743",
+        "triCode": "DEN",
+        "logoUrl": "/nba/team-logos/1610612743.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612743/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Minnesota Timberwolves",
+        "code": "1610612750",
+        "triCode": "MIN",
+        "logoUrl": "/nba/team-logos/1610612750.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612750/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0042500121",
+      "date": "2026-04-18T22:00:00Z",
+      "tipoff": "06:00",
+      "gamedayKey": "2026-04-18",
+      "gamedayLabel": "Gameweek1 Gameday4",
+      "gamedayDateLabel": "Sat, Apr 18",
+      "gamedayIndex": 4,
+      "home": "New York Knicks",
+      "away": "Atlanta Hawks",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "New York Knicks",
+        "code": "1610612752",
+        "triCode": "NYK",
+        "logoUrl": "/nba/team-logos/1610612752.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612752/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Atlanta Hawks",
+        "code": "1610612737",
+        "triCode": "ATL",
+        "logoUrl": "/nba/team-logos/1610612737.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612737/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0042500171",
+      "date": "2026-04-19T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-04-18",
+      "gamedayLabel": "Gameweek1 Gameday4",
+      "gamedayDateLabel": "Sat, Apr 18",
+      "gamedayIndex": 4,
+      "home": "Los Angeles Lakers",
+      "away": "Houston Rockets",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Los Angeles Lakers",
+        "code": "1610612747",
+        "triCode": "LAL",
+        "logoUrl": "/nba/team-logos/1610612747.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg"
+      },
+      "awayTeam": {
+        "name": "Houston Rockets",
+        "code": "1610612745",
+        "triCode": "HOU",
+        "logoUrl": "/nba/team-logos/1610612745.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612745/global/L/logo.svg"
+      }
+    },
+    {
+      "id": "0042500111",
+      "date": "2026-04-19T17:00:00Z",
+      "tipoff": "01:00",
+      "gamedayKey": "2026-04-19",
+      "gamedayLabel": "Gameweek1 Gameday5",
+      "gamedayDateLabel": "Sun, Apr 19",
+      "gamedayIndex": 5,
+      "home": "Boston Celtics",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Boston Celtics",
+        "code": "1610612738",
+        "triCode": "BOS",
+        "logoUrl": "/nba/team-logos/1610612738.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612738/global/L/logo.svg"
+      },
+      "awayTeam": null
+    },
+    {
+      "id": "0042500141",
+      "date": "2026-04-19T19:30:00Z",
+      "tipoff": "03:30",
+      "gamedayKey": "2026-04-19",
+      "gamedayLabel": "Gameweek1 Gameday5",
+      "gamedayDateLabel": "Sun, Apr 19",
+      "gamedayIndex": 5,
+      "home": "Oklahoma City Thunder",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Oklahoma City Thunder",
+        "code": "1610612760",
+        "triCode": "OKC",
+        "logoUrl": "/nba/team-logos/1610612760.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612760/global/L/logo.svg"
+      },
+      "awayTeam": null
+    },
+    {
+      "id": "0042500101",
+      "date": "2026-04-19T22:30:00Z",
+      "tipoff": "06:30",
+      "gamedayKey": "2026-04-19",
+      "gamedayLabel": "Gameweek1 Gameday5",
+      "gamedayDateLabel": "Sun, Apr 19",
+      "gamedayIndex": 5,
+      "home": "Detroit Pistons",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "Detroit Pistons",
+        "code": "1610612765",
+        "triCode": "DET",
+        "logoUrl": "/nba/team-logos/1610612765.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612765/global/L/logo.svg"
+      },
+      "awayTeam": null
+    },
+    {
+      "id": "0042500151",
+      "date": "2026-04-20T01:00:00Z",
+      "tipoff": "09:00",
+      "gamedayKey": "2026-04-19",
+      "gamedayLabel": "Gameweek1 Gameday5",
+      "gamedayDateLabel": "Sun, Apr 19",
+      "gamedayIndex": 5,
+      "home": "San Antonio Spurs",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": {
+        "name": "San Antonio Spurs",
+        "code": "1610612759",
+        "triCode": "SAS",
+        "logoUrl": "/nba/team-logos/1610612759.png",
+        "logoFallbackUrl": "https://cdn.nba.com/logos/nba/1610612759/global/L/logo.svg"
+      },
+      "awayTeam": null
+    },
+    {
+      "id": "0042500401",
+      "date": "2026-06-04T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-03",
+      "gamedayLabel": "Gameweek1 Gameday6",
+      "gamedayDateLabel": "Wed, Jun 3",
+      "gamedayIndex": 6,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500402",
+      "date": "2026-06-06T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-05",
+      "gamedayLabel": "Gameweek1 Gameday7",
+      "gamedayDateLabel": "Fri, Jun 5",
+      "gamedayIndex": 7,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500403",
+      "date": "2026-06-09T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-08",
+      "gamedayLabel": "Gameweek2 Gameday1",
+      "gamedayDateLabel": "Mon, Jun 8",
+      "gamedayIndex": 8,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500404",
+      "date": "2026-06-11T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-10",
+      "gamedayLabel": "Gameweek2 Gameday2",
+      "gamedayDateLabel": "Wed, Jun 10",
+      "gamedayIndex": 9,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500405",
+      "date": "2026-06-14T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-13",
+      "gamedayLabel": "Gameweek2 Gameday3",
+      "gamedayDateLabel": "Sat, Jun 13",
+      "gamedayIndex": 10,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500406",
+      "date": "2026-06-17T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-16",
+      "gamedayLabel": "Gameweek2 Gameday4",
+      "gamedayDateLabel": "Tue, Jun 16",
+      "gamedayIndex": 11,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    },
+    {
+      "id": "0042500407",
+      "date": "2026-06-20T00:30:00Z",
+      "tipoff": "08:30",
+      "gamedayKey": "2026-06-19",
+      "gamedayLabel": "Gameweek2 Gameday5",
+      "gamedayDateLabel": "Fri, Jun 19",
+      "gamedayIndex": 12,
+      "home": "TBD",
+      "away": "TBD",
+      "status": "upcoming",
+      "homeTeam": null,
+      "awayTeam": null
+    }
+  ]
+}
