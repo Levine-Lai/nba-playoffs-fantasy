@@ -1,0 +1,175 @@
+export interface Env {
+  PLAYOFF_FANTASY_DB: D1Database;
+  APP_ORIGIN?: string;
+  LIVE_TIME_ZONE?: string;
+}
+
+export type PlayerColor = "hot" | "cold";
+
+export interface TeamAsset {
+  name: string;
+  code?: string | null;
+  triCode?: string;
+  id?: number | null;
+  logoUrl?: string | null;
+  logoFallbackUrl?: string | null;
+}
+
+export interface Player {
+  id: string;
+  code?: string | null;
+  name: string;
+  teamId?: number | null;
+  teamCode?: string | null;
+  team: string;
+  position: string;
+  salary: number;
+  nextOpponent?: string;
+  nextOpponentName?: string | null;
+  nextOpponentLogoUrl?: string | null;
+  nextOpponentLogoFallbackUrl?: string | null;
+  upcoming?: string[];
+  points?: number;
+  color?: PlayerColor;
+  totalPoints?: number;
+  recentAverage?: number;
+  selectedByPercent?: number;
+  canSelect?: boolean;
+  canTransact?: boolean;
+  status?: string;
+  headshotUrl?: string | null;
+  headshotFallbackUrl?: string | null;
+  teamLogoUrl?: string | null;
+  teamLogoFallbackUrl?: string | null;
+}
+
+export interface TransferHistoryItem {
+  id: string;
+  timestamp: string;
+  outPlayer: string;
+  inPlayer: string;
+  cost: number;
+  note: string;
+}
+
+export interface UserState {
+  teamName: string;
+  managerName: string;
+  overallPoints: number;
+  overallRank: number;
+  totalPlayers: number;
+  gamedayPoints: number;
+  fanLeague: string;
+  captainId: string;
+  captainDecisionLocked: boolean;
+  starters: Player[];
+  bench: Player[];
+  market: Player[];
+  usedThisWeek: number;
+  weeklyFreeLimit: number;
+  totalTransfers: number;
+  rosterValue: number;
+  bank: number;
+  history: TransferHistoryItem[];
+}
+
+export interface PublicUser {
+  id: string;
+  account: string;
+  gameId: string;
+  displayName: string;
+}
+
+export interface AuthUser {
+  id: string;
+  account: string;
+  gameId: string;
+  token?: string;
+}
+
+export interface GameweekPayload {
+  id: number;
+  label: string;
+  deadline: string;
+}
+
+export interface LeagueMemberEntry {
+  userId: string;
+  gameId: string;
+  teamName: string;
+  managerName: string;
+  rank: number;
+  gamedayPoints: number;
+  totalPoints: number;
+}
+
+export interface LeagueEntry {
+  id: string;
+  name: string;
+  code?: string;
+  rank: number;
+  lastRank: number;
+  memberCount?: number;
+  isOwner?: boolean;
+  members?: LeagueMemberEntry[];
+}
+
+export interface TransactionsPayload {
+  gameweek: GameweekPayload;
+  hasTeam: boolean;
+  transferMode: "LIMITLESS" | "LIMITED";
+  freeTransfersLeft: number;
+  usedThisWeek: number;
+  weeklyFreeLimit: number;
+  bank: number;
+  rosterValue: number;
+  history: TransferHistoryItem[];
+  lineup: {
+    starters: Player[];
+    bench: Player[];
+    captainId: string;
+  };
+  market: Player[];
+}
+
+export interface StoredScheduleGame {
+  id: string;
+  date: string;
+  tipoff: string;
+  gamedayKey?: string;
+  gamedayLabel?: string;
+  gamedayDateLabel?: string;
+  gamedayIndex?: number;
+  home: string;
+  away: string;
+  homeTeam?: TeamAsset | null;
+  awayTeam?: TeamAsset | null;
+  status: "upcoming" | "live" | "final";
+  homeScore?: number | null;
+  awayScore?: number | null;
+  statusText?: string;
+  stageLabel?: string;
+}
+
+export interface StoredScheduleCache {
+  ready?: boolean;
+  updatedAt?: string;
+  deadline?: string | null;
+  gameweek?: string;
+  currentGameday?: {
+    key?: string;
+    label?: string;
+    dateLabel?: string;
+    index?: number;
+    gameweekNumber?: number;
+    gamedayNumber?: number;
+    deadline?: string;
+  } | null;
+  games?: StoredScheduleGame[];
+}
+
+export interface NextMatchup {
+  opponent: TeamAsset;
+  gamedayLabel: string | null;
+  tipoff: string | null;
+}

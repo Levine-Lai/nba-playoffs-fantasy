@@ -3,6 +3,8 @@ frontend/node_modules/
 backend/node_modules/
 frontend/.next/
 backend/.cache/
+backend/.wrangler/
+backend/tmp/
 *.log
 *.tsbuildinfo
 .env
