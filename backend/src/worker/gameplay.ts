@@ -1,0 +1,250 @@
+import type { GameweekPayload, Player, TransactionsPayload, UserState } from "./types";
+
+export function hasCreatedTeam(state: UserState) {
+  return state.starters.length + state.bench.length === 10;
+}
+
+export function getRosterPlayers(state: UserState) {
+  return [...state.starters, ...state.bench];
+}
+
+export function calcFinalPoints(state: UserState) {
+  if (!hasCreatedTeam(state)) {
+    return 0;
+  }
+
+  const startersTotal = state.starters.reduce((sum, item) => sum + Number(item.points ?? 0), 0);
+  const captain = state.starters.find((item) => item.id === state.captainId) ?? state.bench.find((item) => item.id === state.captainId);
+  const captainBonus = captain ? Number(captain.points ?? 0) * 0.5 : 0;
+  return Number((startersTotal + captainBonus).toFixed(1));
+}
+
+export function isValidStarterMix(starters: Player[]) {
+  const bcCount = starters.filter((player) => player.position === "BC").length;
+  const fcCount = starters.filter((player) => player.position === "FC").length;
+  return starters.length === 5 && ((bcCount === 3 && fcCount === 2) || (bcCount === 2 && fcCount === 3));
+}
+
+export function withVisiblePoints(players: Player[], beforeFirstDeadline: boolean) {
+  if (!beforeFirstDeadline) {
+    return players;
+  }
+
+  return players.map((player) => ({
+    ...player,
+    points: 0
+  }));
+}
+
+export function buildLineupPayload(params: {
+  state: UserState;
+  gameweek: GameweekPayload;
+  budget: number;
+  beforeFirstDeadline: boolean;
+}) {
+  const { state, gameweek, budget, beforeFirstDeadline } = params;
+  return {
+    gameweek,
+    hasTeam: hasCreatedTeam(state),
+    budget,
+    rosterValue: state.rosterValue,
+    bank: state.bank,
+    captainDecisionLocked: false,
+    lineup: {
+      starters: withVisiblePoints(state.starters, beforeFirstDeadline),
+      bench: withVisiblePoints(state.bench, beforeFirstDeadline),
+      captainId: state.captainId
+    },
+    transactions: {
+      freeLeft: Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
+      usedThisWeek: state.usedThisWeek,
+      weeklyFreeLimit: state.weeklyFreeLimit
+    }
+  };
+}
+
+export function buildTransactionsPayload(params: {
+  state: UserState;
+  gameweek: GameweekPayload;
+  market: Player[];
+  beforeFirstDeadline: boolean;
+}): TransactionsPayload {
+  const { state, gameweek, market, beforeFirstDeadline } = params;
+  const limitless = beforeFirstDeadline;
+
+  return {
+    gameweek,
+    hasTeam: hasCreatedTeam(state),
+    transferMode: limitless ? "LIMITLESS" : "LIMITED",
+    freeTransfersLeft: limitless ? 999 : Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
+    usedThisWeek: state.usedThisWeek,
+    weeklyFreeLimit: state.weeklyFreeLimit,
+    bank: state.bank,
+    rosterValue: state.rosterValue,
+    history: state.history,
+    lineup: {
+      starters: withVisiblePoints(state.starters, beforeFirstDeadline),
+      bench: withVisiblePoints(state.bench, beforeFirstDeadline),
+      captainId: state.captainId
+    },
+    market: withVisiblePoints(market, beforeFirstDeadline)
+  };
+}
+
+export function getDisplayProfileState(state: UserState, beforeFirstDeadline: boolean) {
+  if (beforeFirstDeadline) {
+    return {
+      ...state,
+      overallPoints: 0,
+      overallRank: 0,
+      totalPlayers: 0,
+      gamedayPoints: 0,
+      fanLeague: ""
+    };
+  }
+
+  return {
+    ...state,
+    gamedayPoints: calcFinalPoints(state),
+    fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
+  };
+}
+
+export function createInitialTeamForState(params: {
+  state: UserState;
+  players: Player[];
+  budget: number;
+  weeklyFreeTransfers: number;
+}) {
+  const { state, players, budget, weeklyFreeTransfers } = params;
+
+  if (hasCreatedTeam(state)) {
+    return { ok: false as const, error: "Initial team has already been created." };
+  }
+
+  const uniqueIds = [...new Set(players.map((player) => String(player.id)))];
+  if (uniqueIds.length !== 10 || players.length !== 10) {
+    return { ok: false as const, error: "Please select exactly 10 unique players." };
+  }
+
+  const unavailable = players.find((player) => !player.canSelect);
+  if (unavailable) {
+    return { ok: false as const, error: `${unavailable.name} is not selectable.` };
+  }
+
+  const bc = players.filter((player) => player.position === "BC");
+  const fc = players.filter((player) => player.position === "FC");
+  if (bc.length !== 5 || fc.length !== 5) {
+    return { ok: false as const, error: "Initial roster must contain 5 BC and 5 FC players." };
+  }
+
+  const rosterValue = Number(players.reduce((sum, player) => sum + Number(player.salary), 0).toFixed(1));
+  if (rosterValue > budget) {
+    return { ok: false as const, error: `Roster value ${rosterValue.toFixed(1)} exceeds budget ${budget.toFixed(1)}.` };
+  }
+
+  state.starters = [...bc.slice(0, 2), ...fc.slice(0, 3)];
+  state.bench = [...bc.slice(2), ...fc.slice(3)];
+  state.captainId = "";
+  state.captainDecisionLocked = false;
+  state.rosterValue = rosterValue;
+  state.bank = Number((budget - rosterValue).toFixed(1));
+  state.weeklyFreeLimit = weeklyFreeTransfers;
+
+  return { ok: true as const };
+}
+
+export function replacePlayerForState(params: {
+  state: UserState;
+  outPlayerId: string;
+  incoming: Player;
+  budget: number;
+  beforeFirstDeadline: boolean;
+}) {
+  const { state, outPlayerId, incoming, budget, beforeFirstDeadline } = params;
+
+  if (!hasCreatedTeam(state)) {
+    return { ok: false as const, error: "Create your initial team first." };
+  }
+
+  const freeTransfersLeft = Math.max(0, state.weeklyFreeLimit - state.usedThisWeek);
+  if (!beforeFirstDeadline && freeTransfersLeft <= 0) {
+    return { ok: false as const, error: "No free transfers left for this week." };
+  }
+
+  if (!incoming.canSelect || !incoming.canTransact) {
+    return { ok: false as const, error: "Incoming player is not available." };
+  }
+
+  if (getRosterPlayers(state).some((player) => player.id === incoming.id)) {
+    return { ok: false as const, error: "Incoming player is already in your roster." };
+  }
+
+  let targetPool = state.starters;
+  let targetIndex = targetPool.findIndex((player) => player.id === outPlayerId);
+
+  if (targetIndex === -1) {
+    targetPool = state.bench;
+    targetIndex = targetPool.findIndex((player) => player.id === outPlayerId);
+  }
+
+  if (targetIndex === -1) {
+    return { ok: false as const, error: "Outgoing player is not in your roster." };
+  }
+
+  const outgoing = targetPool[targetIndex];
+  if (outgoing.position !== incoming.position) {
+    return { ok: false as const, error: "Transfer must keep the same position group." };
+  }
+
+  const nextRosterValue = Number((state.rosterValue - Number(outgoing.salary) + Number(incoming.salary)).toFixed(1));
+  if (nextRosterValue > budget) {
+    return { ok: false as const, error: "Transfer would exceed your budget." };
+  }
+
+  targetPool.splice(targetIndex, 1, {
+    id: incoming.id,
+    code: incoming.code,
+    name: incoming.name,
+    teamId: incoming.teamId,
+    teamCode: incoming.teamCode,
+    team: incoming.team,
+    position: incoming.position,
+    salary: incoming.salary,
+    points: incoming.points ?? 0,
+    color: incoming.color ?? "cold",
+    headshotUrl: incoming.headshotUrl,
+    headshotFallbackUrl: incoming.headshotFallbackUrl,
+    teamLogoUrl: incoming.teamLogoUrl,
+    teamLogoFallbackUrl: incoming.teamLogoFallbackUrl,
+    nextOpponent: "TBD",
+    nextOpponentName: null,
+    nextOpponentLogoUrl: null,
+    nextOpponentLogoFallbackUrl: null,
+    upcoming: ["TBD", "TBD"]
+  });
+
+  if (!beforeFirstDeadline) {
+    state.usedThisWeek += 1;
+  }
+
+  state.totalTransfers += 1;
+  state.rosterValue = nextRosterValue;
+  state.bank = Number((budget - state.rosterValue).toFixed(1));
+
+  const record = {
+    id: `tx-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    outPlayer: outgoing.name,
+    inPlayer: incoming.name,
+    cost: 0,
+    note: beforeFirstDeadline ? "Limitless before first deadline" : "Free transfer"
+  };
+
+  state.history.unshift(record);
+
+  return {
+    ok: true as const,
+    transfer: record
+  };
+}

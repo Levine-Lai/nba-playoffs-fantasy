@@ -1,21 +1,28 @@
 {
   "name": "playoff-fantasy-backend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
-    "import:data": "node src/importBootstrapData.js",
-    "import:data:live": "node src/importLivePlayoffData.js",
-    "rule:set": "node src/setRule.js",
-    "db:users": "node src/listUsers.js"
+    "dev": "wrangler dev --local --port 8787",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply PLAYOFF_FANTASY_DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply PLAYOFF_FANTASY_DB --remote",
+    "db:seed:from-local": "node ./scripts/export-local-sqlite-to-d1-seed.mjs",
+    "db:seed:bootstrap": "node ./scripts/generate-bootstrap-seed.mjs",
+    "db:seed:live": "node ./scripts/generate-live-playoff-seed.mjs",
+    "db:seed:apply:local": "wrangler d1 execute PLAYOFF_FANTASY_DB --local --file ./tmp/d1-seed.sql",
+    "db:seed:apply:remote": "wrangler d1 execute PLAYOFF_FANTASY_DB --remote --file ./tmp/d1-seed.sql"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250410.0",
     "better-sqlite3": "^11.8.1",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "typescript": "^5.6.2",
+    "wrangler": "^4.11.1"
   }
 }
 
