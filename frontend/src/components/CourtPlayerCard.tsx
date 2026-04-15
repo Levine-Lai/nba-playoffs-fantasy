@@ -57,6 +57,22 @@ export default function CourtPlayerCard({
   ]
     .filter(Boolean)
     .join(" ");
+  const scheduleValue = hasNextOpponent ? (
+    <span className="inline-flex items-center gap-2">
+      {nextOpponentLogoUrl ? (
+        <img
+          src={nextOpponentLogoUrl}
+          alt=""
+          aria-hidden="true"
+          className="h-4 w-4 object-contain"
+          onError={(event) => useFallbackImage(event, player.nextOpponentLogoFallbackUrl)}
+        />
+      ) : null}
+      <span>{player.nextOpponent}</span>
+    </span>
+  ) : (
+    <span>-</span>
+  );
 
   const body = (
     <>
@@ -99,25 +115,14 @@ export default function CourtPlayerCard({
         <div className="court-card__points-only">
           <strong>{Number(player.points ?? 0).toFixed(1)}</strong>
         </div>
-      ) : hasNextOpponent ? (
+      ) : (
         <div className="court-card__schedule">
           <div className="court-card__schedule-row">
             <span>Next</span>
-            <span className="inline-flex items-center gap-2">
-              {nextOpponentLogoUrl ? (
-                <img
-                  src={nextOpponentLogoUrl}
-                  alt=""
-                  aria-hidden="true"
-                  className="h-4 w-4 object-contain"
-                  onError={(event) => useFallbackImage(event, player.nextOpponentLogoFallbackUrl)}
-                />
-              ) : null}
-              <span>{player.nextOpponent}</span>
-            </span>
+            {scheduleValue}
           </div>
         </div>
-      ) : null}
+      )}
     </>
   );
 
