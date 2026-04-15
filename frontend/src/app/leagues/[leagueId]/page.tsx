@@ -16,18 +16,22 @@ function RankTrend({ rank, previousRank }: { rank: number; previousRank: number 
     return <span className="ml-2 inline-block h-0 w-0 border-x-[6px] border-t-[8px] border-x-transparent border-t-[#d61f43]" />;
   }
 
-  return <span className="ml-2 inline-block text-slate-400">▶</span>;
+  return <span className="ml-2 inline-block text-slate-400">-</span>;
 }
 
 export default function LeagueDetailPage({ params }: { params: { leagueId: string } }) {
   const [data, setData] = useState<LeagueDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPhase, setSelectedPhase] = useState("overall");
 
   useEffect(() => {
-    getLeague(params.leagueId)
-      .then(setData)
+    getLeague(params.leagueId, selectedPhase)
+      .then((payload) => {
+        setData(payload);
+        setError(null);
+      })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "Failed to load league."));
-  }, [params.leagueId]);
+  }, [params.leagueId, selectedPhase]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading league...</div>;
@@ -49,6 +53,7 @@ export default function LeagueDetailPage({ params }: { params: { leagueId: strin
 
   const league = data.league;
   const members = league.members ?? [];
+  const phaseOptions = league.phaseOptions ?? [{ key: "overall", label: "Overall" }];
 
   return (
     <section className="panel overflow-hidden">
@@ -73,8 +78,16 @@ export default function LeagueDetailPage({ params }: { params: { leagueId: strin
         <div className="mb-5 max-w-[210px]">
           <label className="block text-sm text-slate-700">
             <span className="mb-2 block">Select phase</span>
-            <select className="w-full rounded-sm border border-slate-200 px-4 py-3 text-[1rem]">
-              <option>Overall</option>
+            <select
+              value={league.selectedPhaseKey ?? selectedPhase}
+              onChange={(event) => setSelectedPhase(event.target.value)}
+              className="w-full rounded-sm border border-slate-200 px-4 py-3 text-[1rem]"
+            >
+              {phaseOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -84,28 +97,31 @@ export default function LeagueDetailPage({ params }: { params: { leagueId: strin
             <tr>
               <th>Rank</th>
               <th>Team &amp; General Manager</th>
-              <th>GD</th>
+              <th>PTS</th>
               <th>TOT</th>
             </tr>
           </thead>
           <tbody>
             {members.length ? (
-              members.map((member, index) => (
+              members.map((member) => (
                 <tr key={member.userId}>
                   <td>
                     <div className="flex items-center">
                       <span>{member.rank}</span>
-                      <RankTrend rank={member.rank} previousRank={index + 1} />
+                      <RankTrend rank={member.rank} previousRank={member.previousRank ?? member.rank} />
                     </div>
                   </td>
                   <td>
                     <div className="space-y-1">
                       <div className="font-semibold text-[#0a3c98]">{member.teamName}</div>
                       <div className="text-slate-900">{member.managerName}</div>
+                      <Link href={`/points?userId=${member.userId}`} className="text-sm font-semibold text-brand-darkBlue hover:underline">
+                        {member.gameId}
+                      </Link>
                     </div>
                   </td>
-                  <td>{member.gamedayPoints}</td>
-                  <td>{member.totalPoints}</td>
+                  <td>{Number(member.phasePoints ?? member.gamedayPoints ?? 0).toFixed(1)}</td>
+                  <td>{Number(member.totalPoints ?? 0).toFixed(1)}</td>
                 </tr>
               ))
             ) : (

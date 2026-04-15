@@ -87,6 +87,7 @@ D --> B
 - If user has no roster, ask user to create the initial team first.
 - Show average/final/top game-day points.
 - Show player point cards for starters and bench.
+- Allow league users to open another manager's current points view from the league table and see the same day snapshot structure.
 
 ### 3.4 Transactions
 - If user has no roster, ask user to create the initial team first.
@@ -101,6 +102,10 @@ D --> B
 ### 3.5 Leagues
 - Show private/public/global league tables.
 - Show current rank, previous rank, and rank delta.
+- Support phase filtering for `Overall`, `Play-In 1`, `Play-In 2`, `Play-In 3`, and `Round 1-4`.
+- In phase view, rank members by the selected phase points while still showing cumulative `TOT`.
+- `TOT` is the cumulative sum of stored playable-period points.
+- Clicking a manager `gameId` should open that manager's current points page.
 
 ### 3.6 Schedule
 - Show only `Round 1` schedule for now.
@@ -181,6 +186,7 @@ D --> B
 - Play-in testing windows and round windows apply the configured free-transfer rules.
 - Transactions can complete at least one transfer and show history.
 - Leagues/Schedule/Help pages render expected sections.
+- League detail supports phase switching and manager points drill-down.
 - Frontend `npx tsc --noEmit` passes.
 - Frontend `npm run build` passes.
 

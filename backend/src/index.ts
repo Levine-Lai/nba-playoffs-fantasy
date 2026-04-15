@@ -2,9 +2,41 @@ import bcrypt from "bcryptjs";
 import { HELP_RULES, POINTS_BASELINE } from "./shared/gameTemplate";
 import { buildLineupPayload, buildTransactionsPayload, calcFinalPoints, createInitialTeamForState, getDisplayProfileState, getRosterPlayers, hasCreatedTeam, isValidStarterMix, replacePlayerForState, syncTransferWindowState, withVisiblePoints } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline } from "./worker/liveData";
-import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, registerUser, saveStateForUser, searchPlayerPool } from "./worker/store";
-import type { AuthUser, Env, Player, UserState } from "./worker/types";
+import { buildOfficialLivePointsPreview, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
+import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getPublicUserById, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, readAppState, registerUser, saveStateForUser, searchPlayerPool, usersSharePrivateLeague, writeAppState } from "./worker/store";
+import type { AuthUser, Env, LeagueEntry, LeagueMemberEntry, LeaguePhaseOption, Player, UserState } from "./worker/types";
+
+const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
+const DEFAULT_LEAGUE_PHASE_OPTIONS: LeaguePhaseOption[] = [
+  { key: "overall", label: "Overall" },
+  { key: "play-in-1", label: "Play-In 1" },
+  { key: "play-in-2", label: "Play-In 2" },
+  { key: "play-in-3", label: "Play-In 3" },
+  { key: "round-1", label: "Round 1" },
+  { key: "round-2", label: "Round 2" },
+  { key: "round-3", label: "Round 3" },
+  { key: "round-4", label: "Round 4" }
+];
+
+type ScoringPeriodContext = {
+  key: string;
+  label: string;
+  deadline: string;
+  gamedayIndex: number;
+  roundNumber: number;
+  dayNumber: number;
+} | null;
+
+type LeaguePointsLedgerEntry = {
+  periodKey: string;
+  label: string;
+  roundNumber: number;
+  dayNumber: number;
+  points: number;
+  recordedAt: string;
+};
+
+type LeaguePointsLedger = Record<string, Record<string, LeaguePointsLedgerEntry>>;
 
 function extractBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -62,6 +94,242 @@ async function hydrateStateAssets(env: Env, state: UserState) {
   state.starters = await enrichRosterPlayers(env, state.starters);
   state.bench = await enrichRosterPlayers(env, state.bench);
   return state;
+}
+
+function syncPointsSnapshot(
+  state: UserState,
+  lineup: { starters: Player[]; bench: Player[] },
+  finalPoints: number
+) {
+  const pointsById = new Map(
+    [...lineup.starters, ...lineup.bench].map((player) => [player.id, { points: Number(player.points ?? 0), pointsWindowKey: player.pointsWindowKey ?? null }])
+  );
+
+  const apply = (players: Player[]) =>
+    players.map((player) => {
+      const next = pointsById.get(player.id);
+      if (!next) {
+        return player;
+      }
+
+      return {
+        ...player,
+        points: next.points,
+        pointsWindowKey: next.pointsWindowKey
+      };
+    });
+
+  state.starters = apply(state.starters);
+  state.bench = apply(state.bench);
+  state.gamedayPoints = finalPoints;
+}
+
+function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: string; label: string; deadline: string; gamedayIndex: number } | null) {
+  const apply = (players: Player[]) =>
+    players.map((player) => ({
+      ...player,
+      points: player.pointsWindowKey === scoringPeriod?.key ? Number(player.points ?? 0) : 0
+    }));
+
+  const starters = apply(state.starters);
+  const bench = apply(state.bench);
+  const finalPoints = calcFinalPoints({
+    ...state,
+    starters,
+    bench
+  });
+
+  return {
+    visible: true,
+    gameweek: {
+      id: scoringPeriod?.gamedayIndex ?? 1,
+      label: scoringPeriod?.label ?? "Previous Day",
+      deadline: scoringPeriod?.deadline ?? ""
+    },
+    summary: {
+      average: starters.length ? Number((starters.reduce((sum, player) => sum + Number(player.points ?? 0), 0) / starters.length).toFixed(1)) : 0,
+      final: finalPoints,
+      top: starters.length ? Number(Math.max(...starters.map((player) => Number(player.points ?? 0))).toFixed(1)) : 0
+    },
+    lineup: {
+      starters,
+      bench,
+      captainId: state.captainId
+    }
+  };
+}
+
+async function readLeaguePointsLedger(env: Env) {
+  return readAppState<LeaguePointsLedger>(env, LEAGUE_POINTS_LEDGER_KEY, {});
+}
+
+async function writeLeaguePointsLedger(env: Env, ledger: LeaguePointsLedger) {
+  await writeAppState(env, LEAGUE_POINTS_LEDGER_KEY, ledger);
+}
+
+function sumLeagueLedgerPoints(entries: LeaguePointsLedgerEntry[] | undefined) {
+  return Number(
+    ((entries ?? []).reduce((sum, entry) => sum + Number(entry.points ?? 0), 0)).toFixed(1)
+  );
+}
+
+function getLeaguePhaseOptions() {
+  return DEFAULT_LEAGUE_PHASE_OPTIONS;
+}
+
+function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
+  if (phaseKey === "overall") {
+    return sumLeagueLedgerPoints(entries);
+  }
+
+  const playInMatch = phaseKey.match(/^play-in-(\d+)$/);
+  if (playInMatch) {
+    const targetDay = Number(playInMatch[1]);
+    return Number(
+      ((entries ?? [])
+        .filter((entry) => entry.roundNumber === 0 && entry.dayNumber === targetDay)
+        .reduce((sum, entry) => sum + Number(entry.points ?? 0), 0)
+      ).toFixed(1)
+    );
+  }
+
+  const roundMatch = phaseKey.match(/^round-(\d+)$/);
+  if (roundMatch) {
+    const targetRound = Number(roundMatch[1]);
+    return Number(
+      ((entries ?? [])
+        .filter((entry) => entry.roundNumber === targetRound)
+        .reduce((sum, entry) => sum + Number(entry.points ?? 0), 0)
+      ).toFixed(1)
+    );
+  }
+
+  return 0;
+}
+
+async function syncLeaguePointsLedger(
+  env: Env,
+  userId: string | number,
+  scoringPeriod: ScoringPeriodContext,
+  points: number
+) {
+  if (!scoringPeriod) {
+    return 0;
+  }
+
+  const numericPoints = Number(points ?? 0);
+  const ledger = await readLeaguePointsLedger(env);
+  const userKey = String(userId);
+  const existingUserLedger = ledger[userKey] ?? {};
+  const nextEntry: LeaguePointsLedgerEntry = {
+    periodKey: scoringPeriod.key,
+    label: scoringPeriod.label,
+    roundNumber: Number(scoringPeriod.roundNumber ?? 0),
+    dayNumber: Number(scoringPeriod.dayNumber ?? 0),
+    points: Number(numericPoints.toFixed(1)),
+    recordedAt: new Date().toISOString()
+  };
+
+  const currentEntry = existingUserLedger[scoringPeriod.key];
+  const entryChanged =
+    !currentEntry ||
+    Number(currentEntry.points ?? 0) !== nextEntry.points ||
+    currentEntry.label !== nextEntry.label ||
+    Number(currentEntry.roundNumber ?? 0) !== nextEntry.roundNumber ||
+    Number(currentEntry.dayNumber ?? 0) !== nextEntry.dayNumber;
+
+  if (entryChanged) {
+    ledger[userKey] = {
+      ...existingUserLedger,
+      [scoringPeriod.key]: nextEntry
+    };
+    await writeLeaguePointsLedger(env, ledger);
+  }
+
+  return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+}
+
+function buildRankedLeagueMembers(league: LeagueEntry, phaseKey: string, ledger: LeaguePointsLedger) {
+  const members = league.members ?? [];
+  const overallMembers = members
+    .map((member) => {
+      const entries = Object.values(ledger[member.userId] ?? {});
+      const ledgerTotal = sumLeagueLedgerPoints(entries);
+      const totalPoints = Number(Math.max(Number(member.totalPoints ?? 0), ledgerTotal).toFixed(1));
+
+      return {
+        ...member,
+        totalPoints,
+        phasePoints: totalPoints
+      };
+    })
+    .sort((left, right) => {
+      const pointsDiff = Number(right.totalPoints ?? 0) - Number(left.totalPoints ?? 0);
+      if (pointsDiff !== 0) {
+        return pointsDiff;
+      }
+
+      return String(left.gameId).localeCompare(String(right.gameId), undefined, { sensitivity: "base" });
+    })
+    .map((member, index) => ({
+      ...member,
+      rank: index + 1,
+      previousRank: index + 1
+    }));
+
+  const overallRankByUserId = new Map(overallMembers.map((member) => [member.userId, member.rank]));
+
+  if (phaseKey === "overall") {
+    return overallMembers;
+  }
+
+  return overallMembers
+    .map((member) => {
+      const entries = Object.values(ledger[member.userId] ?? {});
+      return {
+        ...member,
+        phasePoints: getLeaguePhasePoints(entries, phaseKey),
+        previousRank: overallRankByUserId.get(member.userId) ?? member.rank
+      };
+    })
+    .sort((left, right) => {
+      const phaseDiff = Number(right.phasePoints ?? 0) - Number(left.phasePoints ?? 0);
+      if (phaseDiff !== 0) {
+        return phaseDiff;
+      }
+
+      const totalDiff = Number(right.totalPoints ?? 0) - Number(left.totalPoints ?? 0);
+      if (totalDiff !== 0) {
+        return totalDiff;
+      }
+
+      return String(left.gameId).localeCompare(String(right.gameId), undefined, { sensitivity: "base" });
+    })
+    .map((member, index) => ({
+      ...member,
+      rank: index + 1
+    }));
+}
+
+async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requestedPhaseKey: string | null) {
+  const selectedPhaseKey = getLeaguePhaseOptions().some((option) => option.key === requestedPhaseKey)
+    ? String(requestedPhaseKey)
+    : "overall";
+  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+
+  if (scoringPeriod) {
+    for (const member of league.members ?? []) {
+      await syncLeaguePointsLedger(env, member.userId, scoringPeriod, Number(member.gamedayPoints ?? 0));
+    }
+  }
+
+  const ledger = await readLeaguePointsLedger(env);
+  return {
+    ...league,
+    selectedPhaseKey,
+    phaseOptions: getLeaguePhaseOptions(),
+    members: buildRankedLeagueMembers(league, selectedPhaseKey, ledger)
+  } satisfies LeagueEntry;
 }
 
 async function safeLoadState(env: Env, userId: string) {
@@ -307,8 +575,20 @@ export default {
         const displayState = getDisplayProfileState(state, beforeDeadline);
         const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null) : null;
 
+        if (livePreview) {
+          syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
+        }
+
         if (!beforeDeadline) {
-          state.gamedayPoints = displayState.gamedayPoints;
+          const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+          const currentPoints = Number(livePreview?.finalPoints ?? displayState.gamedayPoints ?? 0);
+          state.gamedayPoints = currentPoints;
+          const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, scoringPeriod, currentPoints);
+          state.overallPoints = Number(Math.max(Number(state.overallPoints ?? 0), overallPoints).toFixed(1));
+          displayState.overallPoints = state.overallPoints;
+          displayState.gamedayPoints = currentPoints;
+          await saveStateForUser(env, auth.authUser.id, state);
+        } else if (livePreview) {
           await saveStateForUser(env, auth.authUser.id, state);
         }
 
@@ -438,7 +718,15 @@ export default {
           return auth.response;
         }
 
-        const state = await safeLoadState(env, auth.authUser.id);
+        const targetUserId = String(url.searchParams.get("userId") ?? auth.authUser.id).trim() || auth.authUser.id;
+        if (targetUserId !== auth.authUser.id) {
+          const canView = await usersSharePrivateLeague(env, auth.authUser.id, targetUserId);
+          if (!canView) {
+            return json({ message: "You can only view points for users in your leagues." }, { status: 403 }, env);
+          }
+        }
+
+        const state = await safeLoadState(env, targetUserId);
         if (!state) {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
@@ -447,11 +735,29 @@ export default {
           return json({ message: "Create your initial team first." }, { status: 400 }, env);
         }
 
+        const targetUser = await getPublicUserById(env, targetUserId);
+        if (!targetUser) {
+          return json({ message: "User not found." }, { status: 404 }, env);
+        }
+
+        const viewer = {
+          userId: targetUser.id,
+          gameId: targetUser.gameId,
+          teamName: state.teamName,
+          managerName: state.managerName,
+          isCurrentUser: targetUser.id === auth.authUser.id
+        };
+
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
         const beforeDeadline = editableContext.beforeCompetitionStart;
         const livePreview = await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null);
         if (livePreview) {
-          return json(livePreview, { status: 200 }, env);
+          syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
+          const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+          const overallPoints = await syncLeaguePointsLedger(env, targetUserId, scoringPeriod, livePreview.finalPoints);
+          state.overallPoints = Number(Math.max(Number(state.overallPoints ?? 0), overallPoints).toFixed(1));
+          await saveStateForUser(env, targetUserId, state);
+          return json({ ...livePreview, viewer }, { status: 200 }, env);
         }
 
         if (beforeDeadline) {
@@ -469,35 +775,22 @@ export default {
                 starters: withVisiblePoints(state.starters, true),
                 bench: withVisiblePoints(state.bench, true),
                 captainId: state.captainId
-              }
+              },
+              viewer
             },
             { status: 200 },
             env
           );
         }
 
-        const finalPoints = calcFinalPoints(state);
-        state.gamedayPoints = finalPoints;
-        await saveStateForUser(env, auth.authUser.id, state);
+        const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+        const fallbackPoints = buildStoredPointsSnapshot(state, scoringPeriod);
+        state.gamedayPoints = fallbackPoints.summary.final;
+        const overallPoints = await syncLeaguePointsLedger(env, targetUserId, scoringPeriod, fallbackPoints.summary.final);
+        state.overallPoints = Number(Math.max(Number(state.overallPoints ?? 0), overallPoints).toFixed(1));
+        await saveStateForUser(env, targetUserId, state);
 
-        return json(
-          {
-            visible: true,
-            gameweek: editableContext.gameweek,
-            summary: {
-              average: POINTS_BASELINE.average,
-              final: finalPoints,
-              top: POINTS_BASELINE.top
-            },
-            lineup: {
-              starters: withVisiblePoints(state.starters, false),
-              bench: withVisiblePoints(state.bench, false),
-              captainId: state.captainId
-            }
-          },
-          { status: 200 },
-          env
-        );
+        return json({ ...fallbackPoints, viewer }, { status: 200 }, env);
       }
 
       if (pathname === "/api/transactions/options" && request.method === "GET") {
@@ -643,7 +936,11 @@ export default {
           return json({ message: "League not found." }, { status: 404 }, env);
         }
 
-        return json({ league }, { status: 200 }, env);
+        return json(
+          { league: await buildLeagueDetailPayload(env, league, url.searchParams.get("phase")) },
+          { status: 200 },
+          env
+        );
       }
 
       if (pathname === "/api/leagues/create" && request.method === "POST") {

@@ -199,6 +199,14 @@ export async function getUserByAccount(env: Env, account: string) {
   );
 }
 
+export async function getPublicUserById(env: Env, userId: string | number) {
+  return first<PublicUser>(
+    env,
+    "SELECT id, account, game_id AS gameId, game_id AS displayName FROM users WHERE id = ?",
+    Number(userId)
+  );
+}
+
 export async function getAuthenticatedUserByToken(env: Env, token: string | null) {
   if (!token) {
     return null;
@@ -564,6 +572,28 @@ async function getPrivateLeagueMembership(env: Env, leagueId: number, userId: nu
     leagueId,
     userId
   );
+}
+
+export async function usersSharePrivateLeague(env: Env, leftUserId: string | number, rightUserId: string | number) {
+  if (Number(leftUserId) === Number(rightUserId)) {
+    return true;
+  }
+
+  const row = await first<{ sharedLeagueId: number }>(
+    env,
+    `
+      SELECT lm1.league_id AS sharedLeagueId
+      FROM private_league_members lm1
+      JOIN private_league_members lm2
+        ON lm2.league_id = lm1.league_id
+      WHERE lm1.user_id = ? AND lm2.user_id = ?
+      LIMIT 1
+    `,
+    Number(leftUserId),
+    Number(rightUserId)
+  );
+
+  return Boolean(row?.sharedLeagueId);
 }
 
 async function buildLeagueMembers(env: Env, leagueId: number) {

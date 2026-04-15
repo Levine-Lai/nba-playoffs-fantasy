@@ -9,6 +9,7 @@ import { getPointsToday } from "@/lib/api";
 import { Player, PointsResponse } from "@/lib/types";
 
 export default function PointsPage() {
+  const [userId, setUserId] = useState<string | undefined>(undefined);
   const [data, setData] = useState<PointsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,10 +17,16 @@ export default function PointsPage() {
   const starterBackCourt = data ? data.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nextUserId = params.get("userId") ?? undefined;
+    setUserId(nextUserId);
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     const load = () => {
-      getPointsToday()
+      getPointsToday(userId)
         .then((payload) => {
           if (!active) {
             return;
@@ -42,7 +49,7 @@ export default function PointsPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [userId]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading points...</div>;
@@ -67,7 +74,14 @@ export default function PointsPage() {
       <section className="panel">
         <div className="panel-body space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-4xl font-semibold uppercase">{data.gameweek.label}</h1>
+            <div>
+              <h1 className="text-4xl font-semibold uppercase">{data.gameweek.label}</h1>
+              {data.viewer ? (
+                <p className="mt-2 text-sm text-slate-600">
+                  {data.viewer.teamName} · {data.viewer.managerName} ({data.viewer.gameId})
+                </p>
+              ) : null}
+            </div>
             <p className="text-sm text-slate-600">Daily points snapshot</p>
           </div>
 

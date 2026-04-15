@@ -15,6 +15,7 @@ export interface Player {
   nextOpponentLogoFallbackUrl?: string | null;
   upcoming?: string[];
   points?: number;
+  pointsWindowKey?: string | null;
   color?: PlayerColor;
   totalPoints?: number;
   recentAverage?: number;
@@ -82,6 +83,13 @@ export interface PointsResponse {
   visible?: boolean;
   message?: string;
   gameweek: Gameweek;
+  viewer?: {
+    userId: string;
+    gameId: string;
+    teamName: string;
+    managerName: string;
+    isCurrentUser: boolean;
+  };
   summary: {
     average: number;
     final: number;
@@ -146,6 +154,8 @@ export interface LeagueEntry {
   lastRank: number;
   memberCount?: number;
   isOwner?: boolean;
+  selectedPhaseKey?: string;
+  phaseOptions?: LeaguePhaseOption[];
   members?: LeagueMemberEntry[];
 }
 
@@ -155,8 +165,15 @@ export interface LeagueMemberEntry {
   teamName: string;
   managerName: string;
   rank: number;
+  previousRank?: number;
+  phasePoints?: number;
   gamedayPoints: number;
   totalPoints: number;
+}
+
+export interface LeaguePhaseOption {
+  key: string;
+  label: string;
 }
 
 export interface LeaguesResponse {

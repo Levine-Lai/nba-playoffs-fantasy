@@ -348,6 +348,7 @@ async function getOfficialSlateContext(env: Env) {
   }
 
   return {
+    periodKey: scoringPeriod.key,
     gamedayLabel: scoringPeriod.label,
     gamedayIndex: scoringPeriod.gamedayIndex,
     deadlineLabel: formatDeadlineLabel(scoringPeriod.deadline, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
@@ -498,6 +499,20 @@ export async function getEditablePeriodContext(env: Env, fallbackDeadline: strin
   );
 }
 
+export async function getScoringPeriodContext(env: Env) {
+  const cachedSchedule = await getStoredScheduleCache(env);
+  const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
+  const scoringPeriod = findScoringPlayoffPeriod(
+    buildPlayoffPeriods(
+      cachedGames,
+      (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
+      (game) => game.id
+    )
+  );
+
+  return scoringPeriod;
+}
+
 export async function getGameweekPayload(env: Env, firstDeadline: string): Promise<GameweekPayload> {
   return (await getEditablePeriodContext(env, firstDeadline)).gameweek;
 }
@@ -626,6 +641,7 @@ export async function buildOfficialLivePointsPreview(
     return {
       ...player,
       points: livePoints,
+      pointsWindowKey: slate.periodKey,
       nextOpponent: opponent,
       upcoming: buildUpcomingSlateCells(game)
     };

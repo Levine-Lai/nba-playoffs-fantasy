@@ -115,8 +115,14 @@ export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captain
   });
 }
 
-export function getPointsToday() {
-  return request<PointsResponse>("/points/today");
+export function getPointsToday(userId?: string) {
+  const query = new URLSearchParams();
+  if (userId) {
+    query.set("userId", userId);
+  }
+
+  const queryString = query.toString();
+  return request<PointsResponse>(`/points/today${queryString ? `?${queryString}` : ""}`);
 }
 
 export function getTransactionsOptions() {
@@ -134,8 +140,14 @@ export function getLeagues() {
   return request<LeaguesResponse>("/leagues");
 }
 
-export function getLeague(leagueId: string) {
-  return request<LeagueDetailResponse>(`/leagues/${leagueId}`);
+export function getLeague(leagueId: string, phase?: string) {
+  const query = new URLSearchParams();
+  if (phase) {
+    query.set("phase", phase);
+  }
+
+  const queryString = query.toString();
+  return request<LeagueDetailResponse>(`/leagues/${leagueId}${queryString ? `?${queryString}` : ""}`);
 }
 
 export function createLeague(name: string) {
