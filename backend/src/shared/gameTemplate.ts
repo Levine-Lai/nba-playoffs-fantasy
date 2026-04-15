@@ -12,7 +12,7 @@ export const POINTS_BASELINE = {
 } as const;
 
 export const SCHEDULE = {
-  gameweek: "Gameweek1 Gameday1",
+  gameweek: "Gameweek1",
   deadline: "Fri 10 Apr 06:30",
   games: [
     {

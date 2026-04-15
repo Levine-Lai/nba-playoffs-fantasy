@@ -419,7 +419,9 @@ export default function EditLineupPage() {
                   type="button"
                   className="lineup-modal__action"
                   onClick={() => {
-                    setFeedback(`${actionPlayer.name} | ${actionPlayer.team} ${actionPlayer.position} | Next ${actionPlayer.nextOpponent ?? "TBD"}`);
+                    const nextLabel =
+                      actionPlayer.nextOpponent && actionPlayer.nextOpponent !== "TBD" ? ` | Next ${actionPlayer.nextOpponent}` : "";
+                    setFeedback(`${actionPlayer.name} | ${actionPlayer.team} ${actionPlayer.position}${nextLabel}`);
                     closePlayerModal();
                   }}
                 >

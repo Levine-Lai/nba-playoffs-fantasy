@@ -71,6 +71,7 @@ const elementTypesById = new Map((data.element_types ?? []).map((elementType) =>
 for (const player of data.elements ?? []) {
   const team = teamsById.get(player.team);
   const elementType = elementTypesById.get(player.element_type);
+  const status = player.status ?? "u";
   statements.push(
     buildInsert(
       "players",
@@ -120,8 +121,9 @@ for (const player of data.elements ?? []) {
         event_points: toNumber(player.event_points),
         points_per_game: toNumber(player.points_per_game),
         selected_by_percent: toNumber(player.selected_by_percent),
-        status: player.status ?? "u",
-        can_select: toBoolInt(player.can_select),
+        status,
+        // In this game, status only affects availability messaging; all statuses remain selectable.
+        can_select: 1,
         can_transact: toBoolInt(player.can_transact),
         news: player.news ?? "",
         points_scored: toNumber(player.points_scored),

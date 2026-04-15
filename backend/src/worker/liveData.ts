@@ -1,5 +1,11 @@
 import { GAMEWEEK, SCHEDULE } from "../shared/gameTemplate";
-import { annotateGamesWithGamedays, findCurrentOrNextGameday, isPostseasonGameId, normalizeScheduleDateKey } from "../shared/scheduleUtils";
+import {
+  annotateGamesWithPlayoffGamedays,
+  findCurrentOrNextGameday,
+  getPlayoffGameweekNumber,
+  isPostseasonGameId,
+  normalizeScheduleDateKey
+} from "../shared/scheduleUtils";
 import { calcFinalPoints } from "./gameplay";
 import { buildNextMatchupByTeamFromCache, getStoredScheduleCache, toTeamAsset } from "./store";
 import type { Env, GameweekPayload, NextMatchup, Player, StoredScheduleCache, StoredScheduleGame, TeamAsset, UserState } from "./types";
@@ -196,7 +202,7 @@ async function getOfficialScheduleGames(env: Env) {
   const rawGames = payload?.leagueSchedule?.gameDates?.flatMap((gameDate) => gameDate.games ?? []) ?? [];
   const postseasonGames = rawGames.filter((game) => isPostseasonGameId(String(game.gameId ?? "")));
 
-  return annotateGamesWithGamedays(
+  return annotateGamesWithPlayoffGamedays(
     postseasonGames
       .map((game) => {
         const homeTeam = toTeamAsset(game.homeTeam ?? {});
@@ -223,15 +229,33 @@ async function getOfficialScheduleGames(env: Env) {
         };
       })
       .filter((game) => game.date && game.gamedayKey),
-    (game) => game.gamedayKey
+    (game) => game.gamedayKey,
+    (game) => game.id
   ) as OfficialScheduleGame[];
+}
+
+function isMainPlayoffGame(game: Pick<OfficialScheduleGame, "gameweekNumber">) {
+  return Number(game.gameweekNumber ?? 0) > 0;
 }
 
 function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
   const lookup = new Map<string, NextMatchup>();
+  const playableGames = games.filter(isMainPlayoffGame);
+  const currentGameday = findCurrentOrNextGameday(playableGames);
+  const activeGameweekNumber = Number(currentGameday?.gameweekNumber ?? 0);
+  const nextGamedayIndex = Number(currentGameday?.gamedayIndex ?? 0) + 1;
 
-  games
-    .filter((game) => game.status !== "final")
+  if (!activeGameweekNumber || !nextGamedayIndex) {
+    return lookup;
+  }
+
+  playableGames
+    .filter(
+      (game) =>
+        Number(game.gameweekNumber ?? 0) === activeGameweekNumber &&
+        Number(game.gamedayIndex ?? 0) === nextGamedayIndex &&
+        game.status !== "final"
+    )
     .slice()
     .sort((left, right) => new Date(left.date ?? 0).getTime() - new Date(right.date ?? 0).getTime())
     .forEach((game) => {
@@ -273,7 +297,7 @@ export async function getNextMatchupByTeam(env: Env) {
 }
 
 async function getOfficialSlateContext(env: Env) {
-  const games = await getOfficialScheduleGames(env);
+  const games = (await getOfficialScheduleGames(env)).filter(isMainPlayoffGame);
   const currentGameday = findCurrentOrNextGameday(games);
   const slateDateKey = currentGameday?.gamedayKey ?? null;
 
@@ -359,27 +383,25 @@ async function fillScheduleScores(games: OfficialScheduleGame[]) {
 }
 
 export async function getOfficialScheduleTimeline(env: Env) {
-  const games = await getOfficialScheduleGames(env);
+  const games = (await getOfficialScheduleGames(env)).filter((game) => Number(game.gameweekNumber ?? 0) === 1);
   const currentGameday = findCurrentOrNextGameday(games);
 
-  if (!currentGameday) {
+  if (!games.length) {
     return null;
   }
 
-  const selectedGames = games
-    .filter((game) => Number(game.gamedayIndex ?? 0) >= Number(currentGameday.gamedayIndex ?? 0))
-    .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
-
-  if (!selectedGames.length) {
-    return null;
-  }
-
-  const hydratedGames = await fillScheduleScores(selectedGames);
+  const hydratedGames = await fillScheduleScores(
+    games.slice().sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime())
+  );
+  const nextDeadlineGame =
+    hydratedGames.find((game) => game.status !== "final") ??
+    hydratedGames[0] ??
+    null;
 
   return {
-    gameweek: currentGameday.gamedayLabel ?? GAMEWEEK.label,
+    gameweek: "Gameweek1",
     deadline: formatDateInTimeZone(
-      hydratedGames[0].date,
+      nextDeadlineGame?.date ?? currentGameday?.date ?? hydratedGames[0]?.date ?? "",
       {
         weekday: "short",
         month: "short",
@@ -410,11 +432,24 @@ function formatDateTimeLabel(dateInput: string | null | undefined) {
 
 export async function getGameweekPayload(env: Env, firstDeadline: string): Promise<GameweekPayload> {
   const cachedSchedule = await getStoredScheduleCache(env);
+  const cachedGames = Array.isArray(cachedSchedule?.games)
+    ? cachedSchedule.games.filter((game) => Number(getPlayoffGameweekNumber(game.id) ?? 0) > 0)
+    : [];
+  const derivedCurrentGameday = findCurrentOrNextGameday(cachedGames);
+
+  if (derivedCurrentGameday?.gamedayLabel) {
+    return {
+      id: Number(derivedCurrentGameday.gamedayIndex ?? GAMEWEEK.id),
+      label: derivedCurrentGameday.gamedayLabel,
+      deadline: derivedCurrentGameday.date ?? cachedSchedule?.deadline ?? firstDeadline
+    };
+  }
+
   if (cachedSchedule?.currentGameday?.label) {
     return {
       id: Number(cachedSchedule.currentGameday.index ?? GAMEWEEK.id),
       label: cachedSchedule.currentGameday.label,
-      deadline: cachedSchedule.currentGameday.deadline ?? firstDeadline
+      deadline: cachedSchedule.currentGameday.deadline ?? cachedSchedule.deadline ?? firstDeadline
     };
   }
 
@@ -427,10 +462,16 @@ export async function getGameweekPayload(env: Env, firstDeadline: string): Promi
 export async function buildSchedulePayload(env: Env) {
   const liveCache = await getStoredScheduleCache(env);
   if (Array.isArray(liveCache?.games) && liveCache.games.length) {
+    const gameweekOneGames = liveCache.games.filter((game) => {
+      const gameweekNumber = getPlayoffGameweekNumber(game.id);
+      return gameweekNumber === null || gameweekNumber === 1;
+    });
+    const nextDeadlineGame = gameweekOneGames.find((game) => game.status !== "final") ?? gameweekOneGames[0] ?? null;
+
     return {
-      gameweek: liveCache.gameweek ?? "Gameweek1 Gameday1",
-      deadline: liveCache.deadline ? formatDateTimeLabel(liveCache.deadline) : "",
-      games: liveCache.games.map((game) => ({
+      gameweek: "Gameweek1",
+      deadline: nextDeadlineGame?.date ? formatDateTimeLabel(nextDeadlineGame.date) : liveCache.deadline ? formatDateTimeLabel(liveCache.deadline) : "",
+      games: gameweekOneGames.map((game) => ({
         ...game,
         homeTeam: game.homeTeam ?? undefined,
         awayTeam: game.awayTeam ?? undefined
@@ -440,7 +481,7 @@ export async function buildSchedulePayload(env: Env) {
 
   return {
     ...SCHEDULE,
-    gameweek: "Gameweek1 Gameday1",
+    gameweek: "Gameweek1",
     games: SCHEDULE.games.map((game) => ({
       ...game,
       gamedayKey: game.date,

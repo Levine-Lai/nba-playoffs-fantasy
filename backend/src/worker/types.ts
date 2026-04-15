@@ -166,6 +166,7 @@ export interface StoredScheduleCache {
     deadline?: string;
   } | null;
   games?: StoredScheduleGame[];
+  testingGames?: StoredScheduleGame[];
 }
 
 export interface NextMatchup {

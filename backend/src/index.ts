@@ -50,11 +50,11 @@ async function enrichRosterPlayers(env: Env, players: Player[]) {
     return {
       ...player,
       ...fresh,
-      nextOpponent: fresh.nextOpponent ?? player.nextOpponent,
-      nextOpponentName: fresh.nextOpponentName ?? player.nextOpponentName,
-      nextOpponentLogoUrl: fresh.nextOpponentLogoUrl ?? player.nextOpponentLogoUrl,
-      nextOpponentLogoFallbackUrl: fresh.nextOpponentLogoFallbackUrl ?? player.nextOpponentLogoFallbackUrl,
-      upcoming: fresh.upcoming?.length ? fresh.upcoming : player.upcoming
+      nextOpponent: fresh.nextOpponent,
+      nextOpponentName: fresh.nextOpponentName,
+      nextOpponentLogoUrl: fresh.nextOpponentLogoUrl,
+      nextOpponentLogoFallbackUrl: fresh.nextOpponentLogoFallbackUrl,
+      upcoming: fresh.upcoming ?? []
     };
   });
 }
@@ -707,6 +707,10 @@ export default {
                 id: game.id,
                 date: game.date,
                 tipoff: game.tipoff,
+                gamedayKey: game.gamedayKey,
+                gamedayLabel: game.gamedayLabel,
+                gamedayDateLabel: game.gamedayDateLabel,
+                gamedayIndex: game.gamedayIndex,
                 home: game.home,
                 away: game.away,
                 homeTeam: game.homeTeam ?? undefined,

@@ -1,4 +1,5 @@
 import { buildInitialUserState } from "../shared/gameTemplate";
+import { findCurrentOrNextGameday, getPlayoffGameweekNumber } from "../shared/scheduleUtils";
 import type {
   AuthUser,
   Env,
@@ -104,7 +105,7 @@ function normalizePlayerRow(row: PlayerRow, nextMatchupByTeam = new Map<string, 
   const recentAverage = Number((Number(row.recentAverage) / 10).toFixed(1));
   const color = row.position === "FC" ? "hot" : "cold";
   const nextMatchup = teamCode ? nextMatchupByTeam.get(teamCode) ?? null : null;
-  const nextOpponent = nextMatchup?.opponent?.triCode || nextMatchup?.opponent?.name || "TBD";
+  const nextOpponent = nextMatchup?.opponent?.triCode || nextMatchup?.opponent?.name;
 
   return {
     id: String(row.id),
@@ -131,7 +132,7 @@ function normalizePlayerRow(row: PlayerRow, nextMatchupByTeam = new Map<string, 
     nextOpponentName: nextMatchup?.opponent?.name ?? null,
     nextOpponentLogoUrl: nextMatchup?.opponent?.logoUrl ?? null,
     nextOpponentLogoFallbackUrl: nextMatchup?.opponent?.logoFallbackUrl ?? null,
-    upcoming: nextMatchup ? [nextMatchup.gamedayLabel ?? "Upcoming", nextMatchup.tipoff ?? "-"] : ["TBD", "TBD"]
+    upcoming: nextMatchup ? [nextMatchup.gamedayLabel ?? "Upcoming", nextMatchup.tipoff ?? "-"] : []
   } satisfies Player;
 }
 
@@ -734,11 +735,25 @@ export async function getStoredScheduleCache(env: Env) {
 }
 
 export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | null) {
-  const games = Array.isArray(cache?.games) ? cache.games : [];
+  const games = Array.isArray(cache?.games)
+    ? cache.games.filter((game) => Number(getPlayoffGameweekNumber(game.id) ?? 0) > 0)
+    : [];
   const lookup = new Map<string, NextMatchup>();
+  const currentGameday = findCurrentOrNextGameday(games);
+  const activeGameweekNumber = Number(getPlayoffGameweekNumber(currentGameday?.id) ?? 0);
+  const nextGamedayIndex = Number(currentGameday?.gamedayIndex ?? 0) + 1;
+
+  if (!activeGameweekNumber || !nextGamedayIndex) {
+    return lookup;
+  }
 
   games
-    .filter((game) => game?.status !== "final")
+    .filter(
+      (game) =>
+        Number(getPlayoffGameweekNumber(game.id) ?? 0) === activeGameweekNumber &&
+        Number(game?.gamedayIndex ?? 0) === nextGamedayIndex &&
+        game?.status !== "final"
+    )
     .slice()
     .sort((left, right) => new Date(left.date ?? 0).getTime() - new Date(right.date ?? 0).getTime())
     .forEach((game) => {

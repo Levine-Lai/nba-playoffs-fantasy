@@ -153,13 +153,9 @@ export default function SchedulePage() {
     <div className="panel">
       <div className="panel-head">Schedule</div>
       <div className="panel-body space-y-4">
-        <div className="grid items-center gap-3 rounded-sm border border-slate-200 p-3 md:grid-cols-[200px_1fr_200px]">
-          <button className="nba-button-blue">Previous</button>
-          <div className="text-center">
-            <p className="text-4xl font-semibold uppercase">{data.gameweek}</p>
-            <p className="text-sm text-slate-500">{data.deadline}</p>
-          </div>
-          <button className="nba-button-blue">Next</button>
+        <div className="rounded-sm border border-slate-200 p-3 text-center">
+          <p className="text-4xl font-semibold uppercase">{data.gameweek}</p>
+          <p className="text-sm text-slate-500">{data.deadline}</p>
         </div>
 
         {grouped.map((group) => (
