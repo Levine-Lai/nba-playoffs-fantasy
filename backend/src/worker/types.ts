@@ -50,6 +50,7 @@ export interface TransferHistoryItem {
   inPlayer: string;
   cost: number;
   note: string;
+  windowKey?: string;
 }
 
 export interface UserState {
@@ -91,6 +92,13 @@ export interface GameweekPayload {
   id: number;
   label: string;
   deadline: string;
+}
+
+export interface TransferWindowContext {
+  key: string;
+  label: string;
+  limit: number;
+  mode: "LIMITLESS" | "LIMITED";
 }
 
 export interface LeagueMemberEntry {

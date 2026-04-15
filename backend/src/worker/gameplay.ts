@@ -1,4 +1,4 @@
-import type { GameweekPayload, Player, TransactionsPayload, UserState } from "./types";
+import type { GameweekPayload, Player, TransactionsPayload, TransferHistoryItem, TransferWindowContext, UserState } from "./types";
 
 export function hasCreatedTeam(state: UserState) {
   return state.starters.length + state.bench.length === 10;
@@ -36,13 +36,27 @@ export function withVisiblePoints(players: Player[], beforeFirstDeadline: boolea
   }));
 }
 
+function countTransfersForWindow(history: TransferHistoryItem[], windowKey: string) {
+  return history.filter((item) => item.windowKey === windowKey).length;
+}
+
+export function syncTransferWindowState(state: UserState, transferWindow: TransferWindowContext) {
+  state.weeklyFreeLimit = transferWindow.limit;
+  state.usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  return state;
+}
+
 export function buildLineupPayload(params: {
   state: UserState;
   gameweek: GameweekPayload;
   budget: number;
   beforeFirstDeadline: boolean;
+  transferWindow: TransferWindowContext;
 }) {
-  const { state, gameweek, budget, beforeFirstDeadline } = params;
+  const { state, gameweek, budget, beforeFirstDeadline, transferWindow } = params;
+  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  const freeLeft = transferWindow.mode === "LIMITLESS" ? 999 : Math.max(0, transferWindow.limit - usedThisWeek);
+
   return {
     gameweek,
     hasTeam: hasCreatedTeam(state),
@@ -56,9 +70,10 @@ export function buildLineupPayload(params: {
       captainId: state.captainId
     },
     transactions: {
-      freeLeft: Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
-      usedThisWeek: state.usedThisWeek,
-      weeklyFreeLimit: state.weeklyFreeLimit
+      transferMode: transferWindow.mode,
+      freeLeft,
+      usedThisWeek,
+      weeklyFreeLimit: transferWindow.limit
     }
   };
 }
@@ -68,17 +83,19 @@ export function buildTransactionsPayload(params: {
   gameweek: GameweekPayload;
   market: Player[];
   beforeFirstDeadline: boolean;
+  transferWindow: TransferWindowContext;
 }): TransactionsPayload {
-  const { state, gameweek, market, beforeFirstDeadline } = params;
-  const limitless = beforeFirstDeadline;
+  const { state, gameweek, market, beforeFirstDeadline, transferWindow } = params;
+  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  const limitless = transferWindow.mode === "LIMITLESS";
 
   return {
     gameweek,
     hasTeam: hasCreatedTeam(state),
     transferMode: limitless ? "LIMITLESS" : "LIMITED",
-    freeTransfersLeft: limitless ? 999 : Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
-    usedThisWeek: state.usedThisWeek,
-    weeklyFreeLimit: state.weeklyFreeLimit,
+    freeTransfersLeft: limitless ? 999 : Math.max(0, transferWindow.limit - usedThisWeek),
+    usedThisWeek,
+    weeklyFreeLimit: transferWindow.limit,
     bank: state.bank,
     rosterValue: state.rosterValue,
     history: state.history,
@@ -160,16 +177,18 @@ export function replacePlayerForState(params: {
   incoming: Player;
   budget: number;
   beforeFirstDeadline: boolean;
+  transferWindow: TransferWindowContext;
 }) {
-  const { state, outPlayerId, incoming, budget, beforeFirstDeadline } = params;
+  const { state, outPlayerId, incoming, budget, beforeFirstDeadline, transferWindow } = params;
 
   if (!hasCreatedTeam(state)) {
     return { ok: false as const, error: "Create your initial team first." };
   }
 
-  const freeTransfersLeft = Math.max(0, state.weeklyFreeLimit - state.usedThisWeek);
-  if (!beforeFirstDeadline && freeTransfersLeft <= 0) {
-    return { ok: false as const, error: "No free transfers left for this week." };
+  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  const freeTransfersLeft = Math.max(0, transferWindow.limit - usedThisWeek);
+  if (transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && freeTransfersLeft <= 0) {
+    return { ok: false as const, error: `No free transfers left for ${transferWindow.label.toLowerCase()}.` };
   }
 
   if (!incoming.canSelect || !incoming.canTransact) {
@@ -224,13 +243,11 @@ export function replacePlayerForState(params: {
     upcoming: ["TBD", "TBD"]
   });
 
-  if (!beforeFirstDeadline) {
-    state.usedThisWeek += 1;
-  }
-
   state.totalTransfers += 1;
   state.rosterValue = nextRosterValue;
   state.bank = Number((budget - state.rosterValue).toFixed(1));
+  state.usedThisWeek = usedThisWeek + 1;
+  state.weeklyFreeLimit = transferWindow.limit;
 
   const record = {
     id: `tx-${Date.now()}`,
@@ -238,7 +255,8 @@ export function replacePlayerForState(params: {
     outPlayer: outgoing.name,
     inPlayer: incoming.name,
     cost: 0,
-    note: beforeFirstDeadline ? "Limitless before first deadline" : "Free transfer"
+    note: transferWindow.mode === "LIMITLESS" ? `Unlimited before ${gameweekLabelFromWindow(transferWindow)} deadline` : `Free transfer for ${transferWindow.label}`,
+    windowKey: transferWindow.key
   };
 
   state.history.unshift(record);
@@ -247,4 +265,8 @@ export function replacePlayerForState(params: {
     ok: true as const,
     transfer: record
   };
+}
+
+function gameweekLabelFromWindow(transferWindow: TransferWindowContext) {
+  return transferWindow.label === "Round 1" ? "Round 1 Day 1" : transferWindow.label;
 }

@@ -1,5 +1,5 @@
 import { buildInitialUserState } from "../shared/gameTemplate";
-import { findCurrentOrNextGameday, getPlayoffGameweekNumber } from "../shared/scheduleUtils";
+import { buildPlayoffPeriods, findEditablePlayoffPeriod, getPlayoffGameweekNumber, normalizeScheduleDateKey } from "../shared/scheduleUtils";
 import type {
   AuthUser,
   Env,
@@ -735,23 +735,25 @@ export async function getStoredScheduleCache(env: Env) {
 }
 
 export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | null) {
-  const games = Array.isArray(cache?.games)
-    ? cache.games.filter((game) => Number(getPlayoffGameweekNumber(game.id) ?? 0) > 0)
-    : [];
+  const games = Array.isArray(cache?.games) ? cache.games : [];
   const lookup = new Map<string, NextMatchup>();
-  const currentGameday = findCurrentOrNextGameday(games);
-  const activeGameweekNumber = Number(getPlayoffGameweekNumber(currentGameday?.id) ?? 0);
-  const nextGamedayIndex = Number(currentGameday?.gamedayIndex ?? 0) + 1;
+  const editablePeriod = findEditablePlayoffPeriod(
+    buildPlayoffPeriods(
+      games,
+      (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
+      (game) => game.id
+    )
+  );
 
-  if (!activeGameweekNumber || !nextGamedayIndex) {
+  if (!editablePeriod) {
     return lookup;
   }
 
   games
     .filter(
       (game) =>
-        Number(getPlayoffGameweekNumber(game.id) ?? 0) === activeGameweekNumber &&
-        Number(game?.gamedayIndex ?? 0) === nextGamedayIndex &&
+        Number(getPlayoffGameweekNumber(game.id) ?? 0) === editablePeriod.roundNumber &&
+        (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === editablePeriod.gamedayKey &&
         game?.status !== "final"
     )
     .slice()

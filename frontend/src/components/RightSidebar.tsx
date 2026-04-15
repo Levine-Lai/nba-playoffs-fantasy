@@ -106,11 +106,11 @@ export default function RightSidebar() {
 
       <section className="sidebar-card">
         <h4 className="sidebar-card__head">Transactions And Finance</h4>
-        <dl>
-          <div className="sidebar-row">
-            <dt>Gameweek transactions</dt>
-            <dd className="font-semibold">{data.transactions.freeLeft}</dd>
-          </div>
+          <dl>
+            <div className="sidebar-row">
+              <dt>Current window transfers</dt>
+              <dd className="font-semibold">{data.transactions.freeLeft >= 999 ? "Unlimited" : data.transactions.freeLeft}</dd>
+            </div>
           <div className="sidebar-row">
             <dt>Total transactions</dt>
             <dd className="font-semibold">{data.transactions.total}</dd>

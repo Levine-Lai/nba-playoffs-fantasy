@@ -49,6 +49,7 @@ export interface LineupResponse {
   captainDecisionLocked: boolean;
   lineup: Lineup;
   transactions: {
+    transferMode?: "LIMITLESS" | "LIMITED";
     freeLeft: number;
     usedThisWeek: number;
     weeklyFreeLimit: number;
@@ -120,6 +121,7 @@ export interface TransferHistoryItem {
   inPlayer: string;
   cost: number;
   note: string;
+  windowKey?: string;
 }
 
 export interface TransactionsResponse {

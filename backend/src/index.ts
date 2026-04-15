@@ -1,8 +1,8 @@
 import bcrypt from "bcryptjs";
 import { HELP_RULES, POINTS_BASELINE } from "./shared/gameTemplate";
-import { buildLineupPayload, buildTransactionsPayload, calcFinalPoints, createInitialTeamForState, getDisplayProfileState, getRosterPlayers, hasCreatedTeam, isValidStarterMix, replacePlayerForState, withVisiblePoints } from "./worker/gameplay";
+import { buildLineupPayload, buildTransactionsPayload, calcFinalPoints, createInitialTeamForState, getDisplayProfileState, getRosterPlayers, hasCreatedTeam, isValidStarterMix, replacePlayerForState, syncTransferWindowState, withVisiblePoints } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildSchedulePayload, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline } from "./worker/liveData";
+import { buildOfficialLivePointsPreview, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline } from "./worker/liveData";
 import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, registerUser, saveStateForUser, searchPlayerPool } from "./worker/store";
 import type { AuthUser, Env, Player, UserState } from "./worker/types";
 
@@ -28,8 +28,7 @@ async function getFirstDeadline(env: Env) {
 }
 
 async function isBeforeFirstDeadline(env: Env) {
-  const deadline = new Date(await getFirstDeadline(env)).getTime();
-  return Number.isFinite(deadline) ? Date.now() < deadline : false;
+  return (await getEditablePeriodContext(env, await getFirstDeadline(env))).beforeCompetitionStart;
 }
 
 async function enrichRosterPlayers(env: Env, players: Player[]) {
@@ -276,12 +275,15 @@ export default {
         }
 
         await saveStateForUser(env, auth.authUser.id, state);
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        syncTransferWindowState(state, editableContext.transferWindow);
         return json(
           buildLineupPayload({
             state,
-            gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+            gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
-            beforeFirstDeadline: await isBeforeFirstDeadline(env)
+            beforeFirstDeadline: editableContext.beforeCompetitionStart,
+            transferWindow: editableContext.transferWindow
           }),
           { status: 201 },
           env
@@ -299,7 +301,9 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
-        const beforeDeadline = await isBeforeFirstDeadline(env);
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        syncTransferWindowState(state, editableContext.transferWindow);
+        const beforeDeadline = editableContext.beforeCompetitionStart;
         const displayState = getDisplayProfileState(state, beforeDeadline);
         const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null) : null;
 
@@ -322,7 +326,7 @@ export default {
               fanLeague: displayState.fanLeague
             },
             transactions: {
-              freeLeft: Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
+              freeLeft: editableContext.transferWindow.mode === "LIMITLESS" ? 999 : Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
               total: state.totalTransfers,
               rosterValue: state.rosterValue,
               bank: state.bank
@@ -348,12 +352,15 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        syncTransferWindowState(state, editableContext.transferWindow);
         return json(
           buildLineupPayload({
             state,
-            gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+            gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
-            beforeFirstDeadline: await isBeforeFirstDeadline(env)
+            beforeFirstDeadline: editableContext.beforeCompetitionStart,
+            transferWindow: editableContext.transferWindow
           }),
           { status: 200 },
           env
@@ -409,13 +416,16 @@ export default {
         state.captainDecisionLocked = false;
 
         await saveStateForUser(env, auth.authUser.id, state);
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        syncTransferWindowState(state, editableContext.transferWindow);
 
         return json(
           buildLineupPayload({
             state,
-            gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+            gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
-            beforeFirstDeadline: await isBeforeFirstDeadline(env)
+            beforeFirstDeadline: editableContext.beforeCompetitionStart,
+            transferWindow: editableContext.transferWindow
           }),
           { status: 200 },
           env
@@ -437,7 +447,8 @@ export default {
           return json({ message: "Create your initial team first." }, { status: 400 }, env);
         }
 
-        const beforeDeadline = await isBeforeFirstDeadline(env);
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        const beforeDeadline = editableContext.beforeCompetitionStart;
         const livePreview = await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null);
         if (livePreview) {
           return json(livePreview, { status: 200 }, env);
@@ -447,8 +458,8 @@ export default {
           return json(
             {
               visible: false,
-              message: "Points will unlock after the first deadline.",
-              gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+              message: "Points will unlock after Round 1 Day 1 deadline.",
+              gameweek: editableContext.gameweek,
               summary: {
                 average: 0,
                 final: 0,
@@ -472,7 +483,7 @@ export default {
         return json(
           {
             visible: true,
-            gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+            gameweek: editableContext.gameweek,
             summary: {
               average: POINTS_BASELINE.average,
               final: finalPoints,
@@ -509,13 +520,16 @@ export default {
           },
           nextMatchupByTeam
         );
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        syncTransferWindowState(state, editableContext.transferWindow);
 
         return json(
           buildTransactionsPayload({
             state,
-            gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+            gameweek: editableContext.gameweek,
             market,
-            beforeFirstDeadline: await isBeforeFirstDeadline(env)
+            beforeFirstDeadline: editableContext.beforeCompetitionStart,
+            transferWindow: editableContext.transferWindow
           }),
           { status: 200 },
           env
@@ -547,12 +561,14 @@ export default {
           return json({ message: "Incoming player not found in transfer market." }, { status: 400 }, env);
         }
 
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
         const result = replacePlayerForState({
           state,
           outPlayerId,
           incoming,
           budget: await getInitialBudget(env),
-          beforeFirstDeadline: await isBeforeFirstDeadline(env)
+          beforeFirstDeadline: editableContext.beforeCompetitionStart,
+          transferWindow: editableContext.transferWindow
         });
 
         if (!result.ok) {
@@ -576,9 +592,10 @@ export default {
             transfer: result.transfer,
             payload: buildTransactionsPayload({
               state,
-              gameweek: await getGameweekPayload(env, await getFirstDeadline(env)),
+              gameweek: editableContext.gameweek,
               market,
-              beforeFirstDeadline: await isBeforeFirstDeadline(env)
+              beforeFirstDeadline: editableContext.beforeCompetitionStart,
+              transferWindow: editableContext.transferWindow
             })
           },
           { status: 200 },

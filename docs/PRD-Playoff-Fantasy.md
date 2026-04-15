@@ -12,7 +12,7 @@
 Current fantasy gameplay ends with regular season. Users want a playoff mode to keep competing with friends.
 
 ### 1.2 Product Summary
-Users set a 10-player squad before playoff rounds, get weekly free transfers, earn points from real player performances, and compete in league rankings. MVP uses the NBA Fantasy bootstrap API as the initial player database source.
+Users set a 10-player squad before playoff rounds, manage transfers across play-in / round windows, earn points from real player performances, and compete in league rankings. MVP uses the NBA Fantasy bootstrap API as the initial player database source.
 
 ### 1.3 Goals
 - Business goal: retain engagement during playoff period.
@@ -24,8 +24,9 @@ Users set a 10-player squad before playoff rounds, get weekly free transfers, ea
 - Social competitive players in private leagues.
 
 ### 1.5 Terms
-- Gameweek: playoff weekly cycle.
-- Free Transfer: weekly transfer quota with no penalty.
+- Round Day: the playable daily checkpoint inside a playoff round, for example `Round 1 Day 2`.
+- Play-In: testing-only daily checkpoint before Round 1, for example `Play-In 2`.
+- Free Transfer: transfer quota with no penalty inside the current transfer window.
 - Captain: selected player with 1.5x multiplier.
 
 ## 2. Scope
@@ -57,9 +58,11 @@ D --> B
 - New accounts start with an empty roster and must create a team before editing lineup, viewing points, or making transfers.
 - 5 starters count toward daily score.
 - Captain receives 1.5x score multiplier.
-- Weekly free transfer quota defaults to 2. [Assumption]
-- Transfers are unlimited before the configured first deadline.
-- Points are hidden before the configured first deadline.
+- Each round currently has 3 free transfers shared across the whole round. [Configurable]
+- Play-In testing windows currently have 3 free transfers per play-in day. [Testing-only]
+- `Round 1 Day 1` is the official game start. Before its deadline, transfers are unlimited.
+- Each playable day has a deadline 30 minutes before the first game of that day.
+- After a day deadline passes, points represent that day and edit/transactions move to the next editable day.
 
 ## 3. Functional Requirements
 ### 3.1 Home
@@ -73,21 +76,23 @@ D --> B
 - Initial team builder shows selected squad on the left and player selection on the right.
 - Player selection supports search, position filter, team filter, max cost filter, and sorting.
 - Create Team validates 10 unique players, 5 `BC`, 5 `FC`, and total salary <= 100.
-- Show gameweek and deadline.
+- Show current editable round/day label and deadline.
 - Show starters and bench cards.
+- Show `Next` opponent based on the current editable day; if the player has no game that day, show `-`.
 - Allow captain selection.
 - Save lineup.
 
 ### 3.3 Points
-- Before first deadline, show locked state and do not display daily points.
+- Before `Round 1 Day 1` deadline, keep points locked for production launch.
 - If user has no roster, ask user to create the initial team first.
 - Show average/final/top game-day points.
 - Show player point cards for starters and bench.
 
 ### 3.4 Transactions
 - If user has no roster, ask user to create the initial team first.
-- Before first deadline, show limitless transfer mode.
-- After first deadline, enforce weekly free transfer quota.
+- Before `Round 1 Day 1` deadline, show limitless transfer mode.
+- During play-in testing, enforce 3 free transfers per play-in day.
+- After launch, enforce 3 free transfers per round by default.
 - Show free transfers left and finance metrics.
 - Select outgoing and incoming players.
 - Confirm transfer and refresh lineup/market.
@@ -98,8 +103,10 @@ D --> B
 - Show current rank, previous rank, and rank delta.
 
 ### 3.6 Schedule
-- Show games grouped by date.
-- Show gameweek header and tipoff times.
+- Show only `Round 1` schedule for now.
+- Group games by `Round 1 Day 1`, `Round 1 Day 2`, and so on.
+- Keep play-in schedule data available in backend for testing, but do not surface it in the main schedule page.
+- Show next relevant deadline and tipoff times.
 
 ### 3.7 Help
 - Show roster rules.
@@ -146,7 +153,7 @@ D --> B
 | captainId | string | No | Captain player ID |
 | rosterValue | number | Yes | Sum of roster salary |
 | bank | number | Yes | Budget remaining |
-| usedThisWeek | number | Yes | Transfers used in the current week |
+| usedThisWeek | number | Yes | Transfers used in the current transfer window |
 
 ### 5.3 Transaction
 | Field | Type | Required | Description |
@@ -159,8 +166,8 @@ D --> B
 | Field | Type | Required | Description |
 |---|---|---|---|
 | initial_budget | number | Yes | Default 100 |
-| weekly_free_transfers | number | Yes | Default 2 |
-| first_deadline | ISO string | Yes | Unlock point scoring and switch transfers from limitless to limited |
+| weekly_free_transfers | number | Yes | Legacy default transfer value; current runtime window logic is schedule-driven |
+| first_deadline | ISO string | Yes | Legacy fallback for `Round 1 Day 1` launch lock |
 
 ## 6. Acceptance Criteria
 - Login endpoint returns token.
@@ -168,18 +175,19 @@ D --> B
 - Initial team builder can create a legal 10-player roster.
 - Illegal initial teams are rejected when over budget or not 5 `BC` + 5 `FC`.
 - Edit line-up can save captain choice.
-- Points are locked before first deadline.
+- Points are locked before `Round 1 Day 1` deadline.
 - Points page renders summary and player cards.
-- Transactions are limitless before first deadline and limited after first deadline.
+- Transactions are limitless before `Round 1 Day 1` deadline.
+- Play-in testing windows and round windows apply the configured free-transfer rules.
 - Transactions can complete at least one transfer and show history.
 - Leagues/Schedule/Help pages render expected sections.
 - Frontend `npx tsc --noEmit` passes.
 - Frontend `npm run build` passes.
 
 ## 7. Open Questions
-1. Should free transfer quota always be 2 per week?
+1. Should the default free transfer quota stay at 3 per round after testing ends?
 2. Should over-limit transfers apply score penalty (for example -4)?
 3. Should bench auto-substitute before tipoff lock?
 4. Is league admin flow required in MVP?
 5. Which live box-score source is preferred for production scoring?
-6. Should first playoff deadline be set manually by league admin or inferred from schedule import?
+6. Should `Round 1 Day 1` launch lock be set manually by league admin or inferred from schedule import?

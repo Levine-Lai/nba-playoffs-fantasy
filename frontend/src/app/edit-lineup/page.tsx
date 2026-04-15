@@ -238,7 +238,7 @@ export default function EditLineupPage() {
       setDirty(false);
       setCaptainMode(false);
       clearSwitchFlow();
-      setFeedback("Line-up saved for this gameweek.");
+      setFeedback(`Line-up saved for ${next.gameweek.label}.`);
     } catch (nextError) {
       setFeedback(nextError instanceof Error ? nextError.message : "Failed to save line-up.");
     } finally {
@@ -280,7 +280,7 @@ export default function EditLineupPage() {
             <h1 className="text-4xl font-semibold uppercase">{data.gameweek.label}</h1>
             <p className="mt-1 text-sm text-slate-600">Deadline: {new Date(data.gameweek.deadline).toLocaleString()}</p>
             <p className="mt-1 text-sm text-slate-600">
-              Free transfers left: {data.transactions.freeLeft} / {data.transactions.weeklyFreeLimit}
+              Free transfers left: {data.transactions.transferMode === "LIMITLESS" ? "Unlimited" : `${data.transactions.freeLeft} / ${data.transactions.weeklyFreeLimit}`}
             </p>
           </div>
           {feedback ? <p className="rounded bg-slate-100 p-2 text-sm text-slate-700">{feedback}</p> : null}

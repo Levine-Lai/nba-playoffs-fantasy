@@ -2,7 +2,7 @@ import type { TransferHistoryItem, UserState } from "../worker/types";
 
 export const GAMEWEEK = {
   id: 1,
-  label: "Gameweek1 Gameday1",
+  label: "Round 1 Day 1",
   deadline: "2026-04-10T06:30:00Z"
 } as const;
 
