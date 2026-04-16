@@ -358,71 +358,6 @@ export default function TransactionsPage() {
     setFeedback(`${player.name} is now lined up to replace ${focusedOutPlayer.name}.`);
   }
 
-  async function handleAutoPick() {
-    if (!pendingDrafts.some((draft) => !draft.inPlayer)) {
-      setFeedback("Auto Pick works when there are removed players waiting for replacements.");
-      return;
-    }
-
-    setSubmitting(true);
-    setFeedback(null);
-
-    try {
-      const currentRosterIds = new Set(lineupPlayers.map((player) => player.id));
-      const currentIncomingIds = new Set(pendingDrafts.map((draft) => draft.inPlayer?.id).filter(Boolean) as string[]);
-      let nextBank = projectedBank;
-      const fetchedPools = new Map<string, Player[]>();
-
-      async function getPool(position: string) {
-        if (!fetchedPools.has(position)) {
-          const response = await getPlayers({
-            position,
-            sort: "recentAverage",
-            limit: 200
-          });
-          fetchedPools.set(position, response.players);
-        }
-
-        return fetchedPools.get(position) ?? [];
-      }
-
-      const nextDrafts: PendingDraft[] = [];
-      for (const draft of pendingDrafts) {
-        if (draft.inPlayer) {
-          nextDrafts.push(draft);
-          continue;
-        }
-
-        const pool = await getPool(draft.outPlayer.position);
-        const candidates = pool
-          .filter((player) => !currentRosterIds.has(player.id))
-          .filter((player) => !currentIncomingIds.has(player.id))
-          .filter((player) => effectiveChip === "all-star" || nextBank + draft.outPlayer.salary - player.salary > 0)
-          .slice(0, 16);
-
-        if (!candidates.length) {
-          nextDrafts.push(draft);
-          continue;
-        }
-
-        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
-        currentIncomingIds.add(chosen.id);
-        nextBank = Number((nextBank + draft.outPlayer.salary - chosen.salary).toFixed(1));
-        nextDrafts.push({
-          ...draft,
-          inPlayer: chosen
-        });
-      }
-
-      setPendingDrafts(nextDrafts);
-      setFeedback(nextDrafts.every((draft) => draft.inPlayer) ? "Auto Pick filled the open slots." : "Auto Pick filled what it could within the current constraints.");
-    } catch (nextError) {
-      setFeedback(nextError instanceof Error ? nextError.message : "Auto Pick failed.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function submitTransfers() {
     if (!pendingDrafts.length || pendingDrafts.some((draft) => !draft.inPlayer)) {
       setConfirmOpen(false);
@@ -521,14 +456,7 @@ export default function TransactionsPage() {
               </h1>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[220px_220px_1fr_1fr]">
-              <button
-                type="button"
-                onClick={() => void handleAutoPick()}
-                className="rounded-sm border border-slate-700 bg-white px-4 py-3 text-lg font-semibold text-slate-900"
-              >
-                Auto Pick
-              </button>
+            <div className="grid gap-3 md:grid-cols-[220px_1fr_1fr]">
               <button
                 type="button"
                 onClick={() => {
