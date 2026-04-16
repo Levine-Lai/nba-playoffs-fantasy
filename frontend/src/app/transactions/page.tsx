@@ -276,6 +276,10 @@ export default function TransactionsPage() {
   const penaltyTransfers = Math.max(0, totalPaidTransfers - existingPaidTransfers);
   const transferCost = -100 * penaltyTransfers;
   const canSubmit = Boolean(allDraftsFilled && !submitting && (effectiveChip === "all-star" || projectedBank >= 0));
+  const ftDisplay =
+    data?.transferMode === "LIMITLESS"
+      ? "Unlimited"
+      : `${effectiveChip ? data?.usedThisWeek ?? 0 : (data?.usedThisWeek ?? 0) + pendingDrafts.length}/${data?.weeklyFreeLimit ?? 0}`;
 
   function upsertDraft(player: Player, keepReplacement: boolean) {
     setPendingDrafts((current) => {
@@ -393,7 +397,7 @@ export default function TransactionsPage() {
         const candidates = pool
           .filter((player) => !currentRosterIds.has(player.id))
           .filter((player) => !currentIncomingIds.has(player.id))
-          .filter((player) => effectiveChip === "all-star" || nextBank + draft.outPlayer.salary - player.salary >= 0)
+          .filter((player) => effectiveChip === "all-star" || nextBank + draft.outPlayer.salary - player.salary > 0)
           .slice(0, 16);
 
         if (!candidates.length) {
@@ -590,10 +594,14 @@ export default function TransactionsPage() {
 
             <div className="grid gap-3 md:grid-cols-3">
               <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
-                <span>Free Transactions</span>
-                <strong>{data.transferMode === "LIMITLESS" ? "Unlimited" : data.freeTransfersLeft}</strong>
+                <span>FT</span>
+                <strong>{ftDisplay}</strong>
               </article>
-              <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
+              <article
+                className={`flex items-center justify-between rounded-sm border-2 px-4 py-3 text-lg ${
+                  transferCost < 0 ? "border-[#d11f3a] bg-[#d11f3a] text-white" : "border-brand-yellow bg-white"
+                }`}
+              >
                 <span>Cost</span>
                 <strong>{transferCost}</strong>
               </article>

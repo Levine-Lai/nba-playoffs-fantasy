@@ -395,6 +395,25 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
       }
     });
 
+  for (const [teamCode, upcomingSchedule] of upcomingScheduleByTeam.entries()) {
+    if (lookup.has(teamCode)) {
+      continue;
+    }
+
+    const firstScheduledCell = upcomingSchedule.find((cell) => cell.hasGame) ?? null;
+    lookup.set(teamCode, {
+      opponent: {
+        name: "",
+        triCode: "",
+        logoUrl: null,
+        logoFallbackUrl: null
+      },
+      gamedayLabel: null,
+      tipoff: null,
+      upcomingSchedule
+    });
+  }
+
   return lookup;
 }
 

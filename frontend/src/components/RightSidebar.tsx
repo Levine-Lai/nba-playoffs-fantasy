@@ -73,7 +73,6 @@ export default function RightSidebar() {
               <dd className="font-semibold">{data.profile.gamedayPoints}</dd>
             </div>
           </dl>
-          <div className="px-4 py-3 text-sm font-semibold text-brand-darkBlue">View Gameday History &gt;</div>
         </div>
       </section>
 

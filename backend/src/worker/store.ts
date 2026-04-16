@@ -936,6 +936,24 @@ export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | nul
       }
     });
 
+  for (const [teamCode, upcomingSchedule] of scheduleByTeam.entries()) {
+    if (lookup.has(teamCode)) {
+      continue;
+    }
+
+    lookup.set(teamCode, {
+      opponent: {
+        name: "",
+        triCode: "",
+        logoUrl: null,
+        logoFallbackUrl: null
+      },
+      gamedayLabel: null,
+      tipoff: null,
+      upcomingSchedule
+    });
+  }
+
   return lookup;
 }
 

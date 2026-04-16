@@ -81,18 +81,10 @@ export default function PointsPage() {
           {data.message ? <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">{data.message}</p> : null}
           {data.visible === false ? <p className="rounded bg-slate-100 p-3 text-sm text-slate-700">{data.message ?? "Points will unlock after the first deadline."}</p> : null}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-1">
             <article className="nba-stat-card">
-              <p className="text-sm">Average GD Pts</p>
-              <p className="text-5xl font-semibold">{data.summary.average}</p>
-            </article>
-            <article className="nba-stat-card">
-              <p className="text-sm">Final GD Points</p>
+              <p className="text-sm">Gameday Points</p>
               <p className="text-5xl font-semibold">{data.summary.final}</p>
-            </article>
-            <article className="nba-stat-card">
-              <p className="text-sm">Top GD Points</p>
-              <p className="text-5xl font-semibold">{data.summary.top}</p>
             </article>
           </div>
         </div>
