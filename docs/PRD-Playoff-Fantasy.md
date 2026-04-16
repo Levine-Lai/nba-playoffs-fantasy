@@ -35,7 +35,7 @@ Users set a 10-player squad before playoff rounds, manage transfers across play-
 - Edit line-up
 - Points
 - Transactions
-- Leagues
+- Standing
 - Schedule
 - Help
 
@@ -45,7 +45,7 @@ flowchart LR
 A[Home Login] --> B[Edit Line-up]
 B --> C[Points]
 B --> D[Transactions]
-C --> E[Leagues]
+C --> E[Standing]
 B --> F[Schedule]
 B --> G[Help]
 D --> B
@@ -99,13 +99,12 @@ D --> B
 - Confirm transfer and refresh lineup/market.
 - Show transfer history.
 
-### 3.5 Leagues
-- Show private/public/global league tables.
-- Show current rank, previous rank, and rank delta.
+### 3.5 Standing
+- Show one global standings table for all registered players.
 - Support phase filtering for `Overall`, `Play-In 1`, `Play-In 2`, `Play-In 3`, and `Round 1-4`.
-- In phase view, rank members by the selected phase points while still showing cumulative `TOT`.
+- Rank players by the selected phase points while still showing cumulative `TOT`.
 - `TOT` is the cumulative sum of stored playable-period points.
-- Clicking a manager `gameId` should open that manager's current points page.
+- The player column only needs one clickable player link, which opens that player's current points page.
 
 ### 3.6 Schedule
 - Show only `Round 1` schedule for now.
@@ -185,8 +184,7 @@ D --> B
 - Transactions are limitless before `Round 1 Day 1` deadline.
 - Play-in testing windows and round windows apply the configured free-transfer rules.
 - Transactions can complete at least one transfer and show history.
-- Leagues/Schedule/Help pages render expected sections.
-- League detail supports phase switching and manager points drill-down.
+- Standing/Schedule/Help pages render expected sections.
 - Frontend `npx tsc --noEmit` passes.
 - Frontend `npm run build` passes.
 

@@ -3,7 +3,7 @@ import { HELP_RULES, POINTS_BASELINE } from "./shared/gameTemplate";
 import { buildLineupPayload, buildTransactionsPayload, calcFinalPoints, createInitialTeamForState, getDisplayProfileState, getRosterPlayers, hasCreatedTeam, isValidStarterMix, replacePlayerForState, syncTransferWindowState, withVisiblePoints } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
 import { buildOfficialLivePointsPreview, buildOfficialStartedPeriodSummaries, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
-import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getPublicUserById, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, readAppState, registerUser, saveStateForUser, searchPlayerPool, usersSharePrivateLeague, writeAppState } from "./worker/store";
+import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getPublicUserById, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, listStandingMembers, readAppState, registerUser, saveStateForUser, searchPlayerPool, writeAppState } from "./worker/store";
 import type { AuthUser, Env, LeagueEntry, LeagueMemberEntry, LeaguePhaseOption, Player, UserState } from "./worker/types";
 
 const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
@@ -249,8 +249,7 @@ async function syncLeaguePointsLedger(
   return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
 }
 
-function buildRankedLeagueMembers(league: LeagueEntry, phaseKey: string, ledger: LeaguePointsLedger) {
-  const members = league.members ?? [];
+function buildRankedMembers(members: LeagueMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
   const overallMembers = members
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
@@ -328,8 +327,40 @@ async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requested
     ...league,
     selectedPhaseKey,
     phaseOptions: getLeaguePhaseOptions(),
-    members: buildRankedLeagueMembers(league, selectedPhaseKey, ledger)
+    members: buildRankedMembers(league.members ?? [], selectedPhaseKey, ledger)
   } satisfies LeagueEntry;
+}
+
+async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) {
+  const selectedPhaseKey = getLeaguePhaseOptions().some((option) => option.key === requestedPhaseKey)
+    ? String(requestedPhaseKey)
+    : "overall";
+
+  let members = await listStandingMembers(env);
+  for (const member of members) {
+    const state = await safeLoadState(env, member.userId);
+    if (!state || !hasCreatedTeam(state)) {
+      continue;
+    }
+
+    await backfillOfficialPointsLedger(env, member.userId, state);
+    await saveStateForUser(env, member.userId, state);
+  }
+
+  members = await listStandingMembers(env);
+  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+  if (scoringPeriod) {
+    for (const member of members) {
+      await syncLeaguePointsLedger(env, member.userId, scoringPeriod, Number(member.gamedayPoints ?? 0));
+    }
+  }
+
+  const ledger = await readLeaguePointsLedger(env);
+  return {
+    selectedPhaseKey,
+    phaseOptions: getLeaguePhaseOptions(),
+    members: buildRankedMembers(members, selectedPhaseKey, ledger)
+  };
 }
 
 async function safeLoadState(env: Env, userId: string) {
@@ -368,6 +399,19 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
   return {
     overallPoints: state.overallPoints,
     gamedayPoints: state.gamedayPoints
+  };
+}
+
+async function syncProfileStandingState(env: Env, userId: string | number, state: UserState) {
+  const ledger = await readLeaguePointsLedger(env);
+  const rankedMembers = buildRankedMembers(await listStandingMembers(env), "overall", ledger);
+  const currentMember = rankedMembers.find((member) => member.userId === String(userId));
+
+  state.overallRank = currentMember?.rank ?? 0;
+  state.totalPlayers = rankedMembers.length;
+  return {
+    overallRank: state.overallRank,
+    totalPlayers: state.totalPlayers
   };
 }
 
@@ -602,6 +646,7 @@ export default {
         if (hasCreatedTeam(state)) {
           await backfillOfficialPointsLedger(env, auth.authUser.id, state);
         }
+        await syncProfileStandingState(env, auth.authUser.id, state);
 
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
         syncTransferWindowState(state, editableContext.transferWindow);
@@ -626,8 +671,6 @@ export default {
           await saveStateForUser(env, auth.authUser.id, state);
         }
 
-        const privateClassic = await listPrivateLeaguesForUser(env, auth.authUser.id);
-
         return json(
           {
             profile: {
@@ -647,7 +690,7 @@ export default {
             },
             leagues: {
               global: [],
-              privateClassic
+              privateClassic: []
             }
           },
           { status: 200 },
@@ -753,13 +796,6 @@ export default {
         }
 
         const targetUserId = String(url.searchParams.get("userId") ?? auth.authUser.id).trim() || auth.authUser.id;
-        if (targetUserId !== auth.authUser.id) {
-          const canView = await usersSharePrivateLeague(env, auth.authUser.id, targetUserId);
-          if (!canView) {
-            return json({ message: "You can only view points for users in your leagues." }, { status: 403 }, env);
-          }
-        }
-
         const state = await safeLoadState(env, targetUserId);
         if (!state) {
           return json({ message: "User state not found." }, { status: 500 }, env);
@@ -827,6 +863,15 @@ export default {
         await saveStateForUser(env, targetUserId, state);
 
         return json({ ...fallbackPoints, viewer }, { status: 200 }, env);
+      }
+
+      if (pathname === "/api/standings" && request.method === "GET") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        return json(await buildStandingPayload(env, url.searchParams.get("phase")), { status: 200 }, env);
       }
 
       if (pathname === "/api/transactions/options" && request.method === "GET") {

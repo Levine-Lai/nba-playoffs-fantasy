@@ -89,21 +89,6 @@ export default function RightSidebar() {
         </section>
       ) : null}
 
-      {data.leagues.privateClassic.length ? (
-        <section className="sidebar-card">
-          <h4 className="sidebar-card__head">Leagues</h4>
-          <div className="bg-[#eef1f3] px-4 py-1 text-xs font-bold uppercase text-slate-700">Private Classic</div>
-          <div>
-            {data.leagues.privateClassic.slice(0, 5).map((item) => (
-              <div key={item.id} className="sidebar-row">
-                <span className="font-semibold text-brand-darkBlue">{item.name}</span>
-                <span className="font-semibold">#{item.rank}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <section className="sidebar-card">
         <h4 className="sidebar-card__head">Transactions And Finance</h4>
           <dl>

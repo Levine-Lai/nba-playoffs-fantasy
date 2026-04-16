@@ -11,6 +11,7 @@ import {
   ProfileResponse,
   RegisterResponse,
   ScheduleResponse,
+  StandingResponse,
   TransactionsResponse
 } from "@/lib/types";
 
@@ -148,6 +149,16 @@ export function getLeague(leagueId: string, phase?: string) {
 
   const queryString = query.toString();
   return request<LeagueDetailResponse>(`/leagues/${leagueId}${queryString ? `?${queryString}` : ""}`);
+}
+
+export function getStandings(phase?: string) {
+  const query = new URLSearchParams();
+  if (phase) {
+    query.set("phase", phase);
+  }
+
+  const queryString = query.toString();
+  return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`);
 }
 
 export function createLeague(name: string) {

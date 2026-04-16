@@ -16,7 +16,7 @@ const navItems = [
   { href: "/edit-lineup", label: "Edit line-up" },
   { href: "/points", label: "Points" },
   { href: "/transactions", label: "Transactions" },
-  { href: "/leagues", label: "Leagues" },
+  { href: "/leagues", label: "Standing" },
   { href: "/schedule", label: "Schedule" },
   { href: "/help", label: "Help" }
 ];

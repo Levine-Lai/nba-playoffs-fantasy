@@ -195,6 +195,12 @@ export interface LeagueDetailResponse {
   league: LeagueEntry;
 }
 
+export interface StandingResponse {
+  selectedPhaseKey: string;
+  phaseOptions: LeaguePhaseOption[];
+  members: LeagueMemberEntry[];
+}
+
 export interface ScheduleGame {
   id: string;
   date: string;

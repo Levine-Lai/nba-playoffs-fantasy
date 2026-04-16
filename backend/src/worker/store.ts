@@ -596,6 +596,43 @@ export async function usersSharePrivateLeague(env: Env, leftUserId: string | num
   return Boolean(row?.sharedLeagueId);
 }
 
+export async function listStandingMembers(env: Env) {
+  const rows = await all<{
+    userId: number;
+    gameId: string;
+    teamName: string;
+    managerName: string;
+    overallPoints: number;
+    gamedayPoints: number;
+  }>(
+    env,
+    `
+      SELECT
+        u.id AS userId,
+        u.game_id AS gameId,
+        s.team_name AS teamName,
+        s.manager_name AS managerName,
+        s.overall_points AS overallPoints,
+        s.gameday_points AS gamedayPoints
+      FROM users u
+      JOIN user_states s ON s.user_id = u.id
+      ORDER BY s.overall_points DESC, u.game_id COLLATE NOCASE ASC
+    `
+  );
+
+  return rows.map((row, index) => {
+    return {
+      userId: String(row.userId),
+      gameId: row.gameId,
+      teamName: row.teamName,
+      managerName: row.managerName,
+      rank: index + 1,
+      gamedayPoints: Number(row.gamedayPoints ?? 0),
+      totalPoints: Number(row.overallPoints ?? 0)
+    } satisfies LeagueMemberEntry;
+  });
+}
+
 async function buildLeagueMembers(env: Env, leagueId: number) {
   const rows = await all<{
     userId: number;
