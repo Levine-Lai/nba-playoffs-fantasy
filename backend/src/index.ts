@@ -1,10 +1,61 @@
 import bcrypt from "bcryptjs";
 import { HELP_RULES, POINTS_BASELINE } from "./shared/gameTemplate";
-import { buildLineupPayload, buildTransactionsPayload, calcFinalPoints, createInitialTeamForState, getDisplayProfileState, getRosterPlayers, hasCreatedTeam, isValidStarterMix, replacePlayerForState, syncTransferWindowState, withVisiblePoints } from "./worker/gameplay";
+import {
+  applyStoredLineupSnapshot,
+  buildLineupPayload,
+  buildStoredLineupSnapshot,
+  buildTransactionsPayload,
+  calcFinalPoints,
+  createInitialTeamForState,
+  getDisplayProfileState,
+  getRosterPlayers,
+  hasCreatedTeam,
+  isValidStarterMix,
+  replacePlayerForState,
+  replacePlayerOnRoster,
+  syncTransferWindowState,
+  withVisiblePoints
+} from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
 import { buildOfficialLivePointsPreview, buildOfficialStartedPeriodSummaries, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
-import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getPublicUserById, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, listStandingMembers, readAppState, registerUser, saveStateForUser, searchPlayerPool, writeAppState } from "./worker/store";
-import type { AuthUser, Env, LeagueEntry, LeagueMemberEntry, LeaguePhaseOption, Player, UserState } from "./worker/types";
+import {
+  buildPublicUser,
+  createPrivateLeague,
+  createSession,
+  DB_PATH_LABEL,
+  deleteSession,
+  getAuthenticatedUserByToken,
+  getPlayerDataSummary,
+  getPlayersByIds,
+  getPublicUserById,
+  getRuleValue,
+  getStateForUser,
+  getUserByAccount,
+  getUserChipsState,
+  joinPrivateLeague,
+  listPrivateLeaguesForUser,
+  listStandingMembers,
+  readAppState,
+  registerUser,
+  saveStateForUser,
+  saveUserChipsState,
+  searchPlayerPool,
+  writeAppState
+} from "./worker/store";
+import type {
+  AuthUser,
+  EditablePeriodContext,
+  Env,
+  LeagueEntry,
+  LeagueMemberEntry,
+  LeaguePhaseOption,
+  Player,
+  StoredLineupSnapshot,
+  TransferHistoryItem,
+  UserChipCardState,
+  UserChipsState,
+  UserState
+} from "./worker/types";
 
 const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
 const DEFAULT_LEAGUE_PHASE_OPTIONS: LeaguePhaseOption[] = [
@@ -37,6 +88,15 @@ type LeaguePointsLedgerEntry = {
 };
 
 type LeaguePointsLedger = Record<string, Record<string, LeaguePointsLedgerEntry>>;
+type TransactionChipChoice = "wildcard" | "all-star";
+type TransactionChipCards = {
+  wildcard: UserChipCardState;
+  allStar: UserChipCardState;
+};
+type ConfirmTransferDraft = {
+  outPlayerId: string;
+  inPlayerId: string;
+};
 
 function extractBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -61,6 +121,81 @@ async function getFirstDeadline(env: Env) {
 
 async function isBeforeFirstDeadline(env: Env) {
   return (await getEditablePeriodContext(env, await getFirstDeadline(env))).beforeCompetitionStart;
+}
+
+function clonePlayer(player: Player) {
+  return {
+    ...player,
+    upcoming: [...(player.upcoming ?? [])],
+    upcomingSchedule: [...(player.upcomingSchedule ?? [])]
+  };
+}
+
+function cloneState(state: UserState): UserState {
+  return {
+    ...state,
+    starters: state.starters.map(clonePlayer),
+    bench: state.bench.map(clonePlayer),
+    market: state.market.map(clonePlayer),
+    history: state.history.map((item) => ({ ...item }))
+  };
+}
+
+function buildStateFromSnapshot(state: UserState, snapshot: StoredLineupSnapshot) {
+  const cloned = cloneState(state);
+  return applyStoredLineupSnapshot(cloned, snapshot);
+}
+
+function isChipActiveForPeriod(activePeriodKey: string | null | undefined, periodKey: string | null | undefined) {
+  return Boolean(activePeriodKey && periodKey && activePeriodKey === periodKey);
+}
+
+function getTransactionsChipCards(chips: UserChipsState, editableContext: EditablePeriodContext): TransactionChipCards {
+  const wildcardActive = isChipActiveForPeriod(chips.wildcard.activePeriodKey, editableContext.period.key);
+  const allStarActive = isChipActiveForPeriod(chips.allStar.activePeriodKey, editableContext.period.key);
+
+  return {
+    wildcard: {
+      label: wildcardActive ? "Active" : chips.wildcard.used ? "Played" : "Play",
+      canActivate: !chips.wildcard.used && !allStarActive,
+      isActive: wildcardActive,
+      isPlayed: chips.wildcard.used && !wildcardActive
+    },
+    allStar: {
+      label: allStarActive ? "Active" : chips.allStar.used ? "Played" : "Play",
+      canActivate: !chips.allStar.used && !wildcardActive,
+      isActive: allStarActive,
+      isPlayed: chips.allStar.used && !allStarActive
+    }
+  };
+}
+
+function getActiveTransactionChip(chips: UserChipsState, editableContext: EditablePeriodContext): TransactionChipChoice | null {
+  if (isChipActiveForPeriod(chips.wildcard.activePeriodKey, editableContext.period.key)) {
+    return "wildcard";
+  }
+
+  if (isChipActiveForPeriod(chips.allStar.activePeriodKey, editableContext.period.key)) {
+    return "all-star";
+  }
+
+  return null;
+}
+
+function getTransactionsState(state: UserState, chips: UserChipsState, editableContext: EditablePeriodContext) {
+  if (isChipActiveForPeriod(chips.allStar.activePeriodKey, editableContext.period.key) && chips.allStar.activeLineup) {
+    return buildStateFromSnapshot(state, chips.allStar.activeLineup);
+  }
+
+  return cloneState(state);
+}
+
+function getScoringState(state: UserState, chips: UserChipsState, scoringPeriod: ScoringPeriodContext) {
+  if (scoringPeriod && isChipActiveForPeriod(chips.allStar.activePeriodKey, scoringPeriod.key) && chips.allStar.activeLineup) {
+    return buildStateFromSnapshot(state, chips.allStar.activeLineup);
+  }
+
+  return cloneState(state);
 }
 
 async function enrichRosterPlayers(env: Env, players: Player[]) {
@@ -249,12 +384,45 @@ async function syncLeaguePointsLedger(
   return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
 }
 
+async function appendLeaguePointsAdjustment(
+  env: Env,
+  userId: string | number,
+  adjustment: {
+    label: string;
+    roundNumber: number;
+    dayNumber: number;
+    points: number;
+    keyPrefix: string;
+  }
+) {
+  const numericPoints = Number(adjustment.points ?? 0);
+  const ledger = await readLeaguePointsLedger(env);
+  const userKey = String(userId);
+  const entryKey = `${adjustment.keyPrefix}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const existingUserLedger = ledger[userKey] ?? {};
+
+  ledger[userKey] = {
+    ...existingUserLedger,
+    [entryKey]: {
+      periodKey: entryKey,
+      label: adjustment.label,
+      roundNumber: Number(adjustment.roundNumber ?? 0),
+      dayNumber: Number(adjustment.dayNumber ?? 0),
+      points: Number(numericPoints.toFixed(1)),
+      recordedAt: new Date().toISOString()
+    }
+  };
+
+  await writeLeaguePointsLedger(env, ledger);
+  return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+}
+
 function buildRankedMembers(members: LeagueMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
   const overallMembers = members
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
       const ledgerTotal = sumLeagueLedgerPoints(entries);
-      const totalPoints = Number(Math.max(Number(member.totalPoints ?? 0), ledgerTotal).toFixed(1));
+      const totalPoints = Number((entries.length ? ledgerTotal : Number(member.totalPoints ?? 0)).toFixed(1));
 
       return {
         ...member,
@@ -314,12 +482,16 @@ async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requested
   const selectedPhaseKey = getLeaguePhaseOptions().some((option) => option.key === requestedPhaseKey)
     ? String(requestedPhaseKey)
     : "overall";
-  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
 
-  if (scoringPeriod) {
-    for (const member of league.members ?? []) {
-      await syncLeaguePointsLedger(env, member.userId, scoringPeriod, Number(member.gamedayPoints ?? 0));
+  for (const member of league.members ?? []) {
+    const state = await safeLoadState(env, member.userId);
+    if (!state || !hasCreatedTeam(state)) {
+      continue;
     }
+
+    const chips = await getUserChipsState(env, member.userId);
+    await backfillOfficialPointsLedger(env, member.userId, state, chips);
+    await saveStateForUser(env, member.userId, state);
   }
 
   const ledger = await readLeaguePointsLedger(env);
@@ -343,18 +515,12 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
       continue;
     }
 
-    await backfillOfficialPointsLedger(env, member.userId, state);
+    const chips = await getUserChipsState(env, member.userId);
+    await backfillOfficialPointsLedger(env, member.userId, state, chips);
     await saveStateForUser(env, member.userId, state);
   }
 
   members = await listStandingMembers(env);
-  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
-  if (scoringPeriod) {
-    for (const member of members) {
-      await syncLeaguePointsLedger(env, member.userId, scoringPeriod, Number(member.gamedayPoints ?? 0));
-    }
-  }
-
   const ledger = await readLeaguePointsLedger(env);
   return {
     selectedPhaseKey,
@@ -363,7 +529,7 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
   };
 }
 
-async function safeLoadState(env: Env, userId: string) {
+async function safeLoadState(env: Env, userId: string | number) {
   const state = await getStateForUser(env, userId);
   if (!state) {
     return null;
@@ -372,8 +538,24 @@ async function safeLoadState(env: Env, userId: string) {
   return hydrateStateAssets(env, state);
 }
 
-async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState) {
-  const summaries = await buildOfficialStartedPeriodSummaries(env, state).catch(() => []);
+async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState, chips: UserChipsState) {
+  const summaries = await buildOfficialStartedPeriodSummaries(
+    env,
+    state,
+    chips.allStar.activePeriodKey && chips.allStar.activeLineup
+      ? {
+          periodKey: chips.allStar.activePeriodKey,
+          state: getScoringState(state, chips, {
+            key: chips.allStar.activePeriodKey,
+            label: chips.allStar.activePeriodKey,
+            deadline: "",
+            gamedayIndex: 0,
+            roundNumber: 0,
+            dayNumber: 0
+          })
+        }
+      : undefined
+  ).catch(() => []);
   let latestPoints = Number(state.gamedayPoints ?? 0);
   let overallPoints = Number(state.overallPoints ?? 0);
 
@@ -425,7 +607,8 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     return { ok: false as const, response: json({ message: "Create your initial team first." }, { status: 400 }, env) };
   }
 
-  await backfillOfficialPointsLedger(env, userId, state);
+  const chips = await getUserChipsState(env, userId);
+  await backfillOfficialPointsLedger(env, userId, state, chips);
 
   const targetUser = await getPublicUserById(env, userId);
   if (!targetUser) {
@@ -442,9 +625,10 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
-  const livePreview = await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null);
+  const scoringState = getScoringState(state, chips, (await getScoringPeriodContext(env)) as ScoringPeriodContext);
+  const livePreview = await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null);
   if (livePreview) {
-    syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
+    syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
     const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
     const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
     state.overallPoints = Number(overallPoints.toFixed(1));
@@ -465,9 +649,9 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
           top: 0
         },
         lineup: {
-          starters: withVisiblePoints(state.starters, true),
-          bench: withVisiblePoints(state.bench, true),
-          captainId: state.captainId
+          starters: withVisiblePoints(scoringState.starters, true),
+          bench: withVisiblePoints(scoringState.bench, true),
+          captainId: scoringState.captainId
         },
         viewer
       }
@@ -475,7 +659,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   }
 
   const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
-  const fallbackPoints = buildStoredPointsSnapshot(state, scoringPeriod);
+  const fallbackPoints = buildStoredPointsSnapshot(scoringState, scoringPeriod);
   state.gamedayPoints = fallbackPoints.summary.final;
   const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
   state.overallPoints = Number(overallPoints.toFixed(1));
@@ -484,6 +668,141 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   return {
     ok: true as const,
     payload: { ...fallbackPoints, viewer }
+  };
+}
+
+async function commitTransactionBatch(params: {
+  env: Env;
+  userId: string;
+  baseState: UserState;
+  chips: UserChipsState;
+  editableContext: EditablePeriodContext;
+  drafts: ConfirmTransferDraft[];
+  requestedChip: TransactionChipChoice | null;
+}) {
+  const { env, userId, baseState, chips, editableContext, drafts, requestedChip } = params;
+  const activeChip = getActiveTransactionChip(chips, editableContext);
+
+  if (requestedChip && activeChip && requestedChip !== activeChip) {
+    return { ok: false as const, error: "Another chip is already active for this deadline." };
+  }
+
+  if (requestedChip === "wildcard" && chips.wildcard.used && !activeChip) {
+    return { ok: false as const, error: "Wildcard has already been used." };
+  }
+
+  if (requestedChip === "all-star" && chips.allStar.used && !activeChip) {
+    return { ok: false as const, error: "All-Star has already been used." };
+  }
+
+  const effectiveChip = requestedChip ?? activeChip;
+  const workingState = getTransactionsState(baseState, chips, editableContext);
+  const budget = await getInitialBudget(env);
+  const nextMatchupByTeam = await getNextMatchupByTeam(env);
+  const incomingPlayers = await getPlayersByIds(
+    env,
+    drafts.map((draft) => draft.inPlayerId),
+    nextMatchupByTeam
+  );
+  const incomingById = new Map(incomingPlayers.map((player) => [player.id, player]));
+
+  let usedThisWindow = workingState.history.filter((item) => item.windowKey === editableContext.transferWindow.key && item.countsTowardLimit !== false).length;
+  const historyEntries: TransferHistoryItem[] = [];
+
+  for (const [index, draft] of drafts.entries()) {
+    const incoming = incomingById.get(draft.inPlayerId);
+    if (!incoming) {
+      return { ok: false as const, error: "Incoming player not found in transfer market." };
+    }
+
+    const applied = replacePlayerOnRoster({
+      state: workingState,
+      outPlayerId: draft.outPlayerId,
+      incoming,
+      budget,
+      ignoreBudget: effectiveChip === "all-star"
+    });
+    if (!applied.ok) {
+      return applied;
+    }
+
+    const countsTowardLimit = effectiveChip === null && editableContext.transferWindow.mode !== "LIMITLESS";
+    let cost = 0;
+    if (countsTowardLimit) {
+      usedThisWindow += 1;
+      if (usedThisWindow > editableContext.transferWindow.limit) {
+        cost = -100;
+      }
+    }
+
+    historyEntries.push({
+      id: `tx-${Date.now()}-${index}`,
+      timestamp: new Date().toISOString(),
+      outPlayer: applied.outgoing.name,
+      inPlayer: incoming.name,
+      cost,
+      note:
+        effectiveChip === "wildcard"
+          ? `Wildcard active for ${editableContext.gameweek.label}`
+          : effectiveChip === "all-star"
+            ? `All-Star active for ${editableContext.gameweek.label}`
+            : editableContext.transferWindow.mode === "LIMITLESS"
+              ? `Unlimited before ${editableContext.gameweek.label} deadline`
+              : cost < 0
+                ? `Penalty transfer for ${editableContext.transferWindow.label}`
+                : `Free transfer for ${editableContext.transferWindow.label}`,
+      windowKey: editableContext.transferWindow.key,
+      countsTowardLimit
+    });
+  }
+
+  const totalPenalty = Number(historyEntries.reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0).toFixed(1));
+  const nextChips: UserChipsState = {
+    wildcard: { ...chips.wildcard },
+    allStar: { ...chips.allStar }
+  };
+
+  if (effectiveChip === "wildcard") {
+    nextChips.wildcard.used = true;
+    nextChips.wildcard.activePeriodKey = editableContext.period.key;
+    nextChips.wildcard.activatedAt = nextChips.wildcard.activatedAt ?? new Date().toISOString();
+  }
+
+  if (effectiveChip === "all-star") {
+    nextChips.allStar.used = true;
+    nextChips.allStar.activePeriodKey = editableContext.period.key;
+    nextChips.allStar.activatedAt = nextChips.allStar.activatedAt ?? new Date().toISOString();
+    nextChips.allStar.originalLineup = nextChips.allStar.originalLineup ?? buildStoredLineupSnapshot(baseState);
+    nextChips.allStar.activeLineup = buildStoredLineupSnapshot(workingState);
+  }
+
+  baseState.totalTransfers += drafts.length;
+  baseState.history = [...historyEntries.reverse(), ...baseState.history];
+  syncTransferWindowState(baseState, editableContext.transferWindow);
+
+  if (effectiveChip !== "all-star") {
+    applyStoredLineupSnapshot(baseState, buildStoredLineupSnapshot(workingState));
+  }
+
+  if (totalPenalty !== 0) {
+    const totalPoints = await appendLeaguePointsAdjustment(env, userId, {
+      label: `Transfer penalty for ${editableContext.gameweek.label}`,
+      roundNumber: editableContext.period.roundNumber,
+      dayNumber: editableContext.period.dayNumber,
+      points: totalPenalty,
+      keyPrefix: `penalty:${editableContext.period.key}`
+    });
+    baseState.overallPoints = Number(totalPoints.toFixed(1));
+  }
+
+  await saveStateForUser(env, userId, baseState);
+  await saveUserChipsState(env, userId, nextChips);
+
+  return {
+    ok: true as const,
+    state: baseState,
+    chips: nextChips,
+    workingState
   };
 }
 
@@ -715,8 +1034,9 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
+        const chips = await getUserChipsState(env, auth.authUser.id);
         if (hasCreatedTeam(state)) {
-          await backfillOfficialPointsLedger(env, auth.authUser.id, state);
+          await backfillOfficialPointsLedger(env, auth.authUser.id, state, chips);
         }
         await syncProfileStandingState(env, auth.authUser.id, state);
 
@@ -724,17 +1044,19 @@ export default {
         syncTransferWindowState(state, editableContext.transferWindow);
         const beforeDeadline = editableContext.beforeCompetitionStart;
         const displayState = getDisplayProfileState(state, beforeDeadline);
-        const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null) : null;
+        const currentScoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+        const scoringState = getScoringState(state, chips, currentScoringPeriod);
+        const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null) : null;
+        const fallbackProfilePoints = !beforeDeadline ? buildStoredPointsSnapshot(scoringState, currentScoringPeriod) : null;
 
         if (livePreview) {
-          syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
+          syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
         }
 
         if (!beforeDeadline) {
-          const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
-          const currentPoints = Number(livePreview?.finalPoints ?? displayState.gamedayPoints ?? 0);
+          const currentPoints = Number(livePreview?.finalPoints ?? fallbackProfilePoints?.summary.final ?? displayState.gamedayPoints ?? 0);
           state.gamedayPoints = currentPoints;
-          const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, scoringPeriod, currentPoints);
+          const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, currentScoringPeriod, currentPoints);
           state.overallPoints = Number(overallPoints.toFixed(1));
           displayState.overallPoints = state.overallPoints;
           displayState.gamedayPoints = currentPoints;
@@ -906,26 +1228,102 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
+        const chips = await getUserChipsState(env, auth.authUser.id);
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        syncTransferWindowState(state, editableContext.transferWindow);
+        const transactionsState = getTransactionsState(state, chips, editableContext);
         const nextMatchupByTeam = await getNextMatchupByTeam(env);
         const market = await searchPlayerPool(
           env,
           {
-            excludeIds: getRosterPlayers(state).map((player) => player.id),
+            excludeIds: getRosterPlayers(transactionsState).map((player) => player.id),
             limit: 80
           },
           nextMatchupByTeam
         );
-        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
-        syncTransferWindowState(state, editableContext.transferWindow);
 
         return json(
           buildTransactionsPayload({
-            state,
+            state: transactionsState,
             gameweek: editableContext.gameweek,
             market,
             beforeFirstDeadline: editableContext.beforeCompetitionStart,
-            transferWindow: editableContext.transferWindow
+            transferWindow: editableContext.transferWindow,
+            chips: getTransactionsChipCards(chips, editableContext)
           }),
+          { status: 200 },
+          env
+        );
+      }
+
+      if (pathname === "/api/transactions/confirm" && request.method === "POST") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        const body = await parseJsonBody<{
+          transfers?: Array<{ outPlayerId?: string; inPlayerId?: string }>;
+          chip?: string | null;
+        }>(request);
+        const drafts = Array.isArray(body.transfers)
+          ? body.transfers
+              .map((item) => ({
+                outPlayerId: String(item.outPlayerId ?? "").trim(),
+                inPlayerId: String(item.inPlayerId ?? "").trim()
+              }))
+              .filter((item) => item.outPlayerId && item.inPlayerId)
+          : [];
+        const requestedChip = body.chip === "wildcard" || body.chip === "all-star" ? body.chip : null;
+
+        if (!drafts.length) {
+          return json({ message: "At least one transfer is required." }, { status: 400 }, env);
+        }
+
+        const state = await safeLoadState(env, auth.authUser.id);
+        if (!state) {
+          return json({ message: "User state not found." }, { status: 500 }, env);
+        }
+
+        const chips = await getUserChipsState(env, auth.authUser.id);
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        const committed = await commitTransactionBatch({
+          env,
+          userId: auth.authUser.id,
+          baseState: state,
+          chips,
+          editableContext,
+          drafts,
+          requestedChip
+        });
+
+        if (!committed.ok) {
+          return json({ message: committed.error }, { status: 400 }, env);
+        }
+
+        const payloadState = getTransactionsState(committed.state, committed.chips, editableContext);
+        const nextMatchupByTeam = await getNextMatchupByTeam(env);
+        const market = await searchPlayerPool(
+          env,
+          {
+            excludeIds: getRosterPlayers(payloadState).map((player) => player.id),
+            limit: 80
+          },
+          nextMatchupByTeam
+        );
+
+        return json(
+          {
+            ok: true,
+            payload: buildTransactionsPayload({
+              state: payloadState,
+              gameweek: editableContext.gameweek,
+              market,
+              beforeFirstDeadline: editableContext.beforeCompetitionStart,
+              transferWindow: editableContext.transferWindow,
+              chips: getTransactionsChipCards(committed.chips, editableContext)
+            })
+          },
           { status: 200 },
           env
         );
@@ -950,32 +1348,28 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
-        const nextMatchupByTeam = await getNextMatchupByTeam(env);
-        const incoming = (await getPlayersByIds(env, [inPlayerId], nextMatchupByTeam))[0];
-        if (!incoming) {
-          return json({ message: "Incoming player not found in transfer market." }, { status: 400 }, env);
-        }
-
+        const chips = await getUserChipsState(env, auth.authUser.id);
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
-        const result = replacePlayerForState({
-          state,
-          outPlayerId,
-          incoming,
-          budget: await getInitialBudget(env),
-          beforeFirstDeadline: editableContext.beforeCompetitionStart,
-          transferWindow: editableContext.transferWindow
+        const committed = await commitTransactionBatch({
+          env,
+          userId: auth.authUser.id,
+          baseState: state,
+          chips,
+          editableContext,
+          drafts: [{ outPlayerId, inPlayerId }],
+          requestedChip: null
         });
 
-        if (!result.ok) {
-          return json({ message: result.error }, { status: 400 }, env);
+        if (!committed.ok) {
+          return json({ message: committed.error }, { status: 400 }, env);
         }
 
-        await saveStateForUser(env, auth.authUser.id, state);
-
+        const payloadState = getTransactionsState(committed.state, committed.chips, editableContext);
+        const nextMatchupByTeam = await getNextMatchupByTeam(env);
         const market = await searchPlayerPool(
           env,
           {
-            excludeIds: getRosterPlayers(state).map((player) => player.id),
+            excludeIds: getRosterPlayers(payloadState).map((player) => player.id),
             limit: 80
           },
           nextMatchupByTeam
@@ -984,13 +1378,13 @@ export default {
         return json(
           {
             ok: true,
-            transfer: result.transfer,
             payload: buildTransactionsPayload({
-              state,
+              state: payloadState,
               gameweek: editableContext.gameweek,
               market,
               beforeFirstDeadline: editableContext.beforeCompetitionStart,
-              transferWindow: editableContext.transferWindow
+              transferWindow: editableContext.transferWindow,
+              chips: getTransactionsChipCards(committed.chips, editableContext)
             })
           },
           { status: 200 },
@@ -1115,7 +1509,8 @@ export default {
 
         const state = await safeLoadState(env, auth.authUser.id);
         if (state && hasCreatedTeam(state)) {
-          await backfillOfficialPointsLedger(env, auth.authUser.id, state);
+          const chips = await getUserChipsState(env, auth.authUser.id);
+          await backfillOfficialPointsLedger(env, auth.authUser.id, state, chips);
           await saveStateForUser(env, auth.authUser.id, state);
         }
 

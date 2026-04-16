@@ -131,6 +131,16 @@ export function createTransfer(outPlayerId: string, inPlayerId: string) {
   });
 }
 
+export function confirmTransactions(
+  transfers: Array<{ outPlayerId: string; inPlayerId: string }>,
+  chip?: "wildcard" | "all-star" | null
+) {
+  return request<{ payload: TransactionsResponse }>("/transactions/confirm", {
+    method: "POST",
+    body: JSON.stringify({ transfers, chip: chip ?? null })
+  });
+}
+
 export function getLeagues() {
   return request<LeaguesResponse>("/leagues");
 }

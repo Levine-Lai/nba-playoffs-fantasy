@@ -1,5 +1,14 @@
 export type PlayerColor = "hot" | "cold";
 
+export interface PlayerScheduleCell {
+  dateKey: string;
+  hasGame: boolean;
+  opponentName?: string | null;
+  opponentTriCode?: string | null;
+  opponentLogoUrl?: string | null;
+  opponentLogoFallbackUrl?: string | null;
+}
+
 export interface Player {
   id: string;
   code?: string | null;
@@ -14,6 +23,7 @@ export interface Player {
   nextOpponentLogoUrl?: string | null;
   nextOpponentLogoFallbackUrl?: string | null;
   upcoming?: string[];
+  upcomingSchedule?: PlayerScheduleCell[];
   points?: number;
   pointsWindowKey?: string | null;
   color?: PlayerColor;
@@ -113,6 +123,7 @@ export interface TransferMarketPlayer {
   nextOpponentName?: string | null;
   nextOpponentLogoUrl?: string | null;
   nextOpponentLogoFallbackUrl?: string | null;
+  upcomingSchedule?: PlayerScheduleCell[];
   points?: number;
   totalPoints?: number;
   selectedByPercent?: number;
@@ -130,6 +141,14 @@ export interface TransferHistoryItem {
   cost: number;
   note: string;
   windowKey?: string;
+  countsTowardLimit?: boolean;
+}
+
+export interface ChipCardState {
+  label: "Play" | "Active" | "Played";
+  canActivate: boolean;
+  isActive: boolean;
+  isPlayed: boolean;
 }
 
 export interface TransactionsResponse {
@@ -142,6 +161,10 @@ export interface TransactionsResponse {
   bank: number;
   rosterValue: number;
   history: TransferHistoryItem[];
+  chips: {
+    wildcard: ChipCardState;
+    allStar: ChipCardState;
+  };
   lineup: Lineup;
   market: TransferMarketPlayer[];
 }

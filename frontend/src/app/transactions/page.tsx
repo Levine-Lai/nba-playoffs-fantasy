@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, SyntheticEvent, useEffect, useMemo, useState } from "react";
-import { createTransfer, getPlayers, getTransactionsOptions } from "@/lib/api";
-import { Player, TransactionsResponse } from "@/lib/types";
+import { confirmTransactions, getPlayers, getTransactionsOptions } from "@/lib/api";
+import { ChipCardState, Player, PlayerScheduleCell, TransactionsResponse } from "@/lib/types";
 
 type SortMode = "salary" | "totalPoints" | "recentAverage";
+type ActiveChip = "wildcard" | "all-star" | null;
 
 type TeamOption = {
   id: number;
@@ -46,18 +47,6 @@ function groupPlayers(players: Player[]) {
   ].filter((group) => group.players.length > 0);
 }
 
-function nextOpponentText(player: Player) {
-  if (player.nextOpponent && player.nextOpponent !== "TBD") {
-    return `Next ${player.nextOpponent}`;
-  }
-
-  if (player.upcoming?.length) {
-    return `Upcoming ${player.upcoming.join(" / ")}`;
-  }
-
-  return "Schedule TBD";
-}
-
 function parseView(view: string) {
   if (!view || view === "all") {
     return { position: undefined, teamId: undefined };
@@ -87,6 +76,64 @@ function closeIcon() {
   );
 }
 
+function getScheduleCells(player: Player) {
+  const cells = player.upcomingSchedule ?? [];
+  if (cells.length >= 5) {
+    return cells.slice(0, 5);
+  }
+
+  return [
+    ...cells,
+    ...Array.from({ length: Math.max(0, 5 - cells.length) }, (_, index) => ({
+      dateKey: `empty-${player.id}-${index}`,
+      hasGame: false
+    } satisfies PlayerScheduleCell))
+  ];
+}
+
+function renderScheduleCell(cell: PlayerScheduleCell) {
+  if (!cell.hasGame) {
+    return <span className="text-[0.95rem] font-semibold text-slate-400">-</span>;
+  }
+
+  if (cell.opponentLogoUrl || cell.opponentLogoFallbackUrl) {
+    return (
+      <img
+        src={cell.opponentLogoUrl ?? cell.opponentLogoFallbackUrl ?? ""}
+        alt={cell.opponentTriCode ?? cell.opponentName ?? ""}
+        title={cell.opponentName ?? cell.opponentTriCode ?? ""}
+        className="h-7 w-7 object-contain"
+      />
+    );
+  }
+
+  return <span className="text-[0.8rem] font-semibold text-slate-700">{cell.opponentTriCode ?? "?"}</span>;
+}
+
+function getBackendActiveChip(chips: TransactionsResponse["chips"]): ActiveChip {
+  if (chips.wildcard.isActive) {
+    return "wildcard";
+  }
+
+  if (chips.allStar.isActive) {
+    return "all-star";
+  }
+
+  return null;
+}
+
+function getDisplayedChipState(card: ChipCardState, locallySelected: boolean) {
+  if (card.isActive) {
+    return "Active";
+  }
+
+  if (card.isPlayed) {
+    return "Played";
+  }
+
+  return locallySelected ? "Active" : "Play";
+}
+
 const MAX_COST_OPTIONS = Array.from({ length: 38 }, (_, index) => (23 - index * 0.5).toFixed(1));
 
 export default function TransactionsPage() {
@@ -102,11 +149,15 @@ export default function TransactionsPage() {
   const [loadingSelection, setLoadingSelection] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
+  const [chipDraft, setChipDraft] = useState<ActiveChip>(null);
 
   const [view, setView] = useState("all");
   const [sort, setSort] = useState<SortMode>("salary");
   const [search, setSearch] = useState("");
   const [maxSalary, setMaxSalary] = useState("");
+
+  const backendActiveChip = useMemo(() => (data ? getBackendActiveChip(data.chips) : null), [data]);
+  const effectiveChip = chipDraft ?? backendActiveChip;
 
   const lineupPlayers = useMemo(() => {
     if (!data) {
@@ -163,6 +214,7 @@ export default function TransactionsPage() {
     getTransactionsOptions()
       .then((payload) => {
         setData(payload);
+        setChipDraft(null);
       })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "Failed to load transaction data."));
   }, []);
@@ -196,6 +248,14 @@ export default function TransactionsPage() {
     return selection.find((player) => player.id === candidateModalId) ?? null;
   }, [selection, candidateModalId]);
 
+  const candidateAlreadySelected = useMemo(() => {
+    if (!candidatePlayer) {
+      return false;
+    }
+
+    return pendingDrafts.some((draft) => draft.inPlayer?.id === candidatePlayer.id);
+  }, [candidatePlayer, pendingDrafts]);
+
   const isDefaultSelectionView = view === "all" && !search.trim() && !maxSalary && !focusedOutPlayer;
   const selectionLimit = focusedOutPlayer ? 10 : isDefaultSelectionView ? 5 : undefined;
   const groupedSelection = useMemo(() => {
@@ -207,11 +267,15 @@ export default function TransactionsPage() {
 
   const totalOutgoing = pendingDrafts.reduce((sum, draft) => sum + draft.outPlayer.salary, 0);
   const totalIncoming = pendingDrafts.reduce((sum, draft) => sum + (draft.inPlayer?.salary ?? 0), 0);
-  const budgetCost = Number(Math.max(0, totalIncoming - totalOutgoing).toFixed(1));
   const projectedBank = data ? Number((data.bank + totalOutgoing - totalIncoming).toFixed(1)) : 0;
   const allDraftsFilled = pendingDrafts.length > 0 && pendingDrafts.every((draft) => draft.inPlayer);
-  const canSubmit = Boolean(allDraftsFilled && projectedBank >= 0 && !submitting);
   const displayedSelectionCount = groupedSelection.reduce((total, group) => total + group.players.length, 0);
+  const countsTowardLimit = Boolean(data && data.transferMode !== "LIMITLESS" && !effectiveChip);
+  const existingPaidTransfers = data ? Math.max(0, data.usedThisWeek - data.weeklyFreeLimit) : 0;
+  const totalPaidTransfers = data && countsTowardLimit ? Math.max(0, data.usedThisWeek + pendingDrafts.length - data.weeklyFreeLimit) : 0;
+  const penaltyTransfers = Math.max(0, totalPaidTransfers - existingPaidTransfers);
+  const transferCost = -100 * penaltyTransfers;
+  const canSubmit = Boolean(allDraftsFilled && !submitting && (effectiveChip === "all-star" || projectedBank >= 0));
 
   function upsertDraft(player: Player, keepReplacement: boolean) {
     setPendingDrafts((current) => {
@@ -263,7 +327,99 @@ export default function TransactionsPage() {
     setFeedback(`Choose a ${player.position} replacement for ${player.name}.`);
   }
 
-  async function confirmTransfer() {
+  function addCandidateToFocusedSlot(player: Player) {
+    if (!focusedOutPlayer) {
+      setFeedback("Select a player on the left, then choose Select Replacement.");
+      setCandidateModalId(null);
+      return;
+    }
+
+    if (candidateAlreadySelected) {
+      setFeedback(`${player.name} is already being used in another pending transaction.`);
+      return;
+    }
+
+    setPendingDrafts((current) =>
+      current.map((draft) =>
+        draft.outPlayer.id === focusedOutPlayer.id
+          ? {
+              ...draft,
+              inPlayer: player
+            }
+          : draft
+      )
+    );
+    setReplacementFocusId(null);
+    setCandidateModalId(null);
+    setFeedback(`${player.name} is now lined up to replace ${focusedOutPlayer.name}.`);
+  }
+
+  async function handleAutoPick() {
+    if (!pendingDrafts.some((draft) => !draft.inPlayer)) {
+      setFeedback("Auto Pick works when there are removed players waiting for replacements.");
+      return;
+    }
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const currentRosterIds = new Set(lineupPlayers.map((player) => player.id));
+      const currentIncomingIds = new Set(pendingDrafts.map((draft) => draft.inPlayer?.id).filter(Boolean) as string[]);
+      let nextBank = projectedBank;
+      const fetchedPools = new Map<string, Player[]>();
+
+      async function getPool(position: string) {
+        if (!fetchedPools.has(position)) {
+          const response = await getPlayers({
+            position,
+            sort: "recentAverage",
+            limit: 200
+          });
+          fetchedPools.set(position, response.players);
+        }
+
+        return fetchedPools.get(position) ?? [];
+      }
+
+      const nextDrafts: PendingDraft[] = [];
+      for (const draft of pendingDrafts) {
+        if (draft.inPlayer) {
+          nextDrafts.push(draft);
+          continue;
+        }
+
+        const pool = await getPool(draft.outPlayer.position);
+        const candidates = pool
+          .filter((player) => !currentRosterIds.has(player.id))
+          .filter((player) => !currentIncomingIds.has(player.id))
+          .filter((player) => effectiveChip === "all-star" || nextBank + draft.outPlayer.salary - player.salary >= 0)
+          .slice(0, 16);
+
+        if (!candidates.length) {
+          nextDrafts.push(draft);
+          continue;
+        }
+
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+        currentIncomingIds.add(chosen.id);
+        nextBank = Number((nextBank + draft.outPlayer.salary - chosen.salary).toFixed(1));
+        nextDrafts.push({
+          ...draft,
+          inPlayer: chosen
+        });
+      }
+
+      setPendingDrafts(nextDrafts);
+      setFeedback(nextDrafts.every((draft) => draft.inPlayer) ? "Auto Pick filled the open slots." : "Auto Pick filled what it could within the current constraints.");
+    } catch (nextError) {
+      setFeedback(nextError instanceof Error ? nextError.message : "Auto Pick failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitTransfers() {
     if (!pendingDrafts.length || pendingDrafts.some((draft) => !draft.inPlayer)) {
       setConfirmOpen(false);
       return;
@@ -273,25 +429,22 @@ export default function TransactionsPage() {
     setFeedback(null);
 
     try {
-      let latestPayload: TransactionsResponse | null = null;
-      for (const draft of pendingDrafts) {
-        if (!draft.inPlayer) {
-          continue;
-        }
+      const response = await confirmTransactions(
+        pendingDrafts.map((draft) => ({
+          outPlayerId: draft.outPlayer.id,
+          inPlayerId: draft.inPlayer!.id
+        })),
+        chipDraft
+      );
 
-        const response = await createTransfer(draft.outPlayer.id, draft.inPlayer.id);
-        latestPayload = response.payload;
-      }
-
-      if (latestPayload) {
-        setData(latestPayload);
-      }
+      setData(response.payload);
       setPendingDrafts([]);
       setReplacementFocusId(null);
+      setChipDraft(null);
       setConfirmOpen(false);
       setPlayerModalId(null);
       setCandidateModalId(null);
-      setFeedback("Transaction completed successfully.");
+      setFeedback("Transactions confirmed.");
       await loadSelection();
     } catch (nextError) {
       setFeedback(nextError instanceof Error ? nextError.message : "Transfer failed.");
@@ -313,8 +466,8 @@ export default function TransactionsPage() {
       return;
     }
 
-    if (projectedBank < 0) {
-      setFeedback("Money Remaining must stay at 0 or above before you confirm the transaction.");
+    if (projectedBank < 0 && effectiveChip !== "all-star") {
+      setFeedback("Money Remaining must stay at 0 or above unless All-Star is active.");
       return;
     }
 
@@ -367,7 +520,7 @@ export default function TransactionsPage() {
             <div className="grid gap-3 md:grid-cols-[220px_220px_1fr_1fr]">
               <button
                 type="button"
-                onClick={() => setFeedback("Auto Pick will be connected after the main transaction flow is finished.")}
+                onClick={() => void handleAutoPick()}
                 className="rounded-sm border border-slate-700 bg-white px-4 py-3 text-lg font-semibold text-slate-900"
               >
                 Auto Pick
@@ -380,20 +533,59 @@ export default function TransactionsPage() {
                   setConfirmOpen(false);
                   setPlayerModalId(null);
                   setCandidateModalId(null);
+                  setChipDraft(null);
                   setFeedback(null);
                 }}
                 className="rounded-sm border border-slate-700 bg-white px-4 py-3 text-lg font-semibold text-slate-900"
               >
                 Reset
               </button>
-              <div className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-5 py-3 text-lg">
+              <button
+                type="button"
+                disabled={backendActiveChip === "all-star" || (!data.chips.wildcard.canActivate && !data.chips.wildcard.isActive)}
+                onClick={() => {
+                  if (data.chips.wildcard.isActive) {
+                    setFeedback("Wildcard is already active for this deadline.");
+                    return;
+                  }
+                  if (data.chips.wildcard.isPlayed) {
+                    setFeedback("Wildcard has already been used.");
+                    return;
+                  }
+                  const next = chipDraft === "wildcard" ? null : "wildcard";
+                  setChipDraft(next);
+                  setFeedback(next ? "Wildcard armed for the next confirm." : "Wildcard removed from this draft.");
+                }}
+                className={`flex items-center justify-between rounded-sm border-2 px-5 py-3 text-lg ${
+                  effectiveChip === "wildcard" ? "border-brand-yellow bg-[#ffefad]" : "border-brand-yellow bg-white"
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
                 <span>Wildcard</span>
-                <span className="font-semibold">Played</span>
-              </div>
-              <div className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-5 py-3 text-lg">
+                <span className="font-semibold">{getDisplayedChipState(data.chips.wildcard, chipDraft === "wildcard")}</span>
+              </button>
+              <button
+                type="button"
+                disabled={backendActiveChip === "wildcard" || (!data.chips.allStar.canActivate && !data.chips.allStar.isActive)}
+                onClick={() => {
+                  if (data.chips.allStar.isActive) {
+                    setFeedback("All-Star is already active for this deadline.");
+                    return;
+                  }
+                  if (data.chips.allStar.isPlayed) {
+                    setFeedback("All-Star has already been used.");
+                    return;
+                  }
+                  const next = chipDraft === "all-star" ? null : "all-star";
+                  setChipDraft(next);
+                  setFeedback(next ? "All-Star armed for the next confirm." : "All-Star removed from this draft.");
+                }}
+                className={`flex items-center justify-between rounded-sm border-2 px-5 py-3 text-lg ${
+                  effectiveChip === "all-star" ? "border-brand-yellow bg-[#ffefad]" : "border-brand-yellow bg-white"
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
                 <span>All-Star</span>
-                <span className="font-semibold">Played</span>
-              </div>
+                <span className="font-semibold">{getDisplayedChipState(data.chips.allStar, chipDraft === "all-star")}</span>
+              </button>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
@@ -403,7 +595,7 @@ export default function TransactionsPage() {
               </article>
               <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
                 <span>Cost</span>
-                <strong>{budgetCost.toFixed(1)}</strong>
+                <strong>{transferCost}</strong>
               </article>
               <article className={`flex items-center justify-between rounded-sm px-4 py-3 text-lg ${projectedBank < 0 ? "bg-[#d11f3a] text-white" : "bg-[#28c5c1] text-[#002b36]"}`}>
                 <span>Money Remaining</span>
@@ -418,11 +610,9 @@ export default function TransactionsPage() {
             <div className="bg-white">
               {groupedRoster.map((group) => (
                 <div key={group.key}>
-                  <div className={`${group.colorClass} grid grid-cols-[1.6fr_100px_110px_110px_120px] items-center px-5 py-3 text-sm`}>
+                  <div className={`${group.colorClass} grid grid-cols-[1.8fr_90px_1fr] items-center gap-3 px-5 py-3 text-sm`}>
                     <div className="text-[1rem]">{group.label}</div>
                     <div className="text-center">$S</div>
-                    <div className="text-center">F.</div>
-                    <div className="text-center">TP.</div>
                     <div className="text-center">Schedule</div>
                   </div>
 
@@ -440,7 +630,7 @@ export default function TransactionsPage() {
                           setPlayerModalId(player.id);
                           setFeedback(null);
                         }}
-                        className={`grid w-full grid-cols-[1.6fr_100px_110px_110px_120px] items-center border-b border-slate-200 px-5 py-3 text-left transition hover:bg-[#f8fafc] ${
+                        className={`grid w-full grid-cols-[1.8fr_90px_1fr] items-center gap-3 border-b border-slate-200 px-5 py-3 text-left transition hover:bg-[#f8fafc] ${
                           isRemoved ? "opacity-35" : isReplaced ? "bg-[rgba(255,219,77,0.18)]" : "bg-white"
                         }`}
                       >
@@ -466,18 +656,12 @@ export default function TransactionsPage() {
                           </div>
                         </div>
                         <div className="text-center text-[1.05rem]">{rowPlayer.salary.toFixed(1)}</div>
-                        <div className="text-center text-[1.05rem]">{(rowPlayer.recentAverage ?? 0).toFixed(1)}</div>
-                        <div className="text-center text-[1.05rem]">{(rowPlayer.totalPoints ?? 0).toFixed(1)}</div>
-                        <div className="flex items-center justify-end gap-2 text-right">
-                          <span className="text-xs text-slate-500">{nextOpponentText(rowPlayer)}</span>
-                          {rowPlayer.teamLogoUrl || rowPlayer.teamLogoFallbackUrl ? (
-                            <img
-                              src={rowPlayer.teamLogoUrl ?? rowPlayer.teamLogoFallbackUrl ?? ""}
-                              alt=""
-                              className="h-8 w-8 object-contain"
-                              onError={(event) => onImageError(event, rowPlayer.teamLogoFallbackUrl)}
-                            />
-                          ) : null}
+                        <div className="grid grid-cols-5 justify-items-center gap-1">
+                          {getScheduleCells(rowPlayer).map((cell) => (
+                            <div key={cell.dateKey} className="grid h-9 w-9 place-items-center rounded-full bg-[#f4f6f8]">
+                              {renderScheduleCell(cell)}
+                            </div>
+                          ))}
                         </div>
                       </button>
                     );
@@ -497,7 +681,6 @@ export default function TransactionsPage() {
               {feedback ? <p className="mt-3 text-sm text-slate-700">{feedback}</p> : null}
             </div>
           </section>
-
           <aside className="sidebar-card h-fit overflow-hidden">
             <div className="bg-[linear-gradient(180deg,#c4ced4,#e6e6e6)] px-4 py-4 text-[1.1rem] font-semibold text-slate-900">Player Selection</div>
             <div className="space-y-4 bg-white p-4">
@@ -588,21 +771,10 @@ export default function TransactionsPage() {
                           <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${player.position === "FC" ? "border-brand-pink text-brand-pink" : "border-brand-blue text-brand-blue"}`}>
                             i
                           </span>
-                  <button
+                          <button
                             type="button"
                             disabled={!selectable}
-                            onClick={() => {
-                              if (!focusedOutPlayer) {
-                                setFeedback("Select a player on the left, then choose Select Replacement.");
-                                return;
-                              }
-
-                              if (isSelected) {
-                                setFeedback(`${player.name} is already being used in another pending transaction.`);
-                                return;
-                              }
-                              setCandidateModalId(player.id);
-                            }}
+                            onClick={() => setCandidateModalId(player.id)}
                             className="h-11 w-11 shrink-0 overflow-hidden rounded-sm bg-[#eef1f3] disabled:cursor-not-allowed"
                           >
                             {player.headshotUrl || player.headshotFallbackUrl ? (
@@ -676,28 +848,9 @@ export default function TransactionsPage() {
             <div className="space-y-3 px-6 py-8">
               <button
                 type="button"
-                onClick={() => {
-                  if (!focusedOutPlayer) {
-                    setFeedback("Select a player on the left, then choose Select Replacement.");
-                    setCandidateModalId(null);
-                    return;
-                  }
-
-                  setPendingDrafts((current) =>
-                    current.map((draft) =>
-                      draft.outPlayer.id === focusedOutPlayer.id
-                        ? {
-                            ...draft,
-                            inPlayer: candidatePlayer
-                          }
-                        : draft
-                    )
-                  );
-                  setReplacementFocusId(null);
-                  setCandidateModalId(null);
-                  setFeedback(`${candidatePlayer.name} is now lined up to replace ${focusedOutPlayer.name}.`);
-                }}
-                className="block w-full rounded-sm border-2 border-[#efc21d] bg-[#ffde58] px-6 py-4 text-center text-[1.05rem] font-semibold text-black"
+                disabled={!focusedOutPlayer || candidateAlreadySelected}
+                onClick={() => addCandidateToFocusedSlot(candidatePlayer)}
+                className="block w-full rounded-sm border-2 border-[#efc21d] bg-[#ffde58] px-6 py-4 text-center text-[1.05rem] font-semibold text-black disabled:opacity-50"
               >
                 Add player
               </button>
@@ -733,7 +886,6 @@ export default function TransactionsPage() {
                     restorePlayer();
                     return;
                   }
-
                   removePlayer(actionPlayer);
                 }}
                 className="block w-full rounded-sm border-2 border-brand-blue bg-white px-6 py-4 text-center text-[1.05rem] font-semibold text-brand-blue"
@@ -776,19 +928,19 @@ export default function TransactionsPage() {
               <div className="grid grid-cols-[1fr_1fr_160px] gap-4 border-b border-slate-200 pb-3 text-[1.05rem] text-slate-700">
                 <div>Out</div>
                 <div>In</div>
-                <div>Cost</div>
+                <div>Salary</div>
               </div>
               {pendingDrafts.map((draft) => (
                 <div key={draft.outPlayer.id} className="grid grid-cols-[1fr_1fr_160px] gap-4 border-b border-slate-200 py-4 text-[1.1rem] text-black">
                   <div>{draft.outPlayer.name}</div>
                   <div>{draft.inPlayer?.name ?? "-"}</div>
-                  <div>{Math.max(0, Number((draft.inPlayer?.salary ?? 0) - draft.outPlayer.salary)).toFixed(1)}</div>
+                  <div>{Number((draft.inPlayer?.salary ?? 0) - draft.outPlayer.salary).toFixed(1)}</div>
                 </div>
               ))}
               <div className="grid grid-cols-[1fr_1fr_160px] gap-4 border-b border-slate-200 py-4 text-[1.1rem] text-black">
                 <div />
-                <div>Total cost</div>
-                <div>{budgetCost.toFixed(1)}</div>
+                <div>Points cost</div>
+                <div>{transferCost}</div>
               </div>
 
               <div className="mt-6 rounded-sm bg-brand-blue px-8 py-7 text-center text-[1.1rem] font-semibold leading-8 text-white">
@@ -798,7 +950,7 @@ export default function TransactionsPage() {
               <div className="mt-6 space-y-3">
                 <button
                   type="button"
-                  onClick={() => void confirmTransfer()}
+                  onClick={() => void submitTransfers()}
                   disabled={submitting}
                   className="block w-full rounded-sm border-2 border-[#efc21d] bg-[#ffde58] px-6 py-4 text-center text-[1.15rem] font-semibold text-black disabled:opacity-50"
                 >

@@ -15,6 +15,15 @@ export interface TeamAsset {
   logoFallbackUrl?: string | null;
 }
 
+export interface PlayerScheduleCell {
+  dateKey: string;
+  hasGame: boolean;
+  opponentName?: string | null;
+  opponentTriCode?: string | null;
+  opponentLogoUrl?: string | null;
+  opponentLogoFallbackUrl?: string | null;
+}
+
 export interface Player {
   id: string;
   code?: string | null;
@@ -29,6 +38,7 @@ export interface Player {
   nextOpponentLogoUrl?: string | null;
   nextOpponentLogoFallbackUrl?: string | null;
   upcoming?: string[];
+  upcomingSchedule?: PlayerScheduleCell[];
   points?: number;
   pointsWindowKey?: string | null;
   color?: PlayerColor;
@@ -52,6 +62,7 @@ export interface TransferHistoryItem {
   cost: number;
   note: string;
   windowKey?: string;
+  countsTowardLimit?: boolean;
 }
 
 export interface UserState {
@@ -73,6 +84,36 @@ export interface UserState {
   rosterValue: number;
   bank: number;
   history: TransferHistoryItem[];
+}
+
+export interface StoredLineupSnapshot {
+  starters: Player[];
+  bench: Player[];
+  captainId: string;
+  rosterValue: number;
+  bank: number;
+}
+
+export interface UserChipCardState {
+  label: "Play" | "Active" | "Played";
+  canActivate: boolean;
+  isActive: boolean;
+  isPlayed: boolean;
+}
+
+export interface UserChipsState {
+  wildcard: {
+    used: boolean;
+    activePeriodKey?: string | null;
+    activatedAt?: string | null;
+  };
+  allStar: {
+    used: boolean;
+    activePeriodKey?: string | null;
+    activatedAt?: string | null;
+    originalLineup?: StoredLineupSnapshot | null;
+    activeLineup?: StoredLineupSnapshot | null;
+  };
 }
 
 export interface PublicUser {
@@ -100,6 +141,21 @@ export interface TransferWindowContext {
   label: string;
   limit: number;
   mode: "LIMITLESS" | "LIMITED";
+}
+
+export interface EditablePeriodContext {
+  gameweek: GameweekPayload;
+  transferWindow: TransferWindowContext;
+  beforeCompetitionStart: boolean;
+  period: {
+    key: string;
+    label: string;
+    roundNumber: number;
+    dayNumber: number;
+    deadline: string;
+    gamedayIndex: number;
+    gamedayKey: string;
+  };
 }
 
 export interface LeagueMemberEntry {
@@ -142,6 +198,10 @@ export interface TransactionsPayload {
   bank: number;
   rosterValue: number;
   history: TransferHistoryItem[];
+  chips: {
+    wildcard: UserChipCardState;
+    allStar: UserChipCardState;
+  };
   lineup: {
     starters: Player[];
     bench: Player[];
@@ -191,4 +251,5 @@ export interface NextMatchup {
   opponent: TeamAsset;
   gamedayLabel: string | null;
   tipoff: string | null;
+  upcomingSchedule?: PlayerScheduleCell[];
 }

@@ -7,6 +7,7 @@ import type {
   LeagueMemberEntry,
   NextMatchup,
   Player,
+  UserChipsState,
   PublicUser,
   StoredScheduleCache,
   TeamAsset,
@@ -14,6 +15,7 @@ import type {
 } from "./types";
 
 export const DB_PATH_LABEL = "d1://PLAYOFF_FANTASY_DB";
+const USER_CHIPS_STATE_KEY = "user_chips_v1";
 
 type UserRow = {
   id: number;
@@ -132,8 +134,26 @@ function normalizePlayerRow(row: PlayerRow, nextMatchupByTeam = new Map<string, 
     nextOpponentName: nextMatchup?.opponent?.name ?? null,
     nextOpponentLogoUrl: nextMatchup?.opponent?.logoUrl ?? null,
     nextOpponentLogoFallbackUrl: nextMatchup?.opponent?.logoFallbackUrl ?? null,
-    upcoming: nextMatchup ? [nextMatchup.gamedayLabel ?? "Upcoming", nextMatchup.tipoff ?? "-"] : []
+    upcoming: nextMatchup ? [nextMatchup.gamedayLabel ?? "Upcoming", nextMatchup.tipoff ?? "-"] : [],
+    upcomingSchedule: nextMatchup?.upcomingSchedule ?? []
   } satisfies Player;
+}
+
+function buildDefaultUserChipsState(): UserChipsState {
+  return {
+    wildcard: {
+      used: false,
+      activePeriodKey: null,
+      activatedAt: null
+    },
+    allStar: {
+      used: false,
+      activePeriodKey: null,
+      activatedAt: null,
+      originalLineup: null,
+      activeLineup: null
+    }
+  };
 }
 
 function buildPublicUser(user: { id: string | number; account: string; gameId: string }): PublicUser {
@@ -197,6 +217,17 @@ export async function getUserByAccount(env: Env, account: string) {
     "SELECT id, account, game_id AS gameId, password_hash AS passwordHash FROM users WHERE account = ?",
     account
   );
+}
+
+export async function getUserChipsState(env: Env, userId: string | number) {
+  const registry = await readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {});
+  return registry[String(userId)] ?? buildDefaultUserChipsState();
+}
+
+export async function saveUserChipsState(env: Env, userId: string | number, chips: UserChipsState) {
+  const registry = await readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {});
+  registry[String(userId)] = chips;
+  await writeAppState(env, USER_CHIPS_STATE_KEY, registry);
 }
 
 export async function getPublicUserById(env: Env, userId: string | number) {
@@ -816,6 +847,63 @@ export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | nul
     return lookup;
   }
 
+  const buildDateKey = (offset: number) => {
+    const date = new Date(`${editablePeriod.gamedayKey}T00:00:00Z`);
+    if (!Number.isFinite(date.getTime())) {
+      return "";
+    }
+
+    date.setUTCDate(date.getUTCDate() + offset);
+    return date.toISOString().slice(0, 10);
+  };
+  const dateKeys = Array.from({ length: 5 }, (_, index) => buildDateKey(index)).filter(Boolean);
+  const dateIndexByKey = new Map(dateKeys.map((dateKey, index) => [dateKey, index]));
+  const scheduleByTeam = new Map<string, NonNullable<NextMatchup["upcomingSchedule"]>>();
+  const ensureSchedule = (teamCode: string) => {
+    if (!scheduleByTeam.has(teamCode)) {
+      scheduleByTeam.set(
+        teamCode,
+        dateKeys.map((dateKey) => ({
+          dateKey,
+          hasGame: false
+        }))
+      );
+    }
+
+    return scheduleByTeam.get(teamCode)!;
+  };
+
+  games.forEach((game) => {
+    const dateKey = game.gamedayKey ?? normalizeScheduleDateKey(game.date);
+    const targetIndex = dateIndexByKey.get(dateKey);
+    const homeCode = String(game.homeTeam?.code ?? "");
+    const awayCode = String(game.awayTeam?.code ?? "");
+
+    if (targetIndex === undefined || !homeCode || !awayCode) {
+      return;
+    }
+
+    const homeSchedule = ensureSchedule(homeCode);
+    const awaySchedule = ensureSchedule(awayCode);
+
+    homeSchedule[targetIndex] = {
+      dateKey,
+      hasGame: true,
+      opponentName: game.awayTeam?.name ?? null,
+      opponentTriCode: game.awayTeam?.triCode ?? null,
+      opponentLogoUrl: game.awayTeam?.logoUrl ?? null,
+      opponentLogoFallbackUrl: game.awayTeam?.logoFallbackUrl ?? null
+    };
+    awaySchedule[targetIndex] = {
+      dateKey,
+      hasGame: true,
+      opponentName: game.homeTeam?.name ?? null,
+      opponentTriCode: game.homeTeam?.triCode ?? null,
+      opponentLogoUrl: game.homeTeam?.logoUrl ?? null,
+      opponentLogoFallbackUrl: game.homeTeam?.logoFallbackUrl ?? null
+    };
+  });
+
   games
     .filter(
       (game) =>
@@ -833,7 +921,8 @@ export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | nul
         lookup.set(String(homeTeam.code), {
           opponent: awayTeam,
           gamedayLabel: game.gamedayLabel ?? null,
-          tipoff: game.tipoff ?? null
+          tipoff: game.tipoff ?? null,
+          upcomingSchedule: scheduleByTeam.get(String(homeTeam.code)) ?? []
         });
       }
 
@@ -841,7 +930,8 @@ export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | nul
         lookup.set(String(awayTeam.code), {
           opponent: homeTeam,
           gamedayLabel: game.gamedayLabel ?? null,
-          tipoff: game.tipoff ?? null
+          tipoff: game.tipoff ?? null,
+          upcomingSchedule: scheduleByTeam.get(String(awayTeam.code)) ?? []
         });
       }
     });

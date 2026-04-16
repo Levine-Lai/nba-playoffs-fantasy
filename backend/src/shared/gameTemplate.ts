@@ -55,7 +55,10 @@ export const HELP_RULES = {
     "Each team starts with 10 players: 5 starters and 5 bench players.",
     "Only starters score full points for the day.",
     "Captain receives 1.5x points multiplier.",
-    "Free transfers refresh every playoff week."
+    "Free transfers refresh every playoff week.",
+    "Each transfer above the free limit costs -100 points.",
+    "Wildcard can be used once for the whole playoff run and removes transfer penalties before the deadline.",
+    "All-Star can be used once for the whole playoff run, ignores budget for that deadline, and then restores the original squad."
   ],
   scoringRules: [
     { event: "Point", value: 1 },

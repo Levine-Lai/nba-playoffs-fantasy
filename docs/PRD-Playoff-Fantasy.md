@@ -27,6 +27,8 @@ Users set a 10-player squad before playoff rounds, manage transfers across play-
 - Round Day: the playable daily checkpoint inside a playoff round, for example `Round 1 Day 2`.
 - Play-In: testing-only daily checkpoint before Round 1, for example `Play-In 2`.
 - Free Transfer: transfer quota with no penalty inside the current transfer window.
+- Wildcard: one-time playoff chip that allows unlimited pre-deadline transfers with no penalty while keeping the manager's FT count unchanged.
+- All-Star: one-time playoff chip that allows unlimited pre-deadline transfers with no penalty, ignores budget for that deadline, scores with the temporary squad for that day, then restores the pre-chip squad.
 - Captain: selected player with 1.5x multiplier.
 
 ## 2. Scope
@@ -61,6 +63,9 @@ D --> B
 - Each round currently has 3 free transfers shared across the whole round. [Configurable]
 - Play-In testing windows currently have 3 free transfers per play-in day. [Testing-only]
 - `Round 1 Day 1` is the official game start. Before its deadline, transfers are unlimited.
+- Every transfer above the current free-transfer allowance costs `-100` points immediately.
+- Wildcard and All-Star are each available once per account for the full playoff run.
+- Activating Wildcard or All-Star does not change the manager's stored FT count.
 - Each playable day has a deadline 30 minutes before the first game of that day.
 - After a day deadline passes, points represent that day and edit/transactions move to the next editable day.
 
@@ -95,8 +100,13 @@ D --> B
 - During play-in testing, enforce 3 free transfers per play-in day.
 - After launch, enforce 3 free transfers per round by default.
 - Show free transfers left and finance metrics.
-- Select outgoing and incoming players.
-- Confirm transfer and refresh lineup/market.
+- Show five upcoming calendar-day schedule slots in the transaction table; if a player has no game on a day, show `-`.
+- Select outgoing and incoming players in draft mode, then confirm the whole batch.
+- Show draft cost as points penalty only; each over-limit transfer costs `-100`.
+- Allow Auto Pick to fill open replacement slots with random valid players.
+- Allow Wildcard activation from the transaction page and persist it on confirm.
+- Allow All-Star activation from the transaction page and persist its temporary squad through the target deadline.
+- Confirm transfer batch and refresh lineup/market.
 - Show transfer history.
 
 ### 3.5 Standing
@@ -183,14 +193,16 @@ D --> B
 - Points page renders summary and player cards.
 - Transactions are limitless before `Round 1 Day 1` deadline.
 - Play-in testing windows and round windows apply the configured free-transfer rules.
-- Transactions can complete at least one transfer and show history.
+- Transactions can complete a confirmed transfer batch, apply `-100` per over-limit move, and show history.
+- Wildcard removes transfer penalties for its activated deadline and cannot be replayed after confirm.
+- All-Star removes transfer penalties, can exceed budget for its activated deadline, and restores the original squad after the deadline.
 - Standing/Schedule/Help pages render expected sections.
 - Frontend `npx tsc --noEmit` passes.
 - Frontend `npm run build` passes.
 
 ## 7. Open Questions
 1. Should the default free transfer quota stay at 3 per round after testing ends?
-2. Should over-limit transfers apply score penalty (for example -4)?
+2. Over-limit transfers now apply a `-100` score penalty per extra move.
 3. Should bench auto-substitute before tipoff lock?
 4. Is league admin flow required in MVP?
 5. Which live box-score source is preferred for production scoring?

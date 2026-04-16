@@ -1,4 +1,13 @@
-import type { GameweekPayload, Player, TransactionsPayload, TransferHistoryItem, TransferWindowContext, UserState } from "./types";
+import type {
+  GameweekPayload,
+  Player,
+  StoredLineupSnapshot,
+  TransactionsPayload,
+  TransferHistoryItem,
+  TransferWindowContext,
+  UserChipCardState,
+  UserState
+} from "./types";
 
 export function hasCreatedTeam(state: UserState) {
   return state.starters.length + state.bench.length === 10;
@@ -6,6 +15,29 @@ export function hasCreatedTeam(state: UserState) {
 
 export function getRosterPlayers(state: UserState) {
   return [...state.starters, ...state.bench];
+}
+
+function clonePlayers(players: Player[]) {
+  return players.map((player) => ({ ...player, upcoming: [...(player.upcoming ?? [])], upcomingSchedule: [...(player.upcomingSchedule ?? [])] }));
+}
+
+export function buildStoredLineupSnapshot(state: UserState): StoredLineupSnapshot {
+  return {
+    starters: clonePlayers(state.starters),
+    bench: clonePlayers(state.bench),
+    captainId: state.captainId,
+    rosterValue: Number(state.rosterValue ?? 0),
+    bank: Number(state.bank ?? 0)
+  };
+}
+
+export function applyStoredLineupSnapshot(state: UserState, snapshot: StoredLineupSnapshot) {
+  state.starters = clonePlayers(snapshot.starters);
+  state.bench = clonePlayers(snapshot.bench);
+  state.captainId = snapshot.captainId ?? "";
+  state.rosterValue = Number(snapshot.rosterValue ?? 0);
+  state.bank = Number(snapshot.bank ?? 0);
+  return state;
 }
 
 export function calcFinalPoints(state: UserState) {
@@ -37,7 +69,7 @@ export function withVisiblePoints(players: Player[], beforeFirstDeadline: boolea
 }
 
 function countTransfersForWindow(history: TransferHistoryItem[], windowKey: string) {
-  return history.filter((item) => item.windowKey === windowKey).length;
+  return history.filter((item) => item.windowKey === windowKey && item.countsTowardLimit !== false).length;
 }
 
 export function syncTransferWindowState(state: UserState, transferWindow: TransferWindowContext) {
@@ -84,8 +116,12 @@ export function buildTransactionsPayload(params: {
   market: Player[];
   beforeFirstDeadline: boolean;
   transferWindow: TransferWindowContext;
+  chips: {
+    wildcard: UserChipCardState;
+    allStar: UserChipCardState;
+  };
 }): TransactionsPayload {
-  const { state, gameweek, market, beforeFirstDeadline, transferWindow } = params;
+  const { state, gameweek, market, beforeFirstDeadline, transferWindow, chips } = params;
   const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
   const limitless = transferWindow.mode === "LIMITLESS";
 
@@ -99,6 +135,7 @@ export function buildTransactionsPayload(params: {
     bank: state.bank,
     rosterValue: state.rosterValue,
     history: state.history,
+    chips,
     lineup: {
       starters: withVisiblePoints(state.starters, beforeFirstDeadline),
       bench: withVisiblePoints(state.bench, beforeFirstDeadline),
@@ -171,24 +208,49 @@ export function createInitialTeamForState(params: {
   return { ok: true as const };
 }
 
-export function replacePlayerForState(params: {
+function buildRosterIncomingPlayer(incoming: Player): Player {
+  return {
+    id: incoming.id,
+    code: incoming.code,
+    name: incoming.name,
+    teamId: incoming.teamId,
+    teamCode: incoming.teamCode,
+    team: incoming.team,
+    position: incoming.position,
+    salary: incoming.salary,
+    points: incoming.points ?? 0,
+    pointsWindowKey: incoming.pointsWindowKey ?? null,
+    color: incoming.color ?? "cold",
+    headshotUrl: incoming.headshotUrl,
+    headshotFallbackUrl: incoming.headshotFallbackUrl,
+    teamLogoUrl: incoming.teamLogoUrl,
+    teamLogoFallbackUrl: incoming.teamLogoFallbackUrl,
+    nextOpponent: incoming.nextOpponent ?? "TBD",
+    nextOpponentName: incoming.nextOpponentName ?? null,
+    nextOpponentLogoUrl: incoming.nextOpponentLogoUrl ?? null,
+    nextOpponentLogoFallbackUrl: incoming.nextOpponentLogoFallbackUrl ?? null,
+    upcoming: [...(incoming.upcoming ?? [])],
+    upcomingSchedule: [...(incoming.upcomingSchedule ?? [])],
+    totalPoints: incoming.totalPoints,
+    recentAverage: incoming.recentAverage,
+    selectedByPercent: incoming.selectedByPercent,
+    canSelect: incoming.canSelect,
+    canTransact: incoming.canTransact,
+    status: incoming.status
+  };
+}
+
+export function replacePlayerOnRoster(params: {
   state: UserState;
   outPlayerId: string;
   incoming: Player;
   budget: number;
-  beforeFirstDeadline: boolean;
-  transferWindow: TransferWindowContext;
+  ignoreBudget?: boolean;
 }) {
-  const { state, outPlayerId, incoming, budget, beforeFirstDeadline, transferWindow } = params;
+  const { state, outPlayerId, incoming, budget, ignoreBudget } = params;
 
   if (!hasCreatedTeam(state)) {
     return { ok: false as const, error: "Create your initial team first." };
-  }
-
-  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
-  const freeTransfersLeft = Math.max(0, transferWindow.limit - usedThisWeek);
-  if (transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && freeTransfersLeft <= 0) {
-    return { ok: false as const, error: `No free transfers left for ${transferWindow.label.toLowerCase()}.` };
   }
 
   if (!incoming.canSelect || !incoming.canTransact) {
@@ -217,46 +279,64 @@ export function replacePlayerForState(params: {
   }
 
   const nextRosterValue = Number((state.rosterValue - Number(outgoing.salary) + Number(incoming.salary)).toFixed(1));
-  if (nextRosterValue > budget) {
+  if (!ignoreBudget && nextRosterValue > budget) {
     return { ok: false as const, error: "Transfer would exceed your budget." };
   }
 
-  targetPool.splice(targetIndex, 1, {
-    id: incoming.id,
-    code: incoming.code,
-    name: incoming.name,
-    teamId: incoming.teamId,
-    teamCode: incoming.teamCode,
-    team: incoming.team,
-    position: incoming.position,
-    salary: incoming.salary,
-    points: incoming.points ?? 0,
-    color: incoming.color ?? "cold",
-    headshotUrl: incoming.headshotUrl,
-    headshotFallbackUrl: incoming.headshotFallbackUrl,
-    teamLogoUrl: incoming.teamLogoUrl,
-    teamLogoFallbackUrl: incoming.teamLogoFallbackUrl,
-    nextOpponent: "TBD",
-    nextOpponentName: null,
-    nextOpponentLogoUrl: null,
-    nextOpponentLogoFallbackUrl: null,
-    upcoming: ["TBD", "TBD"]
-  });
-
-  state.totalTransfers += 1;
+  targetPool.splice(targetIndex, 1, buildRosterIncomingPlayer(incoming));
   state.rosterValue = nextRosterValue;
   state.bank = Number((budget - state.rosterValue).toFixed(1));
+
+  return {
+    ok: true as const,
+    outgoing,
+    incoming: buildRosterIncomingPlayer(incoming)
+  };
+}
+
+export function replacePlayerForState(params: {
+  state: UserState;
+  outPlayerId: string;
+  incoming: Player;
+  budget: number;
+  beforeFirstDeadline: boolean;
+  transferWindow: TransferWindowContext;
+}) {
+  const { state, outPlayerId, incoming, budget, beforeFirstDeadline, transferWindow } = params;
+
+  if (!hasCreatedTeam(state)) {
+    return { ok: false as const, error: "Create your initial team first." };
+  }
+
+  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  const freeTransfersLeft = Math.max(0, transferWindow.limit - usedThisWeek);
+  if (transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && freeTransfersLeft <= 0) {
+    return { ok: false as const, error: `No free transfers left for ${transferWindow.label.toLowerCase()}.` };
+  }
+
+  const applied = replacePlayerOnRoster({
+    state,
+    outPlayerId,
+    incoming,
+    budget
+  });
+  if (!applied.ok) {
+    return applied;
+  }
+
+  state.totalTransfers += 1;
   state.usedThisWeek = usedThisWeek + 1;
   state.weeklyFreeLimit = transferWindow.limit;
 
   const record = {
     id: `tx-${Date.now()}`,
     timestamp: new Date().toISOString(),
-    outPlayer: outgoing.name,
+    outPlayer: applied.outgoing.name,
     inPlayer: incoming.name,
     cost: 0,
     note: transferWindow.mode === "LIMITLESS" ? `Unlimited before ${gameweekLabelFromWindow(transferWindow)} deadline` : `Free transfer for ${transferWindow.label}`,
-    windowKey: transferWindow.key
+    windowKey: transferWindow.key,
+    countsTowardLimit: transferWindow.mode !== "LIMITLESS"
   };
 
   state.history.unshift(record);

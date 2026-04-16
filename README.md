@@ -16,6 +16,14 @@ The user-facing gameplay stays the same:
 - schedule
 - help / rules
 
+Recent transaction rules implemented in the current build:
+
+- transaction drafts are confirmed as a batch
+- each transfer beyond the current FT allowance costs `-100` points
+- `Wildcard` is a once-per-playoffs chip for unlimited no-penalty pre-deadline transfers
+- `All-Star` is a once-per-playoffs chip for unlimited no-penalty pre-deadline transfers with temporary over-budget squad support
+- the transaction table shows the next five schedule days with opponent logos and `-` on off days
+
 ## Architecture
 
 - Frontend: Next.js 14, React, Tailwind CSS, TypeScript
@@ -105,6 +113,7 @@ npm run dev
 
 - Worker type-check: `npm run typecheck --prefix backend`
 - Frontend production build: `npm run build --prefix frontend`
+- Transaction flow now also uses `POST /api/transactions/confirm` for batch-confirm + chip activation
 - Root build check: `npm run build`
 - Local D1 migration applied successfully
 - Local D1 seed imported from current SQLite data

@@ -10,7 +10,19 @@ import {
 } from "../shared/scheduleUtils";
 import { calcFinalPoints } from "./gameplay";
 import { buildNextMatchupByTeamFromCache, getStoredScheduleCache, toTeamAsset } from "./store";
-import type { Env, GameweekPayload, NextMatchup, Player, StoredScheduleCache, StoredScheduleGame, TeamAsset, TransferWindowContext, UserState } from "./types";
+import type {
+  EditablePeriodContext,
+  Env,
+  GameweekPayload,
+  NextMatchup,
+  Player,
+  PlayerScheduleCell,
+  StoredScheduleCache,
+  StoredScheduleGame,
+  TeamAsset,
+  TransferWindowContext,
+  UserState
+} from "./types";
 
 const LIVE_SCHEDULE_URL = "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/staticData/scheduleLeagueV2_1.json";
 const LIVE_BOX_SCORE_URL = "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData/boxscore/boxscore_{gameId}.json";
@@ -259,6 +271,81 @@ function formatDeadlineLabel(deadline: string, timeZone: string) {
   );
 }
 
+function addDaysToDateKey(dateKey: string, offset: number) {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildScheduleWindowDateKeys(startDateKey: string, totalDays = 5) {
+  return Array.from({ length: totalDays }, (_, index) => addDaysToDateKey(startDateKey, index)).filter(Boolean);
+}
+
+function buildUpcomingScheduleByGames(
+  games: OfficialScheduleGame[],
+  editablePeriod: ReturnType<typeof findEditablePlayoffPeriod>
+) {
+  const scheduleByTeam = new Map<string, PlayerScheduleCell[]>();
+
+  if (!editablePeriod?.gamedayKey) {
+    return scheduleByTeam;
+  }
+
+  const dateKeys = buildScheduleWindowDateKeys(editablePeriod.gamedayKey, 5);
+  const dateIndexByKey = new Map(dateKeys.map((dateKey, index) => [dateKey, index]));
+
+  const ensureTeamSchedule = (teamCode: string) => {
+    if (!scheduleByTeam.has(teamCode)) {
+      scheduleByTeam.set(
+        teamCode,
+        dateKeys.map((dateKey) => ({
+          dateKey,
+          hasGame: false
+        }))
+      );
+    }
+
+    return scheduleByTeam.get(teamCode)!;
+  };
+
+  for (const game of games) {
+    const dateKey = game.gamedayKey ?? normalizeScheduleDateKey(game.date);
+    const targetIndex = dateIndexByKey.get(dateKey);
+    const homeCode = String(game.homeTeam?.code ?? "");
+    const awayCode = String(game.awayTeam?.code ?? "");
+
+    if (targetIndex === undefined || !homeCode || !awayCode) {
+      continue;
+    }
+
+    const homeSchedule = ensureTeamSchedule(homeCode);
+    const awaySchedule = ensureTeamSchedule(awayCode);
+
+    homeSchedule[targetIndex] = {
+      dateKey,
+      hasGame: true,
+      opponentName: game.awayTeam?.name ?? null,
+      opponentTriCode: game.awayTeam?.triCode ?? null,
+      opponentLogoUrl: game.awayTeam?.logoUrl ?? null,
+      opponentLogoFallbackUrl: game.awayTeam?.logoFallbackUrl ?? null
+    };
+    awaySchedule[targetIndex] = {
+      dateKey,
+      hasGame: true,
+      opponentName: game.homeTeam?.name ?? null,
+      opponentTriCode: game.homeTeam?.triCode ?? null,
+      opponentLogoUrl: game.homeTeam?.logoUrl ?? null,
+      opponentLogoFallbackUrl: game.homeTeam?.logoFallbackUrl ?? null
+    };
+  }
+
+  return scheduleByTeam;
+}
+
 function getScheduleDeadline(games: OfficialScheduleGame[], timeZone: string) {
   const periods = getPlayoffPeriodsFromGames(games);
   const editable = findEditablePlayoffPeriod(periods);
@@ -270,6 +357,7 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
   const lookup = new Map<string, NextMatchup>();
   const periods = getPlayoffPeriodsFromGames(games);
   const editablePeriod = findEditablePlayoffPeriod(periods);
+  const upcomingScheduleByTeam = buildUpcomingScheduleByGames(games, editablePeriod);
 
   if (!editablePeriod) {
     return lookup;
@@ -292,7 +380,8 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
         lookup.set(String(homeTeam.code), {
           opponent: awayTeam,
           gamedayLabel: game.gamedayLabel ?? null,
-          tipoff: game.tipoff ?? null
+          tipoff: game.tipoff ?? null,
+          upcomingSchedule: upcomingScheduleByTeam.get(String(homeTeam.code)) ?? []
         });
       }
 
@@ -300,7 +389,8 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
         lookup.set(String(awayTeam.code), {
           opponent: homeTeam,
           gamedayLabel: game.gamedayLabel ?? null,
-          tipoff: game.tipoff ?? null
+          tipoff: game.tipoff ?? null,
+          upcomingSchedule: upcomingScheduleByTeam.get(String(awayTeam.code)) ?? []
         });
       }
     });
@@ -438,7 +528,7 @@ function formatDateTimeLabel(dateInput: string | null | undefined) {
 function buildEditableContextFromGames(
   games: Array<{ id: string; date: string; gamedayKey?: string | null }>,
   fallbackDeadline: string
-) {
+): EditablePeriodContext {
   const periods = buildPlayoffPeriods(
     games,
     (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
@@ -459,7 +549,16 @@ function buildEditableContextFromGames(
         limit: 3,
         mode: beforeCompetitionStart ? "LIMITLESS" : "LIMITED"
       } satisfies TransferWindowContext,
-      beforeCompetitionStart
+      beforeCompetitionStart,
+      period: {
+        key: "1:2026-04-10",
+        label: GAMEWEEK.label,
+        roundNumber: 1,
+        dayNumber: 1,
+        deadline: fallbackDeadline,
+        gamedayIndex: GAMEWEEK.id,
+        gamedayKey: "2026-04-10"
+      }
     };
   }
 
@@ -480,11 +579,20 @@ function buildEditableContextFromGames(
       limit: editablePeriod.transferLimit,
       mode: beforeCompetitionStart ? "LIMITLESS" : "LIMITED"
     } satisfies TransferWindowContext,
-    beforeCompetitionStart
+    beforeCompetitionStart,
+    period: {
+      key: editablePeriod.key,
+      label: editablePeriod.label,
+      roundNumber: editablePeriod.roundNumber,
+      dayNumber: editablePeriod.dayNumber,
+      deadline: editablePeriod.deadline,
+      gamedayIndex: editablePeriod.gamedayIndex,
+      gamedayKey: editablePeriod.gamedayKey
+    }
   };
 }
 
-export async function getEditablePeriodContext(env: Env, fallbackDeadline: string) {
+export async function getEditablePeriodContext(env: Env, fallbackDeadline: string): Promise<EditablePeriodContext> {
   try {
     const officialGames = await getOfficialScheduleGames(env);
     if (officialGames.length) {
@@ -729,7 +837,14 @@ export async function buildOfficialLivePointsPreview(
   return buildFantasyPointsPreviewForSlate(state, slate, beforeFirstDeadline);
 }
 
-export async function buildOfficialStartedPeriodSummaries(env: Env, state: UserState) {
+export async function buildOfficialStartedPeriodSummaries(
+  env: Env,
+  state: UserState,
+  override?: {
+    periodKey: string;
+    state: UserState;
+  }
+) {
   const games = await getOfficialScheduleGames(env);
   const periods = getPlayoffPeriodsFromGames(games).filter((period) => new Date(period.deadline).getTime() <= Date.now());
   const timeZone = env.LIVE_TIME_ZONE || "Asia/Shanghai";
@@ -745,7 +860,7 @@ export async function buildOfficialStartedPeriodSummaries(env: Env, state: UserS
       .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
 
     const preview = await buildFantasyPointsPreviewForSlate(
-      state,
+      override?.periodKey === period.key ? override.state : state,
       {
         periodKey: period.key,
         gamedayLabel: period.label,
