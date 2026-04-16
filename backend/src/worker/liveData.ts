@@ -236,10 +236,6 @@ async function getOfficialScheduleGames(env: Env) {
   ) as OfficialScheduleGame[];
 }
 
-function isMainPlayoffGame(game: Pick<OfficialScheduleGame, "gameweekNumber">) {
-  return Number(game.gameweekNumber ?? 0) > 0;
-}
-
 function getPlayoffPeriodsFromGames(games: OfficialScheduleGame[]) {
   return buildPlayoffPeriods(
     games,
@@ -263,8 +259,8 @@ function formatDeadlineLabel(deadline: string, timeZone: string) {
   );
 }
 
-function getRoundOneScheduleDeadline(games: OfficialScheduleGame[], timeZone: string) {
-  const periods = getPlayoffPeriodsFromGames(games.filter((game) => Number(game.gameweekNumber ?? 0) === 1));
+function getScheduleDeadline(games: OfficialScheduleGame[], timeZone: string) {
+  const periods = getPlayoffPeriodsFromGames(games);
   const editable = findEditablePlayoffPeriod(periods);
   const fallback = periods[0] ?? null;
   return formatDeadlineLabel(editable?.deadline ?? fallback?.deadline ?? "", timeZone);
@@ -327,7 +323,7 @@ export async function getNextMatchupByTeam(env: Env) {
 }
 
 async function getOfficialSlateContext(env: Env) {
-  const games = (await getOfficialScheduleGames(env)).filter(isMainPlayoffGame);
+  const games = await getOfficialScheduleGames(env);
   const periods = getPlayoffPeriodsFromGames(games);
   const scoringPeriod = findScoringPlayoffPeriod(periods);
 
@@ -352,6 +348,8 @@ async function getOfficialSlateContext(env: Env) {
     gamedayLabel: scoringPeriod.label,
     gamedayIndex: scoringPeriod.gamedayIndex,
     deadlineLabel: formatDeadlineLabel(scoringPeriod.deadline, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
+    roundNumber: scoringPeriod.roundNumber,
+    dayNumber: scoringPeriod.dayNumber,
     games: slateGames
   };
 }
@@ -407,7 +405,7 @@ async function fillScheduleScores(games: OfficialScheduleGame[]) {
 }
 
 export async function getOfficialScheduleTimeline(env: Env) {
-  const games = (await getOfficialScheduleGames(env)).filter((game) => Number(game.gameweekNumber ?? 0) === 1);
+  const games = await getOfficialScheduleGames(env);
 
   if (!games.length) {
     return null;
@@ -417,8 +415,8 @@ export async function getOfficialScheduleTimeline(env: Env) {
     games.slice().sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime())
   );
   return {
-    gameweek: "Round 1",
-    deadline: getRoundOneScheduleDeadline(hydratedGames, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
+    gameweek: "Postseason",
+    deadline: getScheduleDeadline(hydratedGames, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
     games: hydratedGames
   };
 }
@@ -487,6 +485,22 @@ function buildEditableContextFromGames(
 }
 
 export async function getEditablePeriodContext(env: Env, fallbackDeadline: string) {
+  try {
+    const officialGames = await getOfficialScheduleGames(env);
+    if (officialGames.length) {
+      return buildEditableContextFromGames(
+        officialGames.map((game) => ({
+          id: game.id,
+          date: game.date,
+          gamedayKey: game.gamedayKey
+        })),
+        fallbackDeadline
+      );
+    }
+  } catch {
+    // Fall back to stored cache below.
+  }
+
   const cachedSchedule = await getStoredScheduleCache(env);
   const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
   return buildEditableContextFromGames(
@@ -500,6 +514,21 @@ export async function getEditablePeriodContext(env: Env, fallbackDeadline: strin
 }
 
 export async function getScoringPeriodContext(env: Env) {
+  try {
+    const officialGames = await getOfficialScheduleGames(env);
+    if (officialGames.length) {
+      return findScoringPlayoffPeriod(
+        buildPlayoffPeriods(
+          officialGames,
+          (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
+          (game) => game.id
+        )
+      );
+    }
+  } catch {
+    // Fall back to stored cache below.
+  }
+
   const cachedSchedule = await getStoredScheduleCache(env);
   const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
   const scoringPeriod = findScoringPlayoffPeriod(
@@ -528,15 +557,10 @@ export async function buildSchedulePayload(env: Env) {
       (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
       (game) => game.id
     );
-    const gameweekOneGames = annotatedGames.filter((game) => {
-      const gameweekNumber = getPlayoffGameweekNumber(game.id);
-      return gameweekNumber === null || gameweekNumber === 1;
-    });
-
     return {
-      gameweek: "Round 1",
-      deadline: getRoundOneScheduleDeadline(gameweekOneGames as OfficialScheduleGame[], env.LIVE_TIME_ZONE || "Asia/Shanghai"),
-      games: gameweekOneGames.map((game) => ({
+      gameweek: "Postseason",
+      deadline: getScheduleDeadline(annotatedGames as OfficialScheduleGame[], env.LIVE_TIME_ZONE || "Asia/Shanghai"),
+      games: annotatedGames.map((game) => ({
         ...game,
         homeTeam: game.homeTeam ?? undefined,
         awayTeam: game.awayTeam ?? undefined
@@ -546,7 +570,7 @@ export async function buildSchedulePayload(env: Env) {
 
   return {
     ...SCHEDULE,
-    gameweek: "Round 1",
+    gameweek: "Postseason",
     games: SCHEDULE.games.map((game) => ({
       ...game,
       gamedayKey: game.date,
@@ -578,12 +602,19 @@ function buildUpcomingSlateCells(game: OfficialScheduleGame | undefined) {
   return [game.tipoff || "-", game.status === "upcoming" ? "PRE" : game.status.toUpperCase(), "-", "-"];
 }
 
-export async function buildOfficialLivePointsPreview(
-  env: Env,
+async function buildFantasyPointsPreviewForSlate(
   state: UserState,
+  slate: {
+    periodKey: string;
+    gamedayLabel: string;
+    gamedayIndex: number;
+    deadlineLabel: string;
+    roundNumber?: number;
+    dayNumber?: number;
+    games: OfficialScheduleGame[];
+  },
   beforeFirstDeadline: boolean
 ) {
-  const slate = await getOfficialSlateContext(env);
   if (!slate?.games?.length) {
     return null;
   }
@@ -658,7 +689,7 @@ export async function buildOfficialLivePointsPreview(
 
   return {
     visible: true,
-    message: beforeFirstDeadline ? "Regular-season live preview from official NBA data." : undefined,
+    message: beforeFirstDeadline ? "Live points preview from official NBA data." : undefined,
     gameweek: {
       id: slate.gamedayIndex ?? GAMEWEEK.id,
       label: slate.gamedayLabel ?? GAMEWEEK.label,
@@ -674,8 +705,73 @@ export async function buildOfficialLivePointsPreview(
       bench,
       captainId: state.captainId
     },
-    finalPoints
+    finalPoints,
+    period: {
+      key: slate.periodKey,
+      label: slate.gamedayLabel,
+      gamedayIndex: slate.gamedayIndex,
+      roundNumber: Number(slate.roundNumber ?? 0),
+      dayNumber: Number(slate.dayNumber ?? 0)
+    }
   };
+}
+
+export async function buildOfficialLivePointsPreview(
+  env: Env,
+  state: UserState,
+  beforeFirstDeadline: boolean
+) {
+  const slate = await getOfficialSlateContext(env);
+  if (!slate) {
+    return null;
+  }
+
+  return buildFantasyPointsPreviewForSlate(state, slate, beforeFirstDeadline);
+}
+
+export async function buildOfficialStartedPeriodSummaries(env: Env, state: UserState) {
+  const games = await getOfficialScheduleGames(env);
+  const periods = getPlayoffPeriodsFromGames(games).filter((period) => new Date(period.deadline).getTime() <= Date.now());
+  const timeZone = env.LIVE_TIME_ZONE || "Asia/Shanghai";
+
+  const summaries = [];
+  for (const period of periods) {
+    const slateGames = games
+      .filter(
+        (game) =>
+          Number(game.gameweekNumber ?? 0) === period.roundNumber &&
+          (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === period.gamedayKey
+      )
+      .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+
+    const preview = await buildFantasyPointsPreviewForSlate(
+      state,
+      {
+        periodKey: period.key,
+        gamedayLabel: period.label,
+        gamedayIndex: period.gamedayIndex,
+        deadlineLabel: formatDeadlineLabel(period.deadline, timeZone),
+        roundNumber: period.roundNumber,
+        dayNumber: period.dayNumber,
+        games: slateGames
+      },
+      false
+    );
+
+    if (preview) {
+      summaries.push({
+        key: period.key,
+        label: period.label,
+        deadline: period.deadline,
+        gamedayIndex: period.gamedayIndex,
+        roundNumber: period.roundNumber,
+        dayNumber: period.dayNumber,
+        finalPoints: preview.finalPoints
+      });
+    }
+  }
+
+  return summaries;
 }
 
 export async function buildStoredScheduleSeedPayload(cache: StoredScheduleCache | null) {

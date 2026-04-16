@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { HELP_RULES, POINTS_BASELINE } from "./shared/gameTemplate";
 import { buildLineupPayload, buildTransactionsPayload, calcFinalPoints, createInitialTeamForState, getDisplayProfileState, getRosterPlayers, hasCreatedTeam, isValidStarterMix, replacePlayerForState, syncTransferWindowState, withVisiblePoints } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
+import { buildOfficialLivePointsPreview, buildOfficialStartedPeriodSummaries, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
 import { buildPublicUser, createPrivateLeague, createSession, DB_PATH_LABEL, deleteSession, getAuthenticatedUserByToken, getPlayerDataSummary, getPlayersByIds, getPublicUserById, getRuleValue, getStateForUser, getUserByAccount, joinPrivateLeague, listPrivateLeaguesForUser, readAppState, registerUser, saveStateForUser, searchPlayerPool, usersSharePrivateLeague, writeAppState } from "./worker/store";
 import type { AuthUser, Env, LeagueEntry, LeagueMemberEntry, LeaguePhaseOption, Player, UserState } from "./worker/types";
 
@@ -341,6 +341,36 @@ async function safeLoadState(env: Env, userId: string) {
   return hydrateStateAssets(env, state);
 }
 
+async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState) {
+  const summaries = await buildOfficialStartedPeriodSummaries(env, state).catch(() => []);
+  let latestPoints = Number(state.gamedayPoints ?? 0);
+  let overallPoints = Number(state.overallPoints ?? 0);
+
+  for (const summary of summaries) {
+    overallPoints = await syncLeaguePointsLedger(
+      env,
+      userId,
+      {
+        key: summary.key,
+        label: summary.label,
+        deadline: summary.deadline,
+        gamedayIndex: summary.gamedayIndex,
+        roundNumber: summary.roundNumber,
+        dayNumber: summary.dayNumber
+      },
+      summary.finalPoints
+    );
+    latestPoints = Number(summary.finalPoints ?? latestPoints);
+  }
+
+  state.overallPoints = Number(overallPoints.toFixed(1));
+  state.gamedayPoints = Number(latestPoints.toFixed(1));
+  return {
+    overallPoints: state.overallPoints,
+    gamedayPoints: state.gamedayPoints
+  };
+}
+
 async function requireAuth(request: Request, env: Env) {
   const token = extractBearerToken(request);
   const authUser = await getAuthenticatedUserByToken(env, token);
@@ -569,6 +599,10 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
+        if (hasCreatedTeam(state)) {
+          await backfillOfficialPointsLedger(env, auth.authUser.id, state);
+        }
+
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
         syncTransferWindowState(state, editableContext.transferWindow);
         const beforeDeadline = editableContext.beforeCompetitionStart;
@@ -584,7 +618,7 @@ export default {
           const currentPoints = Number(livePreview?.finalPoints ?? displayState.gamedayPoints ?? 0);
           state.gamedayPoints = currentPoints;
           const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, scoringPeriod, currentPoints);
-          state.overallPoints = Number(Math.max(Number(state.overallPoints ?? 0), overallPoints).toFixed(1));
+          state.overallPoints = Number(overallPoints.toFixed(1));
           displayState.overallPoints = state.overallPoints;
           displayState.gamedayPoints = currentPoints;
           await saveStateForUser(env, auth.authUser.id, state);
@@ -735,6 +769,8 @@ export default {
           return json({ message: "Create your initial team first." }, { status: 400 }, env);
         }
 
+        await backfillOfficialPointsLedger(env, targetUserId, state);
+
         const targetUser = await getPublicUserById(env, targetUserId);
         if (!targetUser) {
           return json({ message: "User not found." }, { status: 404 }, env);
@@ -755,7 +791,7 @@ export default {
           syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
           const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
           const overallPoints = await syncLeaguePointsLedger(env, targetUserId, scoringPeriod, livePreview.finalPoints);
-          state.overallPoints = Number(Math.max(Number(state.overallPoints ?? 0), overallPoints).toFixed(1));
+          state.overallPoints = Number(overallPoints.toFixed(1));
           await saveStateForUser(env, targetUserId, state);
           return json({ ...livePreview, viewer }, { status: 200 }, env);
         }
@@ -787,7 +823,7 @@ export default {
         const fallbackPoints = buildStoredPointsSnapshot(state, scoringPeriod);
         state.gamedayPoints = fallbackPoints.summary.final;
         const overallPoints = await syncLeaguePointsLedger(env, targetUserId, scoringPeriod, fallbackPoints.summary.final);
-        state.overallPoints = Number(Math.max(Number(state.overallPoints ?? 0), overallPoints).toFixed(1));
+        state.overallPoints = Number(overallPoints.toFixed(1));
         await saveStateForUser(env, targetUserId, state);
 
         return json({ ...fallbackPoints, viewer }, { status: 200 }, env);
@@ -1009,6 +1045,12 @@ export default {
         const auth = await requireAuth(request, env);
         if (!auth.ok) {
           return auth.response;
+        }
+
+        const state = await safeLoadState(env, auth.authUser.id);
+        if (state && hasCreatedTeam(state)) {
+          await backfillOfficialPointsLedger(env, auth.authUser.id, state);
+          await saveStateForUser(env, auth.authUser.id, state);
         }
 
         const officialTimeline = await getOfficialScheduleTimeline(env).catch(() => null);

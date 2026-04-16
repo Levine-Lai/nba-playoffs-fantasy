@@ -42,22 +42,38 @@ function TeamLabel({ team, align = "left" }: { team?: TeamAsset; align?: "left" 
   );
 }
 
+function formatLocalTipoff(dateInput: string, fallback: string, withZone = false) {
+  const date = new Date(dateInput ?? "");
+  if (!Number.isFinite(date.getTime())) {
+    return fallback;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    ...(withZone ? { timeZoneName: "short" } : {})
+  }).format(date);
+}
+
 function MatchCenter({
+  date,
   tipoff,
   status,
-  statusText,
   homeScore,
   awayScore,
   stageLabel
 }: {
+  date: string;
   tipoff: string;
   status: "upcoming" | "live" | "final";
-  statusText?: string;
   homeScore?: number | null;
   awayScore?: number | null;
   stageLabel?: string;
 }) {
   const hasScore = homeScore !== null && homeScore !== undefined && awayScore !== null && awayScore !== undefined;
+  const localTipoff = formatLocalTipoff(date, tipoff);
+  const localTipoffWithZone = formatLocalTipoff(date, tipoff, true);
 
   return (
     <div className="text-center">
@@ -66,12 +82,12 @@ function MatchCenter({
           {homeScore} - {awayScore}
         </div>
       ) : (
-        <div className="inline-block rounded border border-brand-blue px-3 py-1 text-2xl font-semibold text-brand-blue">{tipoff}</div>
+        <div className="inline-block rounded border border-brand-blue px-3 py-1 text-2xl font-semibold text-brand-blue">{localTipoff}</div>
       )}
-      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-        {status === "upcoming" ? "Scheduled" : statusText || status}
-      </p>
+      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{localTipoffWithZone}</p>
       {stageLabel ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{stageLabel}</p> : null}
+      {status === "live" ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#d61f43]">Live</p> : null}
+      {status === "final" ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Final</p> : null}
     </div>
   );
 }
@@ -170,9 +186,9 @@ export default function SchedulePage() {
                 <article key={game.id} className="grid items-center gap-2 px-4 py-3 md:grid-cols-[1fr_120px_1fr]">
                   <TeamLabel team={game.homeTeam ?? { name: game.home }} />
                   <MatchCenter
+                    date={game.date}
                     tipoff={game.tipoff}
                     status={game.status}
-                    statusText={game.statusText}
                     homeScore={game.homeScore}
                     awayScore={game.awayScore}
                     stageLabel={game.stageLabel}
