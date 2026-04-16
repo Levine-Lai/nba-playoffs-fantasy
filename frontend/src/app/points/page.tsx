@@ -9,7 +9,6 @@ import { getPointsToday } from "@/lib/api";
 import { Player, PointsResponse } from "@/lib/types";
 
 export default function PointsPage() {
-  const [userId, setUserId] = useState<string | undefined>(undefined);
   const [data, setData] = useState<PointsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,16 +16,10 @@ export default function PointsPage() {
   const starterBackCourt = data ? data.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const nextUserId = params.get("userId") ?? undefined;
-    setUserId(nextUserId);
-  }, []);
-
-  useEffect(() => {
     let active = true;
 
     const load = () => {
-      getPointsToday(userId)
+      getPointsToday()
         .then((payload) => {
           if (!active) {
             return;
@@ -49,7 +42,7 @@ export default function PointsPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [userId]);
+  }, []);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading points...</div>;

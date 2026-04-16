@@ -116,14 +116,8 @@ export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captain
   });
 }
 
-export function getPointsToday(userId?: string) {
-  const query = new URLSearchParams();
-  if (userId) {
-    query.set("userId", userId);
-  }
-
-  const queryString = query.toString();
-  return request<PointsResponse>(`/points/today${queryString ? `?${queryString}` : ""}`);
+export function getPointsToday() {
+  return request<PointsResponse>("/points/today");
 }
 
 export function getTransactionsOptions() {
@@ -159,6 +153,12 @@ export function getStandings(phase?: string) {
 
   const queryString = query.toString();
   return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`);
+}
+
+export function getStandingPreview(userId: string) {
+  const query = new URLSearchParams();
+  query.set("userId", userId);
+  return request<PointsResponse>(`/standings/preview?${query.toString()}`);
 }
 
 export function createLeague(name: string) {

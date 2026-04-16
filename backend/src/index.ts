@@ -415,6 +415,78 @@ async function syncProfileStandingState(env: Env, userId: string | number, state
   };
 }
 
+async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId: string) {
+  const state = await safeLoadState(env, userId);
+  if (!state) {
+    return { ok: false as const, response: json({ message: "User state not found." }, { status: 500 }, env) };
+  }
+
+  if (!hasCreatedTeam(state)) {
+    return { ok: false as const, response: json({ message: "Create your initial team first." }, { status: 400 }, env) };
+  }
+
+  await backfillOfficialPointsLedger(env, userId, state);
+
+  const targetUser = await getPublicUserById(env, userId);
+  if (!targetUser) {
+    return { ok: false as const, response: json({ message: "User not found." }, { status: 404 }, env) };
+  }
+
+  const viewer = {
+    userId: targetUser.id,
+    gameId: targetUser.gameId,
+    teamName: state.teamName,
+    managerName: state.managerName,
+    isCurrentUser: targetUser.id === viewerUserId
+  };
+
+  const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+  const beforeDeadline = editableContext.beforeCompetitionStart;
+  const livePreview = await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null);
+  if (livePreview) {
+    syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
+    const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+    const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
+    state.overallPoints = Number(overallPoints.toFixed(1));
+    await saveStateForUser(env, userId, state);
+    return { ok: true as const, payload: { ...livePreview, viewer } };
+  }
+
+  if (beforeDeadline) {
+    return {
+      ok: true as const,
+      payload: {
+        visible: false,
+        message: "Points will unlock after Round 1 Day 1 deadline.",
+        gameweek: editableContext.gameweek,
+        summary: {
+          average: 0,
+          final: 0,
+          top: 0
+        },
+        lineup: {
+          starters: withVisiblePoints(state.starters, true),
+          bench: withVisiblePoints(state.bench, true),
+          captainId: state.captainId
+        },
+        viewer
+      }
+    };
+  }
+
+  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+  const fallbackPoints = buildStoredPointsSnapshot(state, scoringPeriod);
+  state.gamedayPoints = fallbackPoints.summary.final;
+  const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
+  state.overallPoints = Number(overallPoints.toFixed(1));
+  await saveStateForUser(env, userId, state);
+
+  return {
+    ok: true as const,
+    payload: { ...fallbackPoints, viewer }
+  };
+}
+
 async function requireAuth(request: Request, env: Env) {
   const token = extractBearerToken(request);
   const authUser = await getAuthenticatedUserByToken(env, token);
@@ -795,74 +867,8 @@ export default {
           return auth.response;
         }
 
-        const targetUserId = String(url.searchParams.get("userId") ?? auth.authUser.id).trim() || auth.authUser.id;
-        const state = await safeLoadState(env, targetUserId);
-        if (!state) {
-          return json({ message: "User state not found." }, { status: 500 }, env);
-        }
-
-        if (!hasCreatedTeam(state)) {
-          return json({ message: "Create your initial team first." }, { status: 400 }, env);
-        }
-
-        await backfillOfficialPointsLedger(env, targetUserId, state);
-
-        const targetUser = await getPublicUserById(env, targetUserId);
-        if (!targetUser) {
-          return json({ message: "User not found." }, { status: 404 }, env);
-        }
-
-        const viewer = {
-          userId: targetUser.id,
-          gameId: targetUser.gameId,
-          teamName: state.teamName,
-          managerName: state.managerName,
-          isCurrentUser: targetUser.id === auth.authUser.id
-        };
-
-        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
-        const beforeDeadline = editableContext.beforeCompetitionStart;
-        const livePreview = await buildOfficialLivePointsPreview(env, state, beforeDeadline).catch(() => null);
-        if (livePreview) {
-          syncPointsSnapshot(state, livePreview.lineup, livePreview.finalPoints);
-          const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
-          const overallPoints = await syncLeaguePointsLedger(env, targetUserId, scoringPeriod, livePreview.finalPoints);
-          state.overallPoints = Number(overallPoints.toFixed(1));
-          await saveStateForUser(env, targetUserId, state);
-          return json({ ...livePreview, viewer }, { status: 200 }, env);
-        }
-
-        if (beforeDeadline) {
-          return json(
-            {
-              visible: false,
-              message: "Points will unlock after Round 1 Day 1 deadline.",
-              gameweek: editableContext.gameweek,
-              summary: {
-                average: 0,
-                final: 0,
-                top: 0
-              },
-              lineup: {
-                starters: withVisiblePoints(state.starters, true),
-                bench: withVisiblePoints(state.bench, true),
-                captainId: state.captainId
-              },
-              viewer
-            },
-            { status: 200 },
-            env
-          );
-        }
-
-        const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
-        const fallbackPoints = buildStoredPointsSnapshot(state, scoringPeriod);
-        state.gamedayPoints = fallbackPoints.summary.final;
-        const overallPoints = await syncLeaguePointsLedger(env, targetUserId, scoringPeriod, fallbackPoints.summary.final);
-        state.overallPoints = Number(overallPoints.toFixed(1));
-        await saveStateForUser(env, targetUserId, state);
-
-        return json({ ...fallbackPoints, viewer }, { status: 200 }, env);
+        const result = await buildPointsPayloadForUser(env, auth.authUser.id, auth.authUser.id);
+        return result.ok ? json(result.payload, { status: 200 }, env) : result.response;
       }
 
       if (pathname === "/api/standings" && request.method === "GET") {
@@ -872,6 +878,21 @@ export default {
         }
 
         return json(await buildStandingPayload(env, url.searchParams.get("phase")), { status: 200 }, env);
+      }
+
+      if (pathname === "/api/standings/preview" && request.method === "GET") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        const targetUserId = String(url.searchParams.get("userId") ?? "").trim();
+        if (!targetUserId) {
+          return json({ message: "userId is required." }, { status: 400 }, env);
+        }
+
+        const result = await buildPointsPayloadForUser(env, targetUserId, auth.authUser.id);
+        return result.ok ? json(result.payload, { status: 200 }, env) : result.response;
       }
 
       if (pathname === "/api/transactions/options" && request.method === "GET") {
