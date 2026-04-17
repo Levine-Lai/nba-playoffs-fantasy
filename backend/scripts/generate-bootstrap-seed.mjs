@@ -4,6 +4,7 @@ import { buildInsert, writeSqlFile } from "./sql-helpers.mjs";
 const DEFAULT_BOOTSTRAP_URL = "https://nbafantasy.nba.com/api/bootstrap-static/";
 const bootstrapUrl = process.env.NBA_BOOTSTRAP_URL ?? DEFAULT_BOOTSTRAP_URL;
 const outputRelativePath = path.join("tmp", "d1-seed.sql");
+const TRUE_PLAYOFF_DAY1_DEADLINE = "2026-04-18T16:30:00Z";
 
 function toNumber(value, fallback = 0) {
   const number = Number(value);
@@ -12,12 +13,6 @@ function toNumber(value, fallback = 0) {
 
 function toBoolInt(value) {
   return value ? 1 : 0;
-}
-
-function findNextDeadline(events = []) {
-  const now = Date.now();
-  const nextEvent = events.find((event) => new Date(event.deadline_time).getTime() > now);
-  return nextEvent?.deadline_time ?? events[0]?.deadline_time ?? "2026-04-10T06:30:00Z";
 }
 
 const response = await fetch(bootstrapUrl);
@@ -148,14 +143,21 @@ statements.push(
 statements.push(
   buildInsert("game_rules", ["key", "value", "updated_at"], {
     key: "weekly_free_transfers",
-    value: String(process.env.PLAYOFF_WEEKLY_FREE_TRANSFERS ?? 2),
+    value: String(process.env.PLAYOFF_WEEKLY_FREE_TRANSFERS ?? 0),
     updated_at: now
   })
 );
 statements.push(
   buildInsert("game_rules", ["key", "value", "updated_at"], {
     key: "first_deadline",
-    value: String(process.env.PLAYOFF_FIRST_DEADLINE ?? findNextDeadline(data.events)),
+    value: String(process.env.PLAYOFF_FIRST_DEADLINE ?? TRUE_PLAYOFF_DAY1_DEADLINE),
+    updated_at: now
+  })
+);
+statements.push(
+  buildInsert("game_rules", ["key", "value", "updated_at"], {
+    key: "transfer_penalty",
+    value: String(process.env.PLAYOFF_TRANSFER_PENALTY ?? 50),
     updated_at: now
   })
 );

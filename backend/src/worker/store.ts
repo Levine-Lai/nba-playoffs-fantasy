@@ -1,5 +1,5 @@
 import { buildInitialUserState } from "../shared/gameTemplate";
-import { buildPlayoffPeriods, findEditablePlayoffPeriod, getPlayoffGameweekNumber, normalizeScheduleDateKey } from "../shared/scheduleUtils";
+import { buildPlayoffPeriods, findEditablePlayoffPeriod, isPostseasonGameId, normalizeScheduleDateKey } from "../shared/scheduleUtils";
 import type {
   AuthUser,
   Env,
@@ -894,7 +894,7 @@ export async function getStoredScheduleCache(env: Env) {
 }
 
 export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | null) {
-  const games = Array.isArray(cache?.games) ? cache.games : [];
+  const games = (Array.isArray(cache?.games) ? cache.games : []).filter((game) => isPostseasonGameId(game.id));
   const lookup = new Map<string, NextMatchup>();
   const editablePeriod = findEditablePlayoffPeriod(
     buildPlayoffPeriods(

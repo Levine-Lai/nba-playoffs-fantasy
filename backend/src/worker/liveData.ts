@@ -210,6 +210,10 @@ function buildTeamAsset(name: string): TeamAsset {
   };
 }
 
+function filterStoredPlayoffGames<T extends { id?: string | number | null }>(games: T[]) {
+  return games.filter((game) => isPostseasonGameId(game.id));
+}
+
 async function getOfficialScheduleGames(env: Env) {
   const payload = await fetchJsonWithCache<{
     leagueSchedule?: { gameDates?: Array<{ games?: Array<Record<string, any>> }> };
@@ -428,7 +432,10 @@ export async function getNextMatchupByTeam(env: Env) {
   }
 
   const storedCache = await getStoredScheduleCache(env);
-  return buildNextMatchupByTeamFromCache(storedCache);
+  return buildNextMatchupByTeamFromCache({
+    ...storedCache,
+    games: filterStoredPlayoffGames(Array.isArray(storedCache?.games) ? storedCache.games : [])
+  });
 }
 
 async function getOfficialSlateContext(env: Env) {
@@ -554,6 +561,7 @@ function buildEditableContextFromGames(
   const editablePeriod = findEditablePlayoffPeriod(periods);
 
   if (!editablePeriod) {
+    const fallbackDateKey = GAMEWEEK.deadline.slice(0, 10);
     const beforeCompetitionStart = Date.now() < new Date(fallbackDeadline).getTime();
     return {
       gameweek: {
@@ -561,20 +569,20 @@ function buildEditableContextFromGames(
         deadline: fallbackDeadline
       },
       transferWindow: {
-        key: "day:2026-04-10",
+        key: `day:${fallbackDateKey}`,
         label: "Day 1",
         limit: 0,
         mode: beforeCompetitionStart ? "LIMITLESS" : "LIMITED"
       } satisfies TransferWindowContext,
       beforeCompetitionStart,
       period: {
-        key: "day:2026-04-10",
+        key: `day:${fallbackDateKey}`,
         label: "Day 1",
         roundNumber: 1,
         dayNumber: 1,
         deadline: fallbackDeadline,
         gamedayIndex: GAMEWEEK.id,
-        gamedayKey: "2026-04-10"
+        gamedayKey: fallbackDateKey
       }
     };
   }
@@ -625,7 +633,7 @@ export async function getEditablePeriodContext(env: Env, fallbackDeadline: strin
   }
 
   const cachedSchedule = await getStoredScheduleCache(env);
-  const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
+  const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
   return buildEditableContextFromGames(
     cachedGames.map((game) => ({
       id: game.id,
@@ -653,7 +661,7 @@ export async function getScoringPeriodContext(env: Env) {
   }
 
   const cachedSchedule = await getStoredScheduleCache(env);
-  const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
+  const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
   const scoringPeriod = findScoringPlayoffPeriod(
     buildPlayoffPeriods(
       cachedGames,
@@ -700,7 +708,7 @@ export async function getLeaguePhaseOptionsByDay(env: Env): Promise<LeaguePhaseO
   }
 
   const cachedSchedule = await getStoredScheduleCache(env);
-  const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
+  const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
   return buildLeaguePhaseOptionsFromGames(
     cachedGames.map((game) => ({
       id: game.id,
@@ -716,9 +724,10 @@ export async function getGameweekPayload(env: Env, firstDeadline: string): Promi
 
 export async function buildSchedulePayload(env: Env) {
   const liveCache = await getStoredScheduleCache(env);
-  if (Array.isArray(liveCache?.games) && liveCache.games.length) {
+  const cachedGames = filterStoredPlayoffGames(Array.isArray(liveCache?.games) ? liveCache.games : []);
+  if (cachedGames.length) {
     const annotatedGames = annotateGamesWithPlayoffPeriods(
-      liveCache.games.map((game) => ({
+      cachedGames.map((game) => ({
         ...game,
         gamedayKey: game.gamedayKey ?? normalizeScheduleDateKey(game.date)
       })),

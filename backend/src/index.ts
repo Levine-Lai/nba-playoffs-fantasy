@@ -113,7 +113,7 @@ async function getTransferPenalty(env: Env) {
 }
 
 async function getFirstDeadline(env: Env) {
-  return (await getRuleValue(env, "first_deadline", "2026-04-10T06:30:00Z")) ?? "2026-04-10T06:30:00Z";
+  return (await getRuleValue(env, "first_deadline", "2026-04-18T16:30:00Z")) ?? "2026-04-18T16:30:00Z";
 }
 
 async function isBeforeFirstDeadline(env: Env) {
@@ -362,6 +362,41 @@ async function writeLeaguePointsLedger(env: Env, ledger: LeaguePointsLedger) {
   await writeAppState(env, LEAGUE_POINTS_LEDGER_KEY, ledger);
 }
 
+function isLedgerEntryAllowedForPeriods(entry: LeaguePointsLedgerEntry, allowedPeriodKeys: Set<string>) {
+  const periodKey = String(entry.periodKey ?? "");
+  if (allowedPeriodKeys.has(periodKey)) {
+    return true;
+  }
+
+  const penaltyMatch = periodKey.match(/^penalty:(day:.+)$/);
+  return Boolean(penaltyMatch && allowedPeriodKeys.has(penaltyMatch[1]));
+}
+
+async function pruneLeaguePointsLedgerForUser(env: Env, userId: string | number, allowedPeriodKeys: Set<string>) {
+  const ledger = await readLeaguePointsLedger(env);
+  const userKey = String(userId);
+  const currentEntries = ledger[userKey];
+  if (!currentEntries) {
+    return;
+  }
+
+  const filteredEntries = Object.fromEntries(
+    Object.entries(currentEntries).filter(([, entry]) => isLedgerEntryAllowedForPeriods(entry, allowedPeriodKeys))
+  );
+
+  if (Object.keys(filteredEntries).length === Object.keys(currentEntries).length) {
+    return;
+  }
+
+  if (Object.keys(filteredEntries).length) {
+    ledger[userKey] = filteredEntries;
+  } else {
+    delete ledger[userKey];
+  }
+
+  await writeLeaguePointsLedger(env, ledger);
+}
+
 function sumLeagueLedgerPoints(entries: LeaguePointsLedgerEntry[] | undefined) {
   return Number(
     ((entries ?? []).reduce((sum, entry) => sum + Number(entry.points ?? 0), 0)).toFixed(1)
@@ -570,11 +605,13 @@ async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requested
   }
 
   const ledger = await readLeaguePointsLedger(env);
+  const memberIds = new Set((league.members ?? []).map((member) => member.userId));
+  const refreshedMembers = (await listStandingMembers(env)).filter((member) => memberIds.has(member.userId));
   return {
     ...league,
     selectedPhaseKey,
     phaseOptions,
-    members: buildRankedMembers(league.members ?? [], selectedPhaseKey, ledger)
+    members: buildRankedMembers(refreshedMembers, selectedPhaseKey, ledger)
   } satisfies LeagueEntry;
 }
 
@@ -616,11 +653,24 @@ async function safeLoadState(env: Env, userId: string | number) {
 
 async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState, chips: UserChipsState) {
   const transferPenalty = await getTransferPenalty(env);
-  let latestPoints = Number(state.gamedayPoints ?? 0);
-  let overallPoints = Number(state.overallPoints ?? 0);
   const periods = await getOfficialPlayoffPeriods(env)
     .then((items) => items.filter((period) => new Date(period.deadline).getTime() <= Date.now()))
     .catch(() => []);
+  const allowedPeriodKeys = new Set(periods.map((period) => period.key));
+
+  await pruneLeaguePointsLedgerForUser(env, userId, allowedPeriodKeys);
+
+  if (!periods.length) {
+    state.overallPoints = 0;
+    state.gamedayPoints = 0;
+    return {
+      overallPoints: state.overallPoints,
+      gamedayPoints: state.gamedayPoints
+    };
+  }
+
+  let latestPoints = 0;
+  let overallPoints = 0;
 
   for (const period of periods) {
     const periodState = await buildRosterStateForPeriod(env, state, chips, period);

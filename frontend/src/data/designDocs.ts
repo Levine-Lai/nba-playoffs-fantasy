@@ -157,13 +157,14 @@ Schedule game objects may include \`homeTeam\` and \`awayTeam\` objects with \`n
 - This fixes the \`/api/transactions/options\` 500 error caused by an ambiguous \`id\` reference after joining \`players\` and \`teams\`.
 
 ## Preseason Rules
-- Current prototype \`first_deadline\` is set to \`2026-04-20T00:00:00Z\`.
+- Current prototype \`first_deadline\` is set to \`2026-04-18T16:30:00Z\`.
+- Play-in games with ids starting \`005...\` are excluded from the playable playoff timeline.
 - Before that deadline, profile surfaces show:
   - \`overallPoints = 0\`
   - \`overallRank = 0\`
   - \`gamedayPoints = 0\`
   - \`totalPlayers = 0\`
-- Existing user states were normalized to those preseason defaults.
+- Existing user states are normalized to those preseason defaults, with transfer history and chip state cleared for the true playoff launch.
 
 ## Score Scaling
 - Imported NBA Fantasy point totals are stored in tenths.

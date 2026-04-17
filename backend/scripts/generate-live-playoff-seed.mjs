@@ -7,6 +7,7 @@ const REQUEST_TIMEOUT_MS = Number(process.env.NBA_LIVE_TIMEOUT_MS ?? 12000);
 const MAX_IMPORTED_GAMES = Number(process.env.PLAYOFF_IMPORT_MAX_GAMES ?? 40);
 const IMPORT_CONCURRENCY = Number(process.env.PLAYOFF_IMPORT_CONCURRENCY ?? 12);
 const outputRelativePath = path.join("tmp", "d1-seed.sql");
+const TRUE_PLAYOFF_DAY1_DEADLINE = "2026-04-18T16:30:00Z";
 
 const GAMEDAYS_PER_WEEK = 7;
 
@@ -122,7 +123,16 @@ function findCurrentOrNextGameday(games) {
 
 function isPostseasonGameId(gameId) {
   const id = String(gameId ?? "");
-  return id.startsWith("004") || id.startsWith("005");
+  return id.startsWith("004");
+}
+
+function toDeadlineIso(dateInput, leadMinutes = 30) {
+  const date = new Date(dateInput ?? "");
+  if (!Number.isFinite(date.getTime())) {
+    return TRUE_PLAYOFF_DAY1_DEADLINE;
+  }
+
+  return new Date(date.getTime() - leadMinutes * 60 * 1000).toISOString();
 }
 
 async function fetchJson(url, { tolerateMissing = false } = {}) {
@@ -254,7 +264,11 @@ function buildScheduleCache(playoffGames) {
         : null
     }));
 
-  const nextDeadline = nextGames[0]?.date ?? playoffGames.find((game) => Number(game.gameStatus) !== 3)?.gameDateTimeUTC ?? null;
+  const nextDeadline = nextGames[0]?.date
+    ? toDeadlineIso(nextGames[0].date)
+    : playoffGames.find((game) => Number(game.gameStatus) !== 3)?.gameDateTimeUTC
+      ? toDeadlineIso(playoffGames.find((game) => Number(game.gameStatus) !== 3)?.gameDateTimeUTC)
+      : TRUE_PLAYOFF_DAY1_DEADLINE;
 
   return {
     ready: false,

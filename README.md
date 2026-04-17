@@ -18,6 +18,8 @@ The user-facing gameplay stays the same:
 
 Recent transaction rules implemented in the current build:
 
+- `Day 1` is now the real playoff opener on `2026-04-18`, with deadline `2026-04-18T16:30:00Z`
+- play-in (`005...`) games are excluded from schedule, standings phases, and scoring
 - transaction drafts are confirmed as a batch
 - after `Day 1` starts, each normal transfer costs `-50` points for that slate
 - transfer penalties only appear in standings after that slate deadline passes
@@ -97,13 +99,15 @@ npm run dev
 
 - `npm run db:seed:from-local`
   Creates `backend/tmp/d1-seed.sql` from the current local SQLite database and schedule cache.
+  This export now keeps accounts / rosters / leagues but resets scores, transfer history, chip state, and rewrites `Day 1` to the real playoff opener.
 
 - `npm run db:seed:bootstrap`
   Creates `backend/tmp/d1-seed.sql` from the NBA Fantasy bootstrap API.
+  The generated seed now defaults `first_deadline` to `2026-04-18T16:30:00Z`, `weekly_free_transfers` to `0`, and `transfer_penalty` to `50`.
 
 - `npm run db:seed:live`
   Tries to build `backend/tmp/d1-seed.sql` from official playoff schedule / box score feeds.
-  This is optional and depends on upstream availability.
+  This is optional and depends on upstream availability. Only true playoff (`004...`) games are imported.
 
 ## Deployment Docs
 
@@ -119,6 +123,7 @@ npm run dev
 - Transaction flow now also uses `POST /api/transactions/confirm` for batch-confirm + chip activation
 - Registration now requires both `account` and `gameId` to be unique; apply `backend/migrations/0002_users_game_id_unique.sql` anywhere the D1 schema already exists
 - Day-based slate transfer scoring uses `backend/migrations/0003_day_slate_transfer_penalty.sql` to set `weekly_free_transfers = 0` and `transfer_penalty = 50`
+- `backend/migrations/0004_true_playoff_init_reset.sql` moves `Day 1` to `2026-04-18T16:30:00Z`, clears old play-in scoring state, and resets transfer / chip history for the real playoff launch
 - Root build check: `npm run build`
 - Local D1 migration applied successfully
 - Local D1 seed imported from current SQLite data

@@ -3,7 +3,7 @@ import type { TransferHistoryItem, UserState } from "../worker/types";
 export const GAMEWEEK = {
   id: 1,
   label: "Day 1",
-  deadline: "2026-04-10T06:30:00Z"
+  deadline: "2026-04-18T16:30:00Z"
 } as const;
 
 export const POINTS_BASELINE = {
@@ -12,39 +12,39 @@ export const POINTS_BASELINE = {
 } as const;
 
 export const SCHEDULE = {
-  gameweek: "Gameweek1",
-  deadline: "Fri 10 Apr 06:30",
+  gameweek: "Postseason",
+  deadline: "Sat 18 Apr 16:30",
   games: [
     {
       id: "g1",
-      date: "2026-04-10",
-      tipoff: "07:00",
-      home: "Miami Heat",
-      away: "New York Knicks",
+      date: "2026-04-18",
+      tipoff: "01:00",
+      home: "Cleveland Cavaliers",
+      away: "Toronto Raptors",
       status: "upcoming"
     },
     {
       id: "g2",
-      date: "2026-04-10",
-      tipoff: "07:30",
-      home: "Boston Celtics",
-      away: "Milwaukee Bucks",
-      status: "upcoming"
-    },
-    {
-      id: "g3",
-      date: "2026-04-10",
-      tipoff: "08:00",
+      date: "2026-04-18",
+      tipoff: "03:30",
       home: "Denver Nuggets",
       away: "Minnesota Timberwolves",
       status: "upcoming"
     },
     {
+      id: "g3",
+      date: "2026-04-18",
+      tipoff: "06:00",
+      home: "New York Knicks",
+      away: "Atlanta Hawks",
+      status: "upcoming"
+    },
+    {
       id: "g4",
-      date: "2026-04-10",
-      tipoff: "10:00",
+      date: "2026-04-18",
+      tipoff: "08:30",
       home: "Los Angeles Lakers",
-      away: "Golden State Warriors",
+      away: "Houston Rockets",
       status: "upcoming"
     }
   ]

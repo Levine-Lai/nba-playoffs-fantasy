@@ -55,6 +55,12 @@ npm run db:migrate:remote
 
 This applies every SQL file under `backend/migrations/`, including `0001_init.sql`, `0002_users_game_id_unique.sql`, and `0003_day_slate_transfer_penalty.sql`.
 
+For the 2026 playoff launch reset, `0004_true_playoff_init_reset.sql` also:
+
+- moves `Day 1` to `2026-04-18T16:30:00Z`
+- clears old play-in standings / penalty ledger state
+- resets transfer history and chip usage while preserving accounts, rosters, and leagues
+
 ## 4. Choose How To Seed Production Data
 
 You have 3 paths.
@@ -62,6 +68,8 @@ You have 3 paths.
 ### Path A: Exact copy of your current local project state
 
 Use this if you want current users, teams, leagues, rules, and cached schedule behavior copied to production.
+
+The exported seed is now sanitized for the real playoff start: scores reset to zero, transfer history is cleared, chip state is cleared, and play-in cache rows are removed.
 
 ```bash
 npm run db:seed:from-local
@@ -72,6 +80,8 @@ npm run db:seed:apply:remote
 
 Use this if you want a clean online launch without carrying local accounts or league data.
 
+This seed now defaults to the real playoff opener deadline `2026-04-18T16:30:00Z`, with pre-`Day 1` unlimited transfers and post-deadline `-50` transfer penalties.
+
 ```bash
 npm run db:seed:bootstrap
 npm run db:seed:apply:remote
@@ -80,6 +90,8 @@ npm run db:seed:apply:remote
 ### Path C: Optional live playoff seed
 
 Use this only if you explicitly want the experimental live-playoff import path.
+
+Only true playoff (`004...`) games are imported into the schedule cache.
 
 ```bash
 npm run db:seed:live

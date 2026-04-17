@@ -1,16 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
 import RightSidebar from "@/components/RightSidebar";
-import { getPointsToday } from "@/lib/api";
+import { getPointsToday, getStandingPreview } from "@/lib/api";
 import { Player, PointsResponse } from "@/lib/types";
 
 export default function PointsPage() {
+  return (
+    <Suspense fallback={<div className="panel panel-body">Loading points...</div>}>
+      <PointsPageContent />
+    </Suspense>
+  );
+}
+
+function PointsPageContent() {
   const [data, setData] = useState<PointsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const targetUserId = searchParams.get("userId")?.trim() ?? "";
+  const targetPhase = searchParams.get("phase")?.trim() ?? "";
 
   const starterFrontCourt = data ? data.lineup.starters.filter((player) => player.position === "FC") : ([] as Player[]);
   const starterBackCourt = data ? data.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);
@@ -19,7 +31,9 @@ export default function PointsPage() {
     let active = true;
 
     const load = () => {
-      getPointsToday()
+      const request = targetUserId ? getStandingPreview(targetUserId, targetPhase || undefined) : getPointsToday();
+
+      request
         .then((payload) => {
           if (!active) {
             return;
@@ -42,7 +56,7 @@ export default function PointsPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [targetPhase, targetUserId]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading points...</div>;

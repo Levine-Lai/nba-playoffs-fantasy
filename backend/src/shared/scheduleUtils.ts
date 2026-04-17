@@ -82,10 +82,6 @@ export function annotateGamesWithGamedays<T extends Record<string, unknown>>(gam
 
 export function getPlayoffGameweekNumber(gameId: string | number | null | undefined) {
   const id = String(gameId ?? "");
-  if (id.startsWith("005")) {
-    return 0;
-  }
-
   if (!id.startsWith("004") || id.length < 10) {
     return null;
   }
@@ -249,5 +245,5 @@ export function findCurrentOrNextGameday<T extends { date?: string | null; gameD
 
 export function isPostseasonGameId(gameId: string | number | null | undefined) {
   const id = String(gameId ?? "");
-  return id.startsWith("004") || id.startsWith("005");
+  return id.startsWith("004");
 }
