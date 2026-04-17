@@ -53,7 +53,7 @@ Still in `backend/`:
 npm run db:migrate:remote
 ```
 
-This applies every SQL file under `backend/migrations/`, including `0001_init.sql` and `0002_users_game_id_unique.sql`.
+This applies every SQL file under `backend/migrations/`, including `0001_init.sql`, `0002_users_game_id_unique.sql`, and `0003_day_slate_transfer_penalty.sql`.
 
 ## 4. Choose How To Seed Production Data
 

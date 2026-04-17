@@ -87,7 +87,7 @@ export function buildLineupPayload(params: {
 }) {
   const { state, gameweek, budget, beforeFirstDeadline, transferWindow } = params;
   const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
-  const freeLeft = transferWindow.mode === "LIMITLESS" ? 999 : Math.max(0, transferWindow.limit - usedThisWeek);
+  const freeLeft = transferWindow.mode === "LIMITLESS" ? 999 : usedThisWeek;
 
   return {
     gameweek,
@@ -129,7 +129,7 @@ export function buildTransactionsPayload(params: {
     gameweek,
     hasTeam: hasCreatedTeam(state),
     transferMode: limitless ? "LIMITLESS" : "LIMITED",
-    freeTransfersLeft: limitless ? 999 : Math.max(0, transferWindow.limit - usedThisWeek),
+    freeTransfersLeft: limitless ? 999 : 0,
     usedThisWeek,
     weeklyFreeLimit: transferWindow.limit,
     bank: state.bank,
@@ -308,12 +308,6 @@ export function replacePlayerForState(params: {
     return { ok: false as const, error: "Create your initial team first." };
   }
 
-  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
-  const freeTransfersLeft = Math.max(0, transferWindow.limit - usedThisWeek);
-  if (transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && freeTransfersLeft <= 0) {
-    return { ok: false as const, error: `No free transfers left for ${transferWindow.label.toLowerCase()}.` };
-  }
-
   const applied = replacePlayerOnRoster({
     state,
     outPlayerId,
@@ -325,18 +319,23 @@ export function replacePlayerForState(params: {
   }
 
   state.totalTransfers += 1;
-  state.usedThisWeek = usedThisWeek + 1;
+  state.usedThisWeek = countTransfersForWindow(state.history, transferWindow.key) + 1;
   state.weeklyFreeLimit = transferWindow.limit;
+  const countsTowardLimit = transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline;
+  const cost = countsTowardLimit ? -50 : 0;
 
   const record = {
     id: `tx-${Date.now()}`,
     timestamp: new Date().toISOString(),
     outPlayer: applied.outgoing.name,
     inPlayer: incoming.name,
-    cost: 0,
-    note: transferWindow.mode === "LIMITLESS" ? `Unlimited before ${gameweekLabelFromWindow(transferWindow)} deadline` : `Free transfer for ${transferWindow.label}`,
+    cost,
+    note:
+      transferWindow.mode === "LIMITLESS"
+        ? `Unlimited before ${gameweekLabelFromWindow(transferWindow)} deadline`
+        : `Transfer penalty queued for ${transferWindow.label}`,
     windowKey: transferWindow.key,
-    countsTowardLimit: transferWindow.mode !== "LIMITLESS"
+    countsTowardLimit
   };
 
   state.history.unshift(record);

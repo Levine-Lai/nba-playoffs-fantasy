@@ -17,7 +17,7 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildOfficialStartedPeriodSummaries, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
+import { buildOfficialLivePointsPreview, buildOfficialStartedPeriodSummaries, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getLeaguePhaseOptionsByDay, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
 import {
   buildPublicUser,
   createPrivateLeague,
@@ -60,16 +60,6 @@ import type {
 } from "./worker/types";
 
 const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
-const DEFAULT_LEAGUE_PHASE_OPTIONS: LeaguePhaseOption[] = [
-  { key: "overall", label: "Overall" },
-  { key: "play-in-1", label: "Play-In 1" },
-  { key: "play-in-2", label: "Play-In 2" },
-  { key: "play-in-3", label: "Play-In 3" },
-  { key: "round-1", label: "Round 1" },
-  { key: "round-2", label: "Round 2" },
-  { key: "round-3", label: "Round 3" },
-  { key: "round-4", label: "Round 4" }
-];
 
 type ScoringPeriodContext = {
   key: string;
@@ -114,7 +104,11 @@ async function getInitialBudget(env: Env) {
 }
 
 async function getWeeklyFreeTransfers(env: Env) {
-  return Number((await getRuleValue(env, "weekly_free_transfers", "3")) ?? "3");
+  return Number((await getRuleValue(env, "weekly_free_transfers", "0")) ?? "0");
+}
+
+async function getTransferPenalty(env: Env) {
+  return Number((await getRuleValue(env, "transfer_penalty", "50")) ?? "50");
 }
 
 async function getFirstDeadline(env: Env) {
@@ -373,8 +367,8 @@ function sumLeagueLedgerPoints(entries: LeaguePointsLedgerEntry[] | undefined) {
   );
 }
 
-function getLeaguePhaseOptions() {
-  return DEFAULT_LEAGUE_PHASE_OPTIONS;
+async function getLeaguePhaseOptions(env: Env) {
+  return getLeaguePhaseOptionsByDay(env);
 }
 
 function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
@@ -382,23 +376,12 @@ function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, ph
     return sumLeagueLedgerPoints(entries);
   }
 
-  const playInMatch = phaseKey.match(/^play-in-(\d+)$/);
-  if (playInMatch) {
-    const targetDay = Number(playInMatch[1]);
+  const dayMatch = phaseKey.match(/^day-(\d+)$/);
+  if (dayMatch) {
+    const targetDay = Number(dayMatch[1]);
     return Number(
       ((entries ?? [])
-        .filter((entry) => entry.roundNumber === 0 && entry.dayNumber === targetDay)
-        .reduce((sum, entry) => sum + Number(entry.points ?? 0), 0)
-      ).toFixed(1)
-    );
-  }
-
-  const roundMatch = phaseKey.match(/^round-(\d+)$/);
-  if (roundMatch) {
-    const targetRound = Number(roundMatch[1]);
-    return Number(
-      ((entries ?? [])
-        .filter((entry) => entry.roundNumber === targetRound)
+        .filter((entry) => entry.dayNumber === targetDay)
         .reduce((sum, entry) => sum + Number(entry.points ?? 0), 0)
       ).toFixed(1)
     );
@@ -466,7 +449,17 @@ async function syncLeaguePointsAdjustment(
   const existingUserLedger = ledger[userKey] ?? {};
   const entryKey = adjustment.key;
   const baseEntries = Object.fromEntries(
-    Object.entries(existingUserLedger).filter(([key]) => key !== entryKey && !key.startsWith(`${entryKey}:`))
+    Object.entries(existingUserLedger).filter(([key]) => {
+      if (key === entryKey || key.startsWith(`${entryKey}:`)) {
+        return false;
+      }
+
+      if (entryKey.startsWith("penalty:day:") && /^penalty:(round-|play-in-)/.test(key)) {
+        return false;
+      }
+
+      return true;
+    })
   );
 
   if (numericPoints === 0) {
@@ -491,6 +484,10 @@ async function syncLeaguePointsAdjustment(
 
   await writeLeaguePointsLedger(env, ledger);
   return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+}
+
+function countPenaltyTransfersForPeriod(history: TransferHistoryItem[], periodKey: string) {
+  return history.filter((item) => item.windowKey === periodKey && item.countsTowardLimit !== false).length;
 }
 
 function buildRankedMembers(members: LeagueMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
@@ -555,7 +552,8 @@ function buildRankedMembers(members: LeagueMemberEntry[], phaseKey: string, ledg
 }
 
 async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requestedPhaseKey: string | null) {
-  const selectedPhaseKey = getLeaguePhaseOptions().some((option) => option.key === requestedPhaseKey)
+  const phaseOptions = await getLeaguePhaseOptions(env);
+  const selectedPhaseKey = phaseOptions.some((option) => option.key === requestedPhaseKey)
     ? String(requestedPhaseKey)
     : "overall";
 
@@ -574,13 +572,14 @@ async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requested
   return {
     ...league,
     selectedPhaseKey,
-    phaseOptions: getLeaguePhaseOptions(),
+    phaseOptions,
     members: buildRankedMembers(league.members ?? [], selectedPhaseKey, ledger)
   } satisfies LeagueEntry;
 }
 
 async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) {
-  const selectedPhaseKey = getLeaguePhaseOptions().some((option) => option.key === requestedPhaseKey)
+  const phaseOptions = await getLeaguePhaseOptions(env);
+  const selectedPhaseKey = phaseOptions.some((option) => option.key === requestedPhaseKey)
     ? String(requestedPhaseKey)
     : "overall";
 
@@ -600,7 +599,7 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
   const ledger = await readLeaguePointsLedger(env);
   return {
     selectedPhaseKey,
-    phaseOptions: getLeaguePhaseOptions(),
+    phaseOptions,
     members: buildRankedMembers(members, selectedPhaseKey, ledger)
   };
 }
@@ -615,6 +614,7 @@ async function safeLoadState(env: Env, userId: string | number) {
 }
 
 async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState, chips: UserChipsState) {
+  const transferPenalty = await getTransferPenalty(env);
   const summaries = await buildOfficialStartedPeriodSummaries(
     env,
     state,
@@ -649,6 +649,13 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
       },
       summary.finalPoints
     );
+    overallPoints = await syncLeaguePointsAdjustment(env, userId, {
+      key: `penalty:${summary.key}`,
+      label: `Transfer penalty for ${summary.label}`,
+      roundNumber: summary.roundNumber,
+      dayNumber: summary.dayNumber,
+      points: -transferPenalty * countPenaltyTransfersForPeriod(state.history, summary.key)
+    });
     latestPoints = Number(summary.finalPoints ?? latestPoints);
   }
 
@@ -720,7 +727,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
       ok: true as const,
       payload: {
         visible: false,
-        message: "Points will unlock after Round 1 Day 1 deadline.",
+        message: "Points will unlock after Day 1 deadline.",
         gameweek: editableContext.gameweek,
         summary: {
           final: 0
@@ -757,9 +764,9 @@ async function commitTransactionBatch(params: {
   requestedChip: TransactionChipChoice | null;
 }) {
   const { env, userId, baseState, chips, editableContext, drafts, requestedChip } = params;
+  const transferPenalty = await getTransferPenalty(env);
   const activeChip = getActiveTransactionChip(chips, editableContext);
   const activatingChipNow = Boolean(requestedChip && !activeChip);
-  const penaltyEntryKey = `penalty:${editableContext.transferWindow.key}`;
 
   if (requestedChip && activeChip && requestedChip !== activeChip) {
     return { ok: false as const, error: "Another chip is already active for this deadline." };
@@ -790,7 +797,6 @@ async function commitTransactionBatch(params: {
   );
   const incomingById = new Map(incomingPlayers.map((player) => [player.id, player]));
 
-  let usedThisWindow = workingState.history.filter((item) => item.windowKey === editableContext.transferWindow.key && item.countsTowardLimit !== false).length;
   const historyEntries: TransferHistoryItem[] = [];
 
   for (const [index, draft] of drafts.entries()) {
@@ -811,13 +817,7 @@ async function commitTransactionBatch(params: {
     }
 
     const countsTowardLimit = effectiveChip === null && editableContext.transferWindow.mode !== "LIMITLESS";
-    let cost = 0;
-    if (countsTowardLimit) {
-      usedThisWindow += 1;
-      if (usedThisWindow > editableContext.transferWindow.limit) {
-        cost = -100;
-      }
-    }
+    const cost = countsTowardLimit ? -transferPenalty : 0;
 
     historyEntries.push({
       id: `tx-${Date.now()}-${index}`,
@@ -832,10 +832,8 @@ async function commitTransactionBatch(params: {
             ? `All-Star active for ${editableContext.gameweek.label}`
             : editableContext.transferWindow.mode === "LIMITLESS"
               ? `Unlimited before ${editableContext.gameweek.label} deadline`
-              : cost < 0
-                ? `Penalty transfer for ${editableContext.transferWindow.label}`
-                : `Free transfer for ${editableContext.transferWindow.label}`,
-      windowKey: editableContext.transferWindow.key,
+              : `Transfer penalty queued for ${editableContext.gameweek.label}`,
+      windowKey: editableContext.period.key,
       countsTowardLimit
     });
   }
@@ -876,19 +874,6 @@ async function commitTransactionBatch(params: {
   if (effectiveChip !== "all-star") {
     applyStoredLineupSnapshot(baseState, buildStoredLineupSnapshot(workingState));
   }
-
-  const transfersUsedThisRound = baseState.history.filter(
-    (item) => item.windowKey === editableContext.transferWindow.key && item.countsTowardLimit !== false
-  ).length;
-  const roundPenalty = editableContext.transferWindow.mode === "LIMITLESS" ? 0 : -100 * Math.max(0, transfersUsedThisRound - editableContext.transferWindow.limit);
-  const totalPoints = await syncLeaguePointsAdjustment(env, userId, {
-    key: penaltyEntryKey,
-    label: `Transfer penalty for ${editableContext.transferWindow.label}`,
-    roundNumber: editableContext.period.roundNumber,
-    dayNumber: editableContext.period.dayNumber,
-    points: roundPenalty
-  });
-  baseState.overallPoints = Number(totalPoints.toFixed(1));
 
   await saveStateForUser(env, userId, baseState);
   await saveUserChipsState(env, userId, nextChips);
@@ -1193,7 +1178,7 @@ export default {
               fanLeague: displayState.fanLeague
             },
             transactions: {
-              freeLeft: editableContext.transferWindow.mode === "LIMITLESS" ? 999 : Math.max(0, state.weeklyFreeLimit - state.usedThisWeek),
+              freeLeft: editableContext.transferWindow.mode === "LIMITLESS" ? 999 : state.usedThisWeek,
               total: state.totalTransfers,
               rosterValue: state.rosterValue,
               bank: state.bank

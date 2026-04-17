@@ -74,7 +74,7 @@ export default function HelpPage() {
         <div className="panel-body text-sm text-slate-700">
           <ol className="list-decimal space-y-2 pl-5">
             <li>Before each playable gameday deadline, confirm the squad you want counted.</li>
-            <li>Use the shared round transfer allowance to optimize upcoming gamedays.</li>
+            <li>After Day 1 starts, each normal transfer costs -50 unless Wildcard or All-Star is active.</li>
             <li>After the deadline, that locked squad becomes the points lineup for the day.</li>
             <li>Repeat until playoffs finish and final rank is locked.</li>
           </ol>

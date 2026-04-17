@@ -2,7 +2,7 @@ import type { TransferHistoryItem, UserState } from "../worker/types";
 
 export const GAMEWEEK = {
   id: 1,
-  label: "Round 1 Day 1",
+  label: "Day 1",
   deadline: "2026-04-10T06:30:00Z"
 } as const;
 
@@ -55,8 +55,10 @@ export const HELP_RULES = {
     "Each team starts with 10 players: 5 starters and 5 bench players.",
     "Only starters score full points for the day.",
     "Captain receives 1.5x points multiplier.",
-    "Free transfers refresh at the start of each playoff round.",
-    "Each transfer above the free limit costs -100 points.",
+    "Playable slates are numbered Day 1, Day 2, and so on until the final playoff game.",
+    "Before the first deadline, transfers are unlimited.",
+    "After Day 1 starts, every normal transfer costs -50 points for that slate.",
+    "Transfer penalties appear in standings only after that slate deadline has passed.",
     "After a gameday deadline, the locked lineup becomes that day's scoring lineup, and the next playable gameday opens for edits.",
     "Wildcard can be used once for the whole playoff run and removes transfer penalties for that gameday without reverting the confirmed squad.",
     "All-Star can be used once for the whole playoff run, ignores budget for that gameday, and then restores the original squad."
@@ -86,7 +88,7 @@ export function buildInitialUserState(gameId: string): UserState {
     bench: [],
     market: [],
     usedThisWeek: 0,
-    weeklyFreeLimit: 3,
+    weeklyFreeLimit: 0,
     totalTransfers: 0,
     rosterValue: 0,
     bank: 100,

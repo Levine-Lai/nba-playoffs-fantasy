@@ -271,15 +271,8 @@ export default function TransactionsPage() {
   const allDraftsFilled = pendingDrafts.length > 0 && pendingDrafts.every((draft) => draft.inPlayer);
   const displayedSelectionCount = groupedSelection.reduce((total, group) => total + group.players.length, 0);
   const countsTowardLimit = Boolean(data && data.transferMode !== "LIMITLESS" && !effectiveChip);
-  const existingPaidTransfers = data ? Math.max(0, data.usedThisWeek - data.weeklyFreeLimit) : 0;
-  const totalPaidTransfers = data && countsTowardLimit ? Math.max(0, data.usedThisWeek + pendingDrafts.length - data.weeklyFreeLimit) : 0;
-  const penaltyTransfers = Math.max(0, totalPaidTransfers - existingPaidTransfers);
-  const transferCost = -100 * penaltyTransfers;
+  const transferCost = countsTowardLimit ? -50 * pendingDrafts.length : 0;
   const canSubmit = Boolean(allDraftsFilled && !submitting && (effectiveChip === "all-star" || projectedBank >= 0));
-  const ftDisplay =
-    data?.transferMode === "LIMITLESS"
-      ? "Unlimited"
-      : `${effectiveChip ? data?.usedThisWeek ?? 0 : (data?.usedThisWeek ?? 0) + pendingDrafts.length}/${data?.weeklyFreeLimit ?? 0}`;
 
   function upsertDraft(player: Player, keepReplacement: boolean) {
     setPendingDrafts((current) => {
@@ -520,11 +513,7 @@ export default function TransactionsPage() {
               </button>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
-                <span>FT</span>
-                <strong>{ftDisplay}</strong>
-              </article>
+            <div className="grid gap-3 md:grid-cols-2">
               <article
                 className={`flex items-center justify-between rounded-sm border-2 px-4 py-3 text-lg ${
                   transferCost < 0 ? "border-[#d11f3a] bg-[#d11f3a] text-white" : "border-brand-yellow bg-white"
@@ -880,7 +869,7 @@ export default function TransactionsPage() {
               </div>
 
               <div className="mt-6 rounded-sm bg-brand-blue px-8 py-7 text-center text-[1.1rem] font-semibold leading-8 text-white">
-                This transaction will be active for {data.gameweek.label} ({formatDeadline(data.gameweek.deadline)}) with Money Remaining at {projectedBank.toFixed(1)}.
+                This transaction will be active for {data.gameweek.label} ({formatDeadline(data.gameweek.deadline)}) with Money Remaining at {projectedBank.toFixed(1)}. Any standard-transfer cost will hit the standings only after this deadline passes.
               </div>
 
               <div className="mt-6 space-y-3">

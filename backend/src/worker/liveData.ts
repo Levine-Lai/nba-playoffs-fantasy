@@ -14,6 +14,7 @@ import type {
   EditablePeriodContext,
   Env,
   GameweekPayload,
+  LeaguePhaseOption,
   NextMatchup,
   Player,
   PlayerScheduleCell,
@@ -366,7 +367,6 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
   games
     .filter(
       (game) =>
-        Number(game.gameweekNumber ?? 0) === editablePeriod.roundNumber &&
         (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === editablePeriod.gamedayKey &&
         game.status !== "final"
     )
@@ -442,9 +442,7 @@ async function getOfficialSlateContext(env: Env) {
 
   const slateGames = games
     .filter(
-      (game) =>
-        Number(game.gameweekNumber ?? 0) === scoringPeriod.roundNumber &&
-        (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === scoringPeriod.gamedayKey
+      (game) => (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === scoringPeriod.gamedayKey
     )
     .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
 
@@ -563,15 +561,15 @@ function buildEditableContextFromGames(
         deadline: fallbackDeadline
       },
       transferWindow: {
-        key: "round-1",
-        label: "Round 1",
-        limit: 3,
+        key: "day:2026-04-10",
+        label: "Day 1",
+        limit: 0,
         mode: beforeCompetitionStart ? "LIMITLESS" : "LIMITED"
       } satisfies TransferWindowContext,
       beforeCompetitionStart,
       period: {
-        key: "1:2026-04-10",
-        label: GAMEWEEK.label,
+        key: "day:2026-04-10",
+        label: "Day 1",
         roundNumber: 1,
         dayNumber: 1,
         deadline: fallbackDeadline,
@@ -581,10 +579,8 @@ function buildEditableContextFromGames(
     };
   }
 
-  const beforeCompetitionStart =
-    editablePeriod.roundNumber === 1 &&
-    editablePeriod.dayNumber === 1 &&
-    Date.now() < new Date(editablePeriod.deadline).getTime();
+  const firstPeriod = periods[0] ?? editablePeriod;
+  const beforeCompetitionStart = Date.now() < new Date(firstPeriod.deadline).getTime();
 
   return {
     gameweek: {
@@ -594,7 +590,7 @@ function buildEditableContextFromGames(
     },
     transferWindow: {
       key: editablePeriod.transferWindowKey,
-      label: editablePeriod.roundLabel,
+      label: editablePeriod.label,
       limit: editablePeriod.transferLimit,
       mode: beforeCompetitionStart ? "LIMITLESS" : "LIMITED"
     } satisfies TransferWindowContext,
@@ -669,6 +665,51 @@ export async function getScoringPeriodContext(env: Env) {
   return scoringPeriod;
 }
 
+function buildLeaguePhaseOptionsFromGames(
+  games: Array<{ id: string; date: string; gamedayKey?: string | null }>
+): LeaguePhaseOption[] {
+  const periods = buildPlayoffPeriods(
+    games,
+    (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
+    (game) => game.id
+  );
+
+  return [
+    { key: "overall", label: "Overall" },
+    ...periods.map((period) => ({
+      key: `day-${period.dayNumber}`,
+      label: period.label
+    }))
+  ];
+}
+
+export async function getLeaguePhaseOptionsByDay(env: Env): Promise<LeaguePhaseOption[]> {
+  try {
+    const officialGames = await getOfficialScheduleGames(env);
+    if (officialGames.length) {
+      return buildLeaguePhaseOptionsFromGames(
+        officialGames.map((game) => ({
+          id: game.id,
+          date: game.date,
+          gamedayKey: game.gamedayKey
+        }))
+      );
+    }
+  } catch {
+    // Fall back to stored cache below.
+  }
+
+  const cachedSchedule = await getStoredScheduleCache(env);
+  const cachedGames = Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : [];
+  return buildLeaguePhaseOptionsFromGames(
+    cachedGames.map((game) => ({
+      id: game.id,
+      date: game.date,
+      gamedayKey: game.gamedayKey
+    }))
+  );
+}
+
 export async function getGameweekPayload(env: Env, firstDeadline: string): Promise<GameweekPayload> {
   return (await getEditablePeriodContext(env, firstDeadline)).gameweek;
 }
@@ -697,14 +738,14 @@ export async function buildSchedulePayload(env: Env) {
 
   return {
     ...SCHEDULE,
-    gameweek: "Postseason",
-    games: SCHEDULE.games.map((game) => ({
-      ...game,
-      gamedayKey: game.date,
-      gamedayLabel: "Round 1 Day 1",
-      gamedayDateLabel: new Date(game.date).toDateString(),
-      gamedayIndex: 1,
-      homeTeam: buildTeamAsset(game.home),
+      gameweek: "Postseason",
+      games: SCHEDULE.games.map((game) => ({
+        ...game,
+        gamedayKey: game.date,
+        gamedayLabel: "Day 1",
+        gamedayDateLabel: new Date(game.date).toDateString(),
+        gamedayIndex: 1,
+        homeTeam: buildTeamAsset(game.home),
       awayTeam: buildTeamAsset(game.away)
     }))
   };
@@ -869,9 +910,7 @@ export async function buildOfficialStartedPeriodSummaries(
   for (const period of periods) {
     const slateGames = games
       .filter(
-        (game) =>
-          Number(game.gameweekNumber ?? 0) === period.roundNumber &&
-          (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === period.gamedayKey
+        (game) => (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === period.gamedayKey
       )
       .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
 

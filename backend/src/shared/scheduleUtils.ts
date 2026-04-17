@@ -107,28 +107,12 @@ export function getPlayoffGameweekNumber(gameId: string | number | null | undefi
   return null;
 }
 
-function buildPlayoffGamedayLabel(gameweekNumber: number, gamedayNumber: number) {
-  if (gameweekNumber === 0) {
-    return `Play-In ${gamedayNumber}`;
-  }
-
-  return `Round ${gameweekNumber} Day ${gamedayNumber}`;
+function buildPlayoffGamedayLabel(gamedayNumber: number) {
+  return `Day ${gamedayNumber}`;
 }
 
-function buildPlayoffRoundLabel(gameweekNumber: number) {
-  if (gameweekNumber === 0) {
-    return "Play-In";
-  }
-
-  return `Round ${gameweekNumber}`;
-}
-
-function buildTransferWindowKey(gameweekNumber: number, gamedayNumber: number) {
-  if (gameweekNumber === 0) {
-    return `play-in-${gamedayNumber}`;
-  }
-
-  return `round-${gameweekNumber}`;
+function buildTransferWindowKey(dateKey: string) {
+  return `day:${dateKey}`;
 }
 
 function toDeadlineIso(dateInput: string | null | undefined, leadMinutes = 30) {
@@ -165,7 +149,7 @@ export function buildPlayoffPeriods<T extends { date?: string | null; gameDateTi
   getDateKey: (game: T) => string,
   getGameId: (game: T) => string | number | null | undefined
 ) {
-  const buckets = new Map<number, Array<{ dateKey: string; firstDate: string }>>();
+  const buckets = new Map<string, { dateKey: string; firstDate: string; roundNumber: number }>();
 
   games.forEach((game) => {
     const roundNumber = getPlayoffGameweekNumber(getGameId(game));
@@ -175,50 +159,29 @@ export function buildPlayoffPeriods<T extends { date?: string | null; gameDateTi
       return;
     }
 
-    const current = buckets.get(roundNumber) ?? [];
-    if (!current.some((entry) => entry.dateKey === dateKey)) {
-      current.push({ dateKey, firstDate });
-      current.sort((left, right) => new Date(left.firstDate).getTime() - new Date(right.firstDate).getTime());
-      buckets.set(roundNumber, current);
+    const current = buckets.get(dateKey);
+    if (!current || new Date(firstDate).getTime() < new Date(current.firstDate).getTime()) {
+      buckets.set(dateKey, { dateKey, firstDate, roundNumber });
     }
   });
 
-  const mainRoundNumbers = [...buckets.keys()].filter((value) => value > 0).sort((left, right) => left - right);
-  const globalIndexByRoundDate = new Map<string, number>();
-  let globalIndex = 1;
-
-  mainRoundNumbers.forEach((roundNumber) => {
-    const entries = buckets.get(roundNumber) ?? [];
-    entries.forEach((entry) => {
-      globalIndexByRoundDate.set(`${roundNumber}:${entry.dateKey}`, globalIndex);
-      globalIndex += 1;
-    });
-  });
-
-  const periods: PlayoffPeriod[] = [];
-  [...buckets.entries()]
-    .sort((left, right) => {
-      const leftFirst = left[1][0]?.firstDate ?? "";
-      const rightFirst = right[1][0]?.firstDate ?? "";
-      return new Date(leftFirst).getTime() - new Date(rightFirst).getTime();
-    })
-    .forEach(([roundNumber, entries]) => {
-      entries.forEach((entry, index) => {
-        const dayNumber = index + 1;
-        periods.push({
-          key: `${roundNumber}:${entry.dateKey}`,
-          label: buildPlayoffGamedayLabel(roundNumber, dayNumber),
-          roundLabel: buildPlayoffRoundLabel(roundNumber),
-          roundNumber,
-          dayNumber,
-          deadline: toDeadlineIso(entry.firstDate),
-          gamedayIndex: roundNumber === 0 ? dayNumber : globalIndexByRoundDate.get(`${roundNumber}:${entry.dateKey}`) ?? 1,
-          gamedayKey: entry.dateKey,
-          gamedayDateLabel: formatScheduleDateLabel(entry.dateKey),
-          transferWindowKey: buildTransferWindowKey(roundNumber, dayNumber),
-          transferLimit: 3
-        });
-      });
+  const periods: PlayoffPeriod[] = [...buckets.values()]
+    .sort((left, right) => new Date(left.firstDate).getTime() - new Date(right.firstDate).getTime())
+    .map((entry, index) => {
+      const dayNumber = index + 1;
+      return {
+        key: `day:${entry.dateKey}`,
+        label: buildPlayoffGamedayLabel(dayNumber),
+        roundLabel: buildPlayoffGamedayLabel(dayNumber),
+        roundNumber: entry.roundNumber,
+        dayNumber,
+        deadline: toDeadlineIso(entry.firstDate),
+        gamedayIndex: dayNumber,
+        gamedayKey: entry.dateKey,
+        gamedayDateLabel: formatScheduleDateLabel(entry.dateKey),
+        transferWindowKey: buildTransferWindowKey(entry.dateKey),
+        transferLimit: 0
+      };
     });
 
   return periods.sort((left, right) => new Date(left.deadline).getTime() - new Date(right.deadline).getTime());
@@ -230,21 +193,21 @@ export function annotateGamesWithPlayoffPeriods<T extends Record<string, unknown
   getGameId: (game: T) => string | number | null | undefined
 ) {
   const periods = buildPlayoffPeriods(games, getDateKey, getGameId);
-  const periodByKey = new Map(periods.map((period) => [period.key, period]));
+  const periodByDateKey = new Map(periods.map((period) => [period.gamedayKey, period]));
 
   return games.map((game) => {
     const dateKey = getDateKey(game);
     const roundNumber = getPlayoffGameweekNumber(getGameId(game)) ?? 1;
-    const period = periodByKey.get(`${roundNumber}:${dateKey}`);
+    const period = periodByDateKey.get(dateKey);
 
     return {
       ...game,
       gamedayKey: dateKey,
       gamedayDateLabel: period?.gamedayDateLabel ?? formatScheduleDateLabel(dateKey),
       gamedayIndex: period?.gamedayIndex ?? 1,
-      gameweekNumber: period?.roundNumber ?? roundNumber,
+      gameweekNumber: roundNumber,
       gamedayNumber: period?.dayNumber ?? 1,
-      gamedayLabel: period?.label ?? buildPlayoffGamedayLabel(roundNumber, 1)
+      gamedayLabel: period?.label ?? buildPlayoffGamedayLabel(1)
     };
   });
 }

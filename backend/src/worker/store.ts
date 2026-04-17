@@ -590,7 +590,7 @@ export async function getPlayerDataSummary(env: Env) {
 
   const [firstDeadline, weeklyFreeTransfers, initialBudget] = await Promise.all([
     getRuleValue(env, "first_deadline", null),
-    getRuleValue(env, "weekly_free_transfers", "3"),
+    getRuleValue(env, "weekly_free_transfers", "0"),
     getRuleValue(env, "initial_budget", "100")
   ]);
 
@@ -932,7 +932,6 @@ export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | nul
   games
     .filter(
       (game) =>
-        Number(getPlayoffGameweekNumber(game.id) ?? 0) === editablePeriod.roundNumber &&
         (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === editablePeriod.gamedayKey &&
         game?.status !== "final"
     )

@@ -19,7 +19,8 @@ The user-facing gameplay stays the same:
 Recent transaction rules implemented in the current build:
 
 - transaction drafts are confirmed as a batch
-- each transfer beyond the current FT allowance costs `-100` points
+- after `Day 1` starts, each normal transfer costs `-50` points for that slate
+- transfer penalties only appear in standings after that slate deadline passes
 - `Wildcard` is a once-per-playoffs chip for unlimited no-penalty pre-deadline transfers
 - `All-Star` is a once-per-playoffs chip for unlimited no-penalty pre-deadline transfers with temporary over-budget squad support
 - the transaction table shows the next five schedule days with opponent logos and `-` on off days
@@ -40,6 +41,7 @@ Recent transaction rules implemented in the current build:
 - `backend/src/worker/gameplay.ts`
 - `backend/migrations/0001_init.sql`
 - `backend/migrations/0002_users_game_id_unique.sql`
+- `backend/migrations/0003_day_slate_transfer_penalty.sql`
 - `backend/wrangler.toml`
 
 ## Local Development
@@ -116,6 +118,7 @@ npm run dev
 - Frontend production build: `npm run build --prefix frontend`
 - Transaction flow now also uses `POST /api/transactions/confirm` for batch-confirm + chip activation
 - Registration now requires both `account` and `gameId` to be unique; apply `backend/migrations/0002_users_game_id_unique.sql` anywhere the D1 schema already exists
+- Day-based slate transfer scoring uses `backend/migrations/0003_day_slate_transfer_penalty.sql` to set `weekly_free_transfers = 0` and `transfer_penalty = 50`
 - Root build check: `npm run build`
 - Local D1 migration applied successfully
 - Local D1 seed imported from current SQLite data

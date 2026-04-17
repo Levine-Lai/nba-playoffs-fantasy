@@ -79,7 +79,7 @@ export default function PointsPage() {
           </div>
 
           {data.message ? <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">{data.message}</p> : null}
-          {data.visible === false ? <p className="rounded bg-slate-100 p-3 text-sm text-slate-700">{data.message ?? "Points will unlock after the first deadline."}</p> : null}
+          {data.visible === false ? <p className="rounded bg-slate-100 p-3 text-sm text-slate-700">{data.message ?? "Points will unlock after Day 1 deadline."}</p> : null}
 
           <div className="mt-4 grid gap-3 sm:grid-cols-1">
             <article className="nba-stat-card">
