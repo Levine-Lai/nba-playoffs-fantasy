@@ -8,6 +8,7 @@ import CourtPlayerCard from "@/components/CourtPlayerCard";
 import RightSidebar from "@/components/RightSidebar";
 import { getPointsToday, getStandingPreview } from "@/lib/api";
 import { Player, PointsResponse } from "@/lib/types";
+import { getDisplayTeamName } from "@/lib/teamName";
 
 export default function PointsPage() {
   return (
@@ -85,7 +86,7 @@ function PointsPageContent() {
               <h1 className="text-4xl font-semibold uppercase">{data.gameweek.label}</h1>
               {data.viewer ? (
                 <p className="mt-2 text-sm text-slate-600">
-                  {data.viewer.teamName} · {data.viewer.managerName} ({data.viewer.gameId})
+                  {getDisplayTeamName(data.viewer.teamName, data.viewer.gameId)}
                 </p>
               ) : null}
             </div>

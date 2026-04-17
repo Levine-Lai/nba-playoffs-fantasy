@@ -75,7 +75,7 @@ export const HELP_RULES = {
 
 export function buildInitialUserState(gameId: string): UserState {
   return {
-    teamName: `${gameId} Squad`,
+    teamName: gameId,
     managerName: gameId,
     overallPoints: 0,
     overallRank: 0,

@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getMe, getProfile, login, logout, register, updateTeamName } from "@/lib/api";
 import { AuthUser } from "@/lib/types";
+import { getDisplayTeamName } from "@/lib/teamName";
 
 type Mode = "login" | "register";
 
@@ -76,8 +77,9 @@ export default function HomePage() {
           return;
         }
 
-        setTeamName(response.profile.teamName);
-        setTeamNameDraft(response.profile.teamName);
+        const nextTeamName = getDisplayTeamName(response.profile.teamName, currentUser.gameId);
+        setTeamName(nextTeamName);
+        setTeamNameDraft(nextTeamName);
       })
       .catch(() => {
         if (!active) {
@@ -180,9 +182,7 @@ export default function HomePage() {
               <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-semibold uppercase tracking-[0.06em] text-emerald-800">Logged in</p>
                 <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Team Name</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{teamName || currentUser.gameId}</p>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Player Name</p>
-                <p className="mt-1 text-lg font-semibold text-slate-800">{currentUser.gameId}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{getDisplayTeamName(teamName, currentUser.gameId)}</p>
                 <p className="mt-2 text-sm text-slate-600">Your team is ready to manage.</p>
                 <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Account</p>
                 <p className="mt-1 text-base font-semibold text-slate-700">{currentUser.account}</p>
@@ -298,7 +298,7 @@ export default function HomePage() {
                   </label>
 
                   <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Player Name</span>
+                    <span className="mb-1 block text-sm font-semibold text-slate-700">Team Name</span>
                     <input
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
                       value={registerGameId}

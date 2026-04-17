@@ -205,7 +205,7 @@ Rebuild the Transactions page to match the original NBA Fantasy transfer desk st
 - Each row includes:
   - info badge
   - player headshot
-  - player name
+- team name
   - team + position
   - salary
   - fantasy average

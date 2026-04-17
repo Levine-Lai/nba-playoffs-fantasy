@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getStandings } from "@/lib/api";
-import { StandingResponse } from "@/lib/types";
+import { AuthUser, StandingResponse } from "@/lib/types";
+import { getDisplayTeamName } from "@/lib/teamName";
 
 function RankTrend({ rank, previousRank }: { rank: number; previousRank: number }) {
   const diff = previousRank - rank;
@@ -23,6 +24,22 @@ export default function StandingPage() {
   const [data, setData] = useState<StandingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPhase, setSelectedPhase] = useState("overall");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const rawUser = window.localStorage.getItem("playoff_user");
+    if (!rawUser) {
+      setCurrentUserId(null);
+      return;
+    }
+
+    try {
+      const parsedUser = JSON.parse(rawUser) as AuthUser;
+      setCurrentUserId(parsedUser.id);
+    } catch {
+      setCurrentUserId(null);
+    }
+  }, []);
 
   useEffect(() => {
     getStandings(selectedPhase)
@@ -81,15 +98,21 @@ export default function StandingPage() {
           <thead>
             <tr>
               <th>Rank</th>
-              <th>Player</th>
+              <th>Team Name</th>
               <th>PTS</th>
               <th>TOT</th>
             </tr>
           </thead>
           <tbody>
             {data.members.length ? (
-              data.members.map((member) => (
-                <tr key={member.userId}>
+              data.members.map((member) => {
+                const isCurrentUser = member.userId === currentUserId;
+
+                return (
+                <tr
+                  key={member.userId}
+                  className={isCurrentUser ? "bg-brand-blue/10 text-brand-darkBlue" : undefined}
+                >
                   <td>
                     <div className="flex items-center">
                       <span>{member.rank}</span>
@@ -105,15 +128,16 @@ export default function StandingPage() {
                           phase: data.selectedPhaseKey ?? selectedPhase
                         }
                       }}
-                      className="font-semibold text-[#0a3c98] hover:underline"
+                      className={isCurrentUser ? "font-semibold text-brand-darkBlue hover:underline" : "font-semibold text-[#0a3c98] hover:underline"}
                     >
-                      {member.gameId}
+                      {getDisplayTeamName(member.teamName, member.gameId)}
                     </Link>
                   </td>
                   <td>{Number(member.phasePoints ?? member.gamedayPoints ?? 0).toFixed(1)}</td>
                   <td>{Number(member.totalPoints ?? 0).toFixed(1)}</td>
                 </tr>
-              ))
+              );
+              })
             ) : (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-sm text-slate-600">

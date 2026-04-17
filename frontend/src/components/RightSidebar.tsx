@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getProfile } from "@/lib/api";
 import { ProfileResponse } from "@/lib/types";
+import { getDisplayTeamName } from "@/lib/teamName";
 
 export default function RightSidebar() {
   const [data, setData] = useState<ProfileResponse | null>(null);
@@ -49,8 +50,9 @@ export default function RightSidebar() {
     <aside className="space-y-4 xl:sticky xl:top-4">
       <section className="sidebar-card">
         <div className="px-4 py-4">
-          <h3 className="nba-wordmark text-[2rem] leading-none text-[#111]">{data.profile.teamName}</h3>
-          <p className="mt-1 text-sm font-semibold text-slate-700">{data.profile.managerName}</p>
+          <h3 className="nba-wordmark text-[2rem] leading-none text-[#111]">
+            {getDisplayTeamName(data.profile.teamName, data.profile.managerName)}
+          </h3>
         </div>
 
         <div>
