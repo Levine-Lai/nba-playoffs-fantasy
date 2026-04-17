@@ -165,9 +165,12 @@ export function getStandings(phase?: string) {
   return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`);
 }
 
-export function getStandingPreview(userId: string) {
+export function getStandingPreview(userId: string, phase?: string) {
   const query = new URLSearchParams();
   query.set("userId", userId);
+  if (phase) {
+    query.set("phase", phase);
+  }
   return request<PointsResponse>(`/standings/preview?${query.toString()}`);
 }
 

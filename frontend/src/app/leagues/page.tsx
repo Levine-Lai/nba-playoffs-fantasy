@@ -25,7 +25,7 @@ export default function StandingPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPhase, setSelectedPhase] = useState("overall");
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
-  const [expandedPointsByUserId, setExpandedPointsByUserId] = useState<Record<string, PointsResponse>>({});
+  const [expandedPointsByKey, setExpandedPointsByKey] = useState<Record<string, PointsResponse>>({});
   const [expandedLoadingUserId, setExpandedLoadingUserId] = useState<string | null>(null);
   const [expandedError, setExpandedError] = useState<string | null>(null);
 
@@ -50,16 +50,17 @@ export default function StandingPage() {
     setExpandedUserId(userId);
     setExpandedError(null);
 
-    if (expandedPointsByUserId[userId]) {
+    const cacheKey = `${selectedPhase}:${userId}`;
+    if (expandedPointsByKey[cacheKey]) {
       return;
     }
 
     setExpandedLoadingUserId(userId);
     try {
-      const payload = await getStandingPreview(userId);
-      setExpandedPointsByUserId((current) => ({
+      const payload = await getStandingPreview(userId, selectedPhase);
+      setExpandedPointsByKey((current) => ({
         ...current,
-        [userId]: payload
+        [cacheKey]: payload
       }));
     } catch (nextError) {
       setExpandedError(nextError instanceof Error ? nextError.message : "Failed to load lineup.");
@@ -124,7 +125,7 @@ export default function StandingPage() {
           <tbody>
             {data.members.length ? (
               data.members.map((member) => {
-                const expandedData = expandedPointsByUserId[member.userId] ?? null;
+                const expandedData = expandedPointsByKey[`${selectedPhase}:${member.userId}`] ?? null;
                 const isExpanded = expandedUserId === member.userId;
                 const starterFrontCourt = expandedData ? expandedData.lineup.starters.filter((player) => player.position === "FC") : ([] as Player[]);
                 const starterBackCourt = expandedData ? expandedData.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);

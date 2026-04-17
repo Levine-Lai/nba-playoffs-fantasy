@@ -136,6 +136,8 @@ export interface TransferHistoryItem {
   timestamp: string;
   outPlayer: string;
   inPlayer: string;
+  outPlayerId?: string;
+  inPlayerId?: string;
   cost: number;
   note: string;
   windowKey?: string;

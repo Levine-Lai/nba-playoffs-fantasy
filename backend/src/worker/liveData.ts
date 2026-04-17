@@ -894,6 +894,58 @@ export async function buildOfficialLivePointsPreview(
   return buildFantasyPointsPreviewForSlate(state, slate, beforeFirstDeadline);
 }
 
+export async function getOfficialPlayoffPeriods(env: Env) {
+  const games = await getOfficialScheduleGames(env);
+  return getPlayoffPeriodsFromGames(games);
+}
+
+export async function getOfficialPlayoffPeriodByPhaseKey(env: Env, phaseKey: string | null | undefined) {
+  const dayMatch = String(phaseKey ?? "").match(/^day-(\d+)$/);
+  if (!dayMatch) {
+    return null;
+  }
+
+  const targetDay = Number(dayMatch[1]);
+  const periods = await getOfficialPlayoffPeriods(env);
+  return periods.find((period) => period.dayNumber === targetDay) ?? null;
+}
+
+export async function buildOfficialPointsPreviewForPeriod(
+  env: Env,
+  state: UserState,
+  periodKey: string,
+  beforeFirstDeadline: boolean
+) {
+  const games = await getOfficialScheduleGames(env);
+  const periods = getPlayoffPeriodsFromGames(games);
+  const targetPeriod = periods.find((period) => period.key === periodKey) ?? null;
+  if (!targetPeriod) {
+    return null;
+  }
+
+  const slateGames = games
+    .filter((game) => (game.gamedayKey ?? normalizeScheduleDateKey(game.date)) === targetPeriod.gamedayKey)
+    .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+
+  if (!slateGames.length) {
+    return null;
+  }
+
+  return buildFantasyPointsPreviewForSlate(
+    state,
+    {
+      periodKey: targetPeriod.key,
+      gamedayLabel: targetPeriod.label,
+      gamedayIndex: targetPeriod.gamedayIndex,
+      deadlineLabel: formatDeadlineLabel(targetPeriod.deadline, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
+      roundNumber: targetPeriod.roundNumber,
+      dayNumber: targetPeriod.dayNumber,
+      games: slateGames
+    },
+    beforeFirstDeadline
+  );
+}
+
 export async function buildOfficialStartedPeriodSummaries(
   env: Env,
   state: UserState,

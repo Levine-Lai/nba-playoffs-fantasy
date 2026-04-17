@@ -329,6 +329,8 @@ export function replacePlayerForState(params: {
     timestamp: new Date().toISOString(),
     outPlayer: applied.outgoing.name,
     inPlayer: incoming.name,
+    outPlayerId: applied.outgoing.id,
+    inPlayerId: incoming.id,
     cost,
     note:
       transferWindow.mode === "LIMITLESS"

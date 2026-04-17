@@ -17,7 +17,7 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildOfficialStartedPeriodSummaries, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getLeaguePhaseOptionsByDay, getNextMatchupByTeam, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
+import { buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getLeaguePhaseOptionsByDay, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
 import {
   buildPublicUser,
   createPrivateLeague,
@@ -27,6 +27,7 @@ import {
   getAuthenticatedUserByToken,
   getPlayerDataSummary,
   getPlayersByIds,
+  getPlayersByNames,
   getPublicUserById,
   getRuleValue,
   getStateForUser,
@@ -615,48 +616,40 @@ async function safeLoadState(env: Env, userId: string | number) {
 
 async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState, chips: UserChipsState) {
   const transferPenalty = await getTransferPenalty(env);
-  const summaries = await buildOfficialStartedPeriodSummaries(
-    env,
-    state,
-    chips.allStar.activePeriodKey && chips.allStar.activeLineup
-      ? {
-          periodKey: chips.allStar.activePeriodKey,
-          state: getScoringState(state, chips, {
-            key: chips.allStar.activePeriodKey,
-            label: chips.allStar.activePeriodKey,
-            deadline: "",
-            gamedayIndex: 0,
-            roundNumber: 0,
-            dayNumber: 0
-          })
-        }
-      : undefined
-  ).catch(() => []);
   let latestPoints = Number(state.gamedayPoints ?? 0);
   let overallPoints = Number(state.overallPoints ?? 0);
+  const periods = await getOfficialPlayoffPeriods(env)
+    .then((items) => items.filter((period) => new Date(period.deadline).getTime() <= Date.now()))
+    .catch(() => []);
 
-  for (const summary of summaries) {
+  for (const period of periods) {
+    const periodState = await buildRosterStateForPeriod(env, state, chips, period);
+    const preview = await buildOfficialPointsPreviewForPeriod(env, periodState, period.key, false).catch(() => null);
+    if (!preview) {
+      continue;
+    }
+
     overallPoints = await syncLeaguePointsLedger(
       env,
       userId,
       {
-        key: summary.key,
-        label: summary.label,
-        deadline: summary.deadline,
-        gamedayIndex: summary.gamedayIndex,
-        roundNumber: summary.roundNumber,
-        dayNumber: summary.dayNumber
+        key: period.key,
+        label: period.label,
+        deadline: period.deadline,
+        gamedayIndex: period.gamedayIndex,
+        roundNumber: period.roundNumber,
+        dayNumber: period.dayNumber
       },
-      summary.finalPoints
+      preview.finalPoints
     );
     overallPoints = await syncLeaguePointsAdjustment(env, userId, {
-      key: `penalty:${summary.key}`,
-      label: `Transfer penalty for ${summary.label}`,
-      roundNumber: summary.roundNumber,
-      dayNumber: summary.dayNumber,
-      points: -transferPenalty * countPenaltyTransfersForPeriod(state.history, summary.key)
+      key: `penalty:${period.key}`,
+      label: `Transfer penalty for ${period.label}`,
+      roundNumber: period.roundNumber,
+      dayNumber: period.dayNumber,
+      points: -transferPenalty * countPenaltyTransfersForPeriod(state.history, period.key)
     });
-    latestPoints = Number(summary.finalPoints ?? latestPoints);
+    latestPoints = Number(preview.finalPoints ?? latestPoints);
   }
 
   state.overallPoints = Number(overallPoints.toFixed(1));
@@ -680,7 +673,91 @@ async function syncProfileStandingState(env: Env, userId: string | number, state
   };
 }
 
-async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId: string) {
+function isRewindableRosterChange(item: TransferHistoryItem) {
+  return !String(item.note ?? "").startsWith("All-Star active");
+}
+
+function replaceRosterPlayerByIdentity(state: UserState, currentPlayerId: string | null, currentPlayerName: string, replacement: Player) {
+  const replaceInPool = (pool: Player[]) => {
+    const index = pool.findIndex((player) => {
+      if (currentPlayerId && player.id === currentPlayerId) {
+        return true;
+      }
+      return player.name === currentPlayerName;
+    });
+
+    if (index === -1) {
+      return false;
+    }
+
+    const previous = pool[index];
+    pool[index] = clonePlayer(replacement);
+    if (state.captainId === previous.id) {
+      state.captainId = replacement.id;
+    }
+    return true;
+  };
+
+  return replaceInPool(state.starters) || replaceInPool(state.bench);
+}
+
+async function buildRosterStateForPeriod(
+  env: Env,
+  state: UserState,
+  chips: UserChipsState,
+  targetPeriod: { key: string; dayNumber: number; gamedayKey: string }
+) {
+  if (isChipActiveForPeriod(chips.allStar.activePeriodKey, targetPeriod.key) && chips.allStar.activeLineup) {
+    return buildStateFromSnapshot(state, chips.allStar.activeLineup);
+  }
+
+  const reconstructed = cloneState(state);
+  const rewoundHistory = reconstructed.history
+    .filter(
+      (item) =>
+        isRewindableRosterChange(item) &&
+        String(item.windowKey ?? "").startsWith("day:") &&
+        String(item.windowKey).slice(4) > targetPeriod.gamedayKey
+    )
+    .slice()
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
+
+  if (!rewoundHistory.length) {
+    return reconstructed;
+  }
+
+  const nextMatchupByTeam = await getNextMatchupByTeam(env);
+  const playerIds = [
+    ...new Set(
+      rewoundHistory.flatMap((item) => [item.outPlayerId, item.inPlayerId].filter(Boolean) as string[])
+    )
+  ];
+  const playerNames = [
+    ...new Set(
+      rewoundHistory.flatMap((item) => [item.outPlayer, item.inPlayer].filter(Boolean) as string[])
+    )
+  ];
+
+  const playersById = new Map((await getPlayersByIds(env, playerIds, nextMatchupByTeam)).map((player) => [player.id, player]));
+  const playersByName = new Map((await getPlayersByNames(env, playerNames, nextMatchupByTeam)).map((player) => [player.name, player]));
+
+  for (const item of rewoundHistory) {
+    const outgoing = (item.outPlayerId ? playersById.get(item.outPlayerId) : null) ?? playersByName.get(item.outPlayer) ?? null;
+    const incomingId = (item.inPlayerId ? playersById.get(item.inPlayerId)?.id : null) ?? null;
+
+    if (!outgoing) {
+      continue;
+    }
+
+    replaceRosterPlayerByIdentity(reconstructed, incomingId, item.inPlayer, outgoing);
+  }
+
+  reconstructed.rosterValue = Number(getRosterPlayers(reconstructed).reduce((sum, player) => sum + Number(player.salary ?? 0), 0).toFixed(1));
+  reconstructed.bank = Number(((await getInitialBudget(env)) - reconstructed.rosterValue).toFixed(1));
+  return reconstructed;
+}
+
+async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId: string, phaseKey?: string | null) {
   const state = await safeLoadState(env, userId);
   if (!state) {
     return { ok: false as const, response: json({ message: "User state not found." }, { status: 500 }, env) };
@@ -708,6 +785,37 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
+  const targetPhase = String(phaseKey ?? "overall");
+  const ledger = await readLeaguePointsLedger(env);
+  const targetEntries = Object.values(ledger[String(userId)] ?? {});
+
+  if (targetPhase !== "overall") {
+    const targetPeriod = await getOfficialPlayoffPeriodByPhaseKey(env, targetPhase).catch(() => null);
+    if (targetPeriod) {
+      const historicalState = await buildRosterStateForPeriod(env, state, chips, targetPeriod);
+      const preview = await buildOfficialPointsPreviewForPeriod(env, historicalState, targetPeriod.key, false).catch(() => null);
+
+      if (preview) {
+        const phaseTotal = getLeaguePhasePoints(targetEntries, targetPhase);
+        const penaltyDelta = Number((phaseTotal - Number(preview.finalPoints ?? preview.summary.final ?? 0)).toFixed(1));
+        return {
+          ok: true as const,
+          payload: {
+            ...preview,
+            summary: {
+              final: phaseTotal
+            },
+            message:
+              penaltyDelta !== 0
+                ? `Includes ${penaltyDelta > 0 ? "+" : ""}${penaltyDelta.toFixed(1)} adjustment for transfer penalties on ${targetPeriod.label}.`
+                : preview.message,
+            viewer
+          }
+        };
+      }
+    }
+  }
+
   const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
   const scoringState = getScoringState(state, chips, scoringPeriod);
   const preserveRosterPoints =
@@ -824,6 +932,8 @@ async function commitTransactionBatch(params: {
       timestamp: new Date().toISOString(),
       outPlayer: applied.outgoing.name,
       inPlayer: incoming.name,
+      outPlayerId: applied.outgoing.id,
+      inPlayerId: incoming.id,
       cost,
       note:
         effectiveChip === "wildcard"
@@ -1314,7 +1424,7 @@ export default {
           return json({ message: "userId is required." }, { status: 400 }, env);
         }
 
-        const result = await buildPointsPayloadForUser(env, targetUserId, auth.authUser.id);
+        const result = await buildPointsPayloadForUser(env, targetUserId, auth.authUser.id, url.searchParams.get("phase"));
         return result.ok ? json(result.payload, { status: 200 }, env) : result.response;
       }
 
