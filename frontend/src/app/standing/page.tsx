@@ -70,7 +70,7 @@ export default function StandingPage() {
       <div className="bg-white px-6 py-7">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <h1 className="text-[3rem] font-semibold italic leading-none text-[#111]">Standing</h1>
+            <h1 className="text-[2.25rem] font-semibold italic leading-none text-[#111] sm:text-[3rem]">Standing</h1>
             <p className="mt-3 text-[1.05rem] text-slate-700">All registered players ranked by fantasy points.</p>
           </div>
 

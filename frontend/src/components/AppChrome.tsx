@@ -34,11 +34,11 @@ export default function AppChrome({ children }: AppChromeProps) {
 
         <div className="nba-hero">
           <div className="mx-auto flex min-h-[126px] w-full max-w-[1400px] items-center justify-between gap-4 px-4 pb-3 pt-4 sm:px-5 lg:min-h-[146px] lg:pb-4">
-            <Link href="/" className="flex items-end gap-4" aria-label="NBA Fantasy home">
-              <img src="/LOGO.png" alt="NBA logo" className="h-[84px] w-auto object-contain sm:h-[100px] lg:h-[112px]" />
-              <div className="pb-1">
-                <div className="nba-wordmark text-[3.4rem] sm:text-[4.7rem] lg:text-[5.5rem]">Fantasy</div>
-                <p className="-mt-1 text-[1.35rem] font-bold uppercase leading-none tracking-tight text-[#111] sm:text-[1.65rem]">
+            <Link href="/" className="flex min-w-0 items-end gap-3 sm:gap-4" aria-label="NBA Fantasy home">
+              <img src="/LOGO.png" alt="NBA logo" className="h-[64px] w-auto shrink-0 object-contain sm:h-[100px] lg:h-[112px]" />
+              <div className="min-w-0 pb-1">
+                <div className="nba-wordmark text-[2.5rem] sm:text-[4.7rem] lg:text-[5.5rem]">Fantasy</div>
+                <p className="-mt-1 text-[0.95rem] font-bold uppercase leading-none tracking-tight text-[#111] sm:text-[1.65rem]">
                   Salary Cap Edition
                 </p>
               </div>
@@ -65,10 +65,7 @@ export default function AppChrome({ children }: AppChromeProps) {
         </nav>
       </header>
 
-      <main
-        className="mx-auto w-full max-w-[1400px] px-3 py-5 transition-all duration-300 sm:px-5"
-        style={{ marginRight: panelOpen ? PANEL_WIDTH : 0 }}
-      >
+      <main className="mx-auto w-full max-w-[1400px] px-3 py-5 transition-all duration-300 sm:px-5">
         {children}
       </main>
 

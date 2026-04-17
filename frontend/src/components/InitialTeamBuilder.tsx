@@ -157,7 +157,7 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
             <div className="sidebar-card__head">Selected Squad</div>
             <div className="divide-y divide-slate-200">
               {rosterSlots.map((player, index) => (
-                <div key={player?.id ?? `slot-${index}`} className="grid min-h-[58px] grid-cols-[34px_1fr_auto] items-center gap-2 px-3 py-2 text-sm">
+                <div key={player?.id ?? `slot-${index}`} className="grid min-h-[58px] grid-cols-[34px_1fr] gap-2 px-3 py-2 text-sm sm:grid-cols-[34px_1fr_auto] sm:items-center">
                   <span className="grid h-7 w-7 place-items-center rounded-sm bg-[#eef1f3] text-xs font-bold text-slate-700">{index + 1}</span>
                   {player ? (
                     <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
                     <button
                       type="button"
                       onClick={() => removePlayer(player.id)}
-                      className="rounded-sm border border-slate-300 px-2 py-1 text-xs font-semibold hover:bg-slate-50"
+                      className="rounded-sm border border-slate-300 px-2 py-2 text-xs font-semibold hover:bg-slate-50 sm:py-1"
                     >
                       Remove
                     </button>
@@ -320,14 +320,20 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
                               </div>
                             </div>
                           </div>
-                          <div>{player.team}</div>
-                          <div className="font-semibold">{player.salary.toFixed(1)}</div>
-                          <div className="text-right">
+                          <div className="flex items-center justify-between gap-3 text-sm sm:block">
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Team</span>
+                            <span>{player.team}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 text-sm sm:block sm:font-semibold">
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Cost</span>
+                            <span>{player.salary.toFixed(1)}</span>
+                          </div>
+                          <div className="text-right sm:text-right">
                             <button
                               type="button"
                               onClick={() => addPlayer(player)}
                               disabled={addDisabled}
-                              className="nba-button-yellow min-h-0 px-4 py-2 text-sm disabled:opacity-40"
+                              className="nba-button-yellow min-h-0 w-full px-4 py-3 text-sm disabled:opacity-40 sm:w-auto sm:py-2"
                             >
                               {picked ? "Picked" : "Add"}
                             </button>

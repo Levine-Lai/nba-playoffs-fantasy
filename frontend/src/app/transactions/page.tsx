@@ -444,7 +444,7 @@ export default function TransactionsPage() {
         <section className="panel">
           <div className="panel-body space-y-4">
             <div className="border-b border-slate-200 pb-3 text-center">
-              <h1 className="text-[2.2rem] font-semibold uppercase leading-none text-[#111]">
+              <h1 className="text-[1.8rem] font-semibold uppercase leading-tight text-[#111] sm:text-[2.2rem] sm:leading-none">
                 {data.gameweek.label} Deadline: <span className="normal-case">{formatDeadline(data.gameweek.deadline)}</span>
               </h1>
             </div>
@@ -535,10 +535,10 @@ export default function TransactionsPage() {
             <div className="bg-white">
               {groupedRoster.map((group) => (
                 <div key={group.key}>
-                  <div className={`${group.colorClass} grid grid-cols-[1.8fr_90px_1fr] items-center gap-3 px-5 py-3 text-sm`}>
+                  <div className={`${group.colorClass} grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 text-sm sm:grid-cols-[1.8fr_90px_1fr] sm:px-5`}>
                     <div className="text-[1rem]">{group.label}</div>
-                    <div className="text-center">$S</div>
-                    <div className="text-center">Schedule</div>
+                    <div className="hidden text-center sm:block">$S</div>
+                    <div className="text-right sm:text-center">Schedule</div>
                   </div>
 
                   {group.players.map((player) => {
@@ -555,7 +555,7 @@ export default function TransactionsPage() {
                           setPlayerModalId(player.id);
                           setFeedback(null);
                         }}
-                        className={`grid w-full grid-cols-[1.8fr_90px_1fr] items-center gap-3 border-b border-slate-200 px-5 py-3 text-left transition hover:bg-[#f8fafc] ${
+                        className={`grid w-full grid-cols-1 gap-3 border-b border-slate-200 px-4 py-3 text-left transition hover:bg-[#f8fafc] sm:grid-cols-[1.8fr_90px_1fr] sm:px-5 ${
                           isRemoved ? "opacity-35" : isReplaced ? "bg-[rgba(255,219,77,0.18)]" : "bg-white"
                         }`}
                       >
@@ -580,13 +580,19 @@ export default function TransactionsPage() {
                             {isReplaced ? <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-brand-darkBlue">Replacing {player.name}</p> : null}
                           </div>
                         </div>
-                        <div className="text-center text-[1.05rem]">{rowPlayer.salary.toFixed(1)}</div>
-                        <div className="grid grid-cols-5 justify-items-center gap-1">
-                          {getScheduleCells(rowPlayer).map((cell) => (
-                            <div key={cell.dateKey} className="grid h-9 w-9 place-items-center rounded-full bg-[#f4f6f8]">
-                              {renderScheduleCell(cell)}
-                            </div>
-                          ))}
+                        <div className="flex items-center justify-between rounded-sm bg-slate-50 px-3 py-2 text-[1.05rem] sm:block sm:bg-transparent sm:px-0 sm:py-0 sm:text-center">
+                          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Salary</span>
+                          <span>{rowPlayer.salary.toFixed(1)}</span>
+                        </div>
+                        <div>
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Schedule</div>
+                          <div className="grid grid-cols-5 justify-items-center gap-1">
+                            {getScheduleCells(rowPlayer).map((cell) => (
+                              <div key={cell.dateKey} className="grid h-9 w-9 place-items-center rounded-full bg-[#f4f6f8]">
+                                {renderScheduleCell(cell)}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </button>
                     );
@@ -677,10 +683,10 @@ export default function TransactionsPage() {
             <div className="max-h-[980px] overflow-y-auto bg-white">
               {groupedSelection.map((group) => (
                 <div key={group.key}>
-                  <div className={`${group.colorClass} grid grid-cols-[1fr_62px_62px] items-center px-4 py-3 text-sm`}>
+                  <div className={`${group.colorClass} grid grid-cols-[1fr_62px] items-center px-4 py-3 text-sm sm:grid-cols-[1fr_62px_62px]`}>
                     <div>{group.label}</div>
                     <div className="text-center">$</div>
-                    <div className="text-center">**</div>
+                    <div className="hidden text-center sm:block">**</div>
                   </div>
                   {group.players.map((player) => {
                     const isSelected = pendingDrafts.some((draft) => draft.inPlayer?.id === player.id);
@@ -688,7 +694,7 @@ export default function TransactionsPage() {
                     return (
                       <div
                         key={player.id}
-                        className={`grid grid-cols-[1fr_62px_62px] items-center border-b border-slate-200 px-4 py-2 ${
+                        className={`grid grid-cols-1 gap-3 border-b border-slate-200 px-4 py-3 sm:grid-cols-[1fr_62px_62px] sm:items-center sm:py-2 ${
                           isSelected ? "bg-[rgba(255,219,77,0.18)]" : "bg-white"
                         } ${selectable ? "" : "opacity-45"}`}
                       >
@@ -719,8 +725,14 @@ export default function TransactionsPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="text-center text-[1rem]">{player.salary.toFixed(1)}</div>
-                        <div className="text-center text-[1rem]">{(player.recentAverage ?? 0).toFixed(1)}</div>
+                        <div className="flex items-center justify-between rounded-sm bg-slate-50 px-3 py-2 text-[1rem] sm:block sm:bg-transparent sm:px-0 sm:py-0 sm:text-center">
+                          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Salary</span>
+                          <span>{player.salary.toFixed(1)}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-sm bg-slate-50 px-3 py-2 text-[1rem] sm:block sm:bg-transparent sm:px-0 sm:py-0 sm:text-center">
+                          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Avg</span>
+                          <span>{(player.recentAverage ?? 0).toFixed(1)}</span>
+                        </div>
                       </div>
                     );
                   })}
@@ -763,14 +775,14 @@ export default function TransactionsPage() {
 
       {candidatePlayer ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(0,0,0,0.38)] px-4" onClick={() => setCandidateModalId(null)}>
-          <div className="w-full max-w-[640px] overflow-hidden rounded-md bg-white shadow-[0_20px_60px_rgba(0,0,0,0.24)]" onClick={(event) => event.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-t-xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.24)] sm:rounded-md" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between bg-[linear-gradient(180deg,#c4ced4,#e6e6e6)] px-4 py-4">
-              <h2 className="text-[2rem] font-semibold italic leading-none text-[#111]">{candidatePlayer.name}</h2>
+              <h2 className="text-[1.5rem] font-semibold italic leading-tight text-[#111] sm:text-[2rem] sm:leading-none">{candidatePlayer.name}</h2>
               <button type="button" onClick={() => setCandidateModalId(null)} className="grid h-12 w-12 place-items-center rounded-sm bg-brand-pink text-white">
                 {closeIcon()}
               </button>
             </div>
-            <div className="space-y-3 px-6 py-8">
+            <div className="space-y-3 px-4 py-6 sm:px-6 sm:py-8">
               <button
                 type="button"
                 disabled={!focusedOutPlayer || candidateAlreadySelected}
@@ -796,14 +808,14 @@ export default function TransactionsPage() {
 
       {actionPlayer ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(0,0,0,0.38)] px-4" onClick={() => setPlayerModalId(null)}>
-          <div className="w-full max-w-[640px] overflow-hidden rounded-md bg-white shadow-[0_20px_60px_rgba(0,0,0,0.24)]" onClick={(event) => event.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-t-xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.24)] sm:rounded-md" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between bg-[linear-gradient(180deg,#c4ced4,#e6e6e6)] px-4 py-4">
-              <h2 className="text-[2rem] font-semibold italic leading-none text-[#111]">{actionPlayer.name}</h2>
+              <h2 className="text-[1.5rem] font-semibold italic leading-tight text-[#111] sm:text-[2rem] sm:leading-none">{actionPlayer.name}</h2>
               <button type="button" onClick={() => setPlayerModalId(null)} className="grid h-12 w-12 place-items-center rounded-sm bg-brand-pink text-white">
                 {closeIcon()}
               </button>
             </div>
-            <div className="space-y-3 px-6 py-8">
+            <div className="space-y-3 px-4 py-6 sm:px-6 sm:py-8">
               <button
                 type="button"
                 onClick={() => {
@@ -841,34 +853,49 @@ export default function TransactionsPage() {
 
       {confirmOpen && pendingDrafts.length ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(0,0,0,0.42)] px-4" onClick={() => setConfirmOpen(false)}>
-          <div className="w-full max-w-[700px] overflow-hidden rounded-md bg-white shadow-[0_20px_60px_rgba(0,0,0,0.24)]" onClick={(event) => event.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-[700px] overflow-y-auto rounded-t-xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.24)] sm:rounded-md" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between bg-[linear-gradient(180deg,#c4ced4,#e6e6e6)] px-4 py-4">
-              <h2 className="text-[2rem] font-semibold italic leading-none text-[#111]">Confirm Transactions</h2>
+              <h2 className="text-[1.5rem] font-semibold italic leading-tight text-[#111] sm:text-[2rem] sm:leading-none">Confirm Transactions</h2>
               <button type="button" onClick={() => setConfirmOpen(false)} className="grid h-12 w-12 place-items-center rounded-sm bg-brand-pink text-white">
                 {closeIcon()}
               </button>
             </div>
 
-            <div className="px-5 py-5">
-              <div className="grid grid-cols-[1fr_1fr_160px] gap-4 border-b border-slate-200 pb-3 text-[1.05rem] text-slate-700">
+            <div className="px-4 py-5 sm:px-5">
+              <div className="hidden gap-4 border-b border-slate-200 pb-3 text-[1.05rem] text-slate-700 sm:grid sm:grid-cols-[1fr_1fr_160px]">
                 <div>Out</div>
                 <div>In</div>
                 <div>Salary</div>
               </div>
               {pendingDrafts.map((draft) => (
-                <div key={draft.outPlayer.id} className="grid grid-cols-[1fr_1fr_160px] gap-4 border-b border-slate-200 py-4 text-[1.1rem] text-black">
-                  <div>{draft.outPlayer.name}</div>
-                  <div>{draft.inPlayer?.name ?? "-"}</div>
-                  <div>{Number((draft.inPlayer?.salary ?? 0) - draft.outPlayer.salary).toFixed(1)}</div>
+                <div key={draft.outPlayer.id} className="grid gap-2 border-b border-slate-200 py-4 text-[1rem] text-black sm:grid-cols-[1fr_1fr_160px] sm:gap-4 sm:text-[1.1rem]">
+                  <div className="flex items-center justify-between gap-3 sm:block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Out</span>
+                    <span>{draft.outPlayer.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 sm:block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">In</span>
+                    <span>{draft.inPlayer?.name ?? "-"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 sm:block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Salary</span>
+                    <span>{Number((draft.inPlayer?.salary ?? 0) - draft.outPlayer.salary).toFixed(1)}</span>
+                  </div>
                 </div>
               ))}
-              <div className="grid grid-cols-[1fr_1fr_160px] gap-4 border-b border-slate-200 py-4 text-[1.1rem] text-black">
+              <div className="grid gap-2 border-b border-slate-200 py-4 text-[1rem] text-black sm:grid-cols-[1fr_1fr_160px] sm:gap-4 sm:text-[1.1rem]">
                 <div />
-                <div>Points cost</div>
-                <div>{transferCost}</div>
+                <div className="flex items-center justify-between gap-3 sm:block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Summary</span>
+                  <span>Points cost</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Cost</span>
+                  <span>{transferCost}</span>
+                </div>
               </div>
 
-              <div className="mt-6 rounded-sm bg-brand-blue px-8 py-7 text-center text-[1.1rem] font-semibold leading-8 text-white">
+              <div className="mt-6 rounded-sm bg-brand-blue px-4 py-5 text-center text-[1rem] font-semibold leading-7 text-white sm:px-8 sm:py-7 sm:text-[1.1rem] sm:leading-8">
                 This transaction will be active for {data.gameweek.label} ({formatDeadline(data.gameweek.deadline)}) with Money Remaining at {projectedBank.toFixed(1)}. Any standard-transfer cost will hit the standings only after this deadline passes.
               </div>
 

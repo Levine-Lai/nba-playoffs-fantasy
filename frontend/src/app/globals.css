@@ -36,6 +36,7 @@ body {
     linear-gradient(180deg, #f7f8fa 0, #eef0f2 16rem, #e8eaed 100%);
   color: var(--nba-off-black);
   font-family: var(--font-body), "Segoe UI", sans-serif;
+  overflow-x: hidden;
 }
 
 h1,
@@ -465,6 +466,7 @@ button:disabled {
     display: flex;
     justify-content: space-between;
     gap: 0.75rem;
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--nba-line);
     padding: 0.65rem 0.9rem;
     font-size: 0.86rem;
@@ -942,6 +944,14 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
+  .panel-head {
+    padding: 0.65rem 0.8rem;
+  }
+
+  .panel-body {
+    padding: 0.9rem;
+  }
+
   .ism-nav__tab {
     padding: 0.9rem 1rem;
     font-size: 0.8rem;
@@ -952,21 +962,105 @@ button:disabled {
     width: 44px;
   }
 
+  .builder-selection-list {
+    max-height: none;
+  }
+
+  .builder-selection-head {
+    display: none;
+  }
+
+  .builder-selection-row {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+    padding: 0.95rem 1rem;
+  }
+
   .court-row {
-    gap: 0.8rem;
-    padding: 1rem 0.4rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+    padding: 0.85rem 0.55rem;
   }
 
-  .court-card {
-    width: 144px;
+  .court-bench {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 
+  .court-slot {
+    width: 100%;
+    padding: 0;
+  }
+
+  .court-card,
   .court-card--compact {
-    width: 132px;
+    width: 100%;
+    max-width: none;
+  }
+
+  .court-card__team {
+    font-size: 1.45rem;
+  }
+
+  .court-card__photo {
+    height: 96px;
+  }
+
+  .court-card__photo--portrait {
+    height: 132px;
+  }
+
+  .court-card__headshot,
+  .court-card__fallback-logo {
+    width: 82px;
+  }
+
+  .court-card__headshot--portrait {
+    width: 108px;
+  }
+
+  .court-card__name {
+    font-size: 1rem;
+    min-height: 42px;
+  }
+
+  .court-card__points-only strong {
+    font-size: 1.8rem;
+  }
+
+  .captain-bar__title {
+    justify-content: center;
+    text-align: center;
   }
 
   .captain-bar {
     grid-template-columns: 1fr;
+  }
+
+  .lineup-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .lineup-modal {
+    max-height: 88vh;
+    border-radius: 14px 14px 0 0;
+    overflow-y: auto;
+  }
+
+  .lineup-modal__head {
+    padding: 0.85rem 1rem;
+  }
+
+  .lineup-modal__body {
+    padding: 1rem;
+  }
+
+  .lineup-modal__close {
+    height: 44px;
+    width: 44px;
   }
 }
 

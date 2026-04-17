@@ -18,23 +18,25 @@ function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string 
 
 function TeamLabel({ team, align = "left" }: { team?: TeamAsset; align?: "left" | "right" }) {
   const logoUrl = team?.logoUrl ?? team?.logoFallbackUrl;
+  const baseAlignment = align === "right" ? "md:justify-end" : "md:justify-start";
+  const textAlignment = align === "right" ? "md:text-right" : "md:text-left";
 
   return (
-    <div className={`flex items-center gap-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
+    <div className={`flex items-center justify-center gap-3 ${baseAlignment}`}>
       {align === "left" && logoUrl ? (
         <img
           src={logoUrl}
           alt=""
-          className="h-10 w-10 object-contain"
+          className="h-9 w-9 object-contain sm:h-10 sm:w-10"
           onError={(event) => onLogoError(event, team?.logoFallbackUrl)}
         />
       ) : null}
-      <p className={`text-base font-semibold ${align === "right" ? "text-right" : "text-left"}`}>{team?.name ?? "TBD"}</p>
+      <p className={`text-center text-base font-semibold ${textAlignment}`}>{team?.name ?? "TBD"}</p>
       {align === "right" && logoUrl ? (
         <img
           src={logoUrl}
           alt=""
-          className="h-10 w-10 object-contain"
+          className="h-9 w-9 object-contain sm:h-10 sm:w-10"
           onError={(event) => onLogoError(event, team?.logoFallbackUrl)}
         />
       ) : null}
