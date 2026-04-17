@@ -31,7 +31,7 @@ function useFallbackImage(event: SyntheticEvent<HTMLImageElement>, fallback?: st
 
 export default function PlayerCard({ player, showPoints, captain }: PlayerCardProps) {
   const isHot = player.color === "hot";
-  const footerValue = showPoints ? String(player.points ?? 0) : player.salary.toFixed(1);
+  const footerValue = showPoints ? (player.pointsWindowKey ? Number(player.points ?? 0).toFixed(1) : "-") : player.salary.toFixed(1);
   const headshotUrl = player.headshotUrl ?? player.headshotFallbackUrl;
   const teamLogoUrl = player.teamLogoUrl ?? player.teamLogoFallbackUrl;
   const nextOpponentLogoUrl = player.nextOpponentLogoUrl ?? player.nextOpponentLogoFallbackUrl;

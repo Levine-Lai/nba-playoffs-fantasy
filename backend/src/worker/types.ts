@@ -94,6 +94,13 @@ export interface StoredLineupSnapshot {
   bank: number;
 }
 
+export interface TransferWindowSnapshot {
+  windowKey: string;
+  lineup: StoredLineupSnapshot;
+  history: TransferHistoryItem[];
+  totalTransfers: number;
+}
+
 export interface UserChipCardState {
   label: "Play" | "Active" | "Played";
   canActivate: boolean;
@@ -102,6 +109,7 @@ export interface UserChipCardState {
 }
 
 export interface UserChipsState {
+  transferWindowSnapshot?: TransferWindowSnapshot | null;
   wildcard: {
     used: boolean;
     activePeriodKey?: string | null;

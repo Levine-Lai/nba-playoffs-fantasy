@@ -176,18 +176,10 @@ export default function StandingPage() {
 
                                   {expandedData.message ? <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">{expandedData.message}</p> : null}
 
-                                  <div className="grid gap-3 sm:grid-cols-3">
+                                  <div className="grid gap-3 sm:grid-cols-1">
                                     <article className="nba-stat-card">
-                                      <p className="text-sm">Average GD Pts</p>
-                                      <p className="text-5xl font-semibold">{expandedData.summary.average}</p>
-                                    </article>
-                                    <article className="nba-stat-card">
-                                      <p className="text-sm">Final GD Points</p>
+                                      <p className="text-sm">Gameday Points</p>
                                       <p className="text-5xl font-semibold">{expandedData.summary.final}</p>
-                                    </article>
-                                    <article className="nba-stat-card">
-                                      <p className="text-sm">Top GD Points</p>
-                                      <p className="text-5xl font-semibold">{expandedData.summary.top}</p>
                                     </article>
                                   </div>
                                 </div>

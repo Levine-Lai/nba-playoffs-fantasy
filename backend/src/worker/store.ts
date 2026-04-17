@@ -141,6 +141,7 @@ function normalizePlayerRow(row: PlayerRow, nextMatchupByTeam = new Map<string, 
 
 function buildDefaultUserChipsState(): UserChipsState {
   return {
+    transferWindowSnapshot: null,
     wildcard: {
       used: false,
       activePeriodKey: null,
@@ -219,9 +220,33 @@ export async function getUserByAccount(env: Env, account: string) {
   );
 }
 
+export async function getUserByGameId(env: Env, gameId: string) {
+  return first<UserRow>(
+    env,
+    "SELECT id, account, game_id AS gameId, password_hash AS passwordHash FROM users WHERE game_id = ?",
+    gameId
+  );
+}
+
 export async function getUserChipsState(env: Env, userId: string | number) {
   const registry = await readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {});
-  return registry[String(userId)] ?? buildDefaultUserChipsState();
+  const stored = registry[String(userId)];
+  if (!stored) {
+    return buildDefaultUserChipsState();
+  }
+
+  const fallback = buildDefaultUserChipsState();
+  return {
+    transferWindowSnapshot: stored.transferWindowSnapshot ?? fallback.transferWindowSnapshot,
+    wildcard: {
+      ...fallback.wildcard,
+      ...stored.wildcard
+    },
+    allStar: {
+      ...fallback.allStar,
+      ...stored.allStar
+    }
+  };
 }
 
 export async function saveUserChipsState(env: Env, userId: string | number, chips: UserChipsState) {

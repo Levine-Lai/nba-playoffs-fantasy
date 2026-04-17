@@ -53,7 +53,7 @@ Still in `backend/`:
 npm run db:migrate:remote
 ```
 
-This applies `backend/migrations/0001_init.sql` to the remote D1 database.
+This applies every SQL file under `backend/migrations/`, including `0001_init.sql` and `0002_users_game_id_unique.sql`.
 
 ## 4. Choose How To Seed Production Data
 
@@ -179,6 +179,7 @@ Use this rule of thumb:
   edit `backend/src/worker/liveData.ts`
 - schema changes:
   add a new SQL migration under `backend/migrations/`
+  keep remote D1 in sync by rerunning `npm run db:migrate:remote` before deploy
 
 ## 10. Common Gotchas
 

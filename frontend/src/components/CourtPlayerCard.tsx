@@ -73,6 +73,7 @@ export default function CourtPlayerCard({
   ) : (
     <span>-</span>
   );
+  const pointsValue = player.pointsWindowKey ? Number(player.points ?? 0).toFixed(1) : "-";
 
   const body = (
     <>
@@ -113,7 +114,7 @@ export default function CourtPlayerCard({
 
       {showPoints ? (
         <div className="court-card__points-only">
-          <strong>{Number(player.points ?? 0).toFixed(1)}</strong>
+          <strong>{pointsValue}</strong>
         </div>
       ) : (
         <div className="court-card__schedule">

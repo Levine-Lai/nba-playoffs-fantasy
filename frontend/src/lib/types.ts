@@ -101,9 +101,7 @@ export interface PointsResponse {
     isCurrentUser: boolean;
   };
   summary: {
-    average: number;
     final: number;
-    top: number;
   };
   lineup: Lineup;
 }

@@ -31,6 +31,7 @@ import {
   getRuleValue,
   getStateForUser,
   getUserByAccount,
+  getUserByGameId,
   getUserChipsState,
   joinPrivateLeague,
   listPrivateLeaguesForUser,
@@ -51,6 +52,7 @@ import type {
   LeaguePhaseOption,
   Player,
   StoredLineupSnapshot,
+  TransferWindowSnapshot,
   TransferHistoryItem,
   UserChipCardState,
   UserChipsState,
@@ -144,6 +146,49 @@ function cloneState(state: UserState): UserState {
 function buildStateFromSnapshot(state: UserState, snapshot: StoredLineupSnapshot) {
   const cloned = cloneState(state);
   return applyStoredLineupSnapshot(cloned, snapshot);
+}
+
+function cloneTransferWindowSnapshot(snapshot: TransferWindowSnapshot | null | undefined): TransferWindowSnapshot | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  return {
+    windowKey: snapshot.windowKey,
+    lineup: {
+      starters: snapshot.lineup.starters.map(clonePlayer),
+      bench: snapshot.lineup.bench.map(clonePlayer),
+      captainId: snapshot.lineup.captainId,
+      rosterValue: Number(snapshot.lineup.rosterValue ?? 0),
+      bank: Number(snapshot.lineup.bank ?? 0)
+    },
+    history: snapshot.history.map((item) => ({ ...item })),
+    totalTransfers: Number(snapshot.totalTransfers ?? 0)
+  };
+}
+
+function buildTransferWindowSnapshot(state: UserState, windowKey: string): TransferWindowSnapshot {
+  return {
+    windowKey,
+    lineup: buildStoredLineupSnapshot(state),
+    history: state.history.map((item) => ({ ...item })),
+    totalTransfers: Number(state.totalTransfers ?? 0)
+  };
+}
+
+function getWindowSnapshotForContext(chips: UserChipsState, windowKey: string) {
+  if (chips.transferWindowSnapshot?.windowKey !== windowKey) {
+    return null;
+  }
+
+  return cloneTransferWindowSnapshot(chips.transferWindowSnapshot);
+}
+
+function restoreTransferWindowBaseline(state: UserState, snapshot: TransferWindowSnapshot) {
+  applyStoredLineupSnapshot(state, snapshot.lineup);
+  state.history = snapshot.history.map((item) => ({ ...item }));
+  state.totalTransfers = Number(snapshot.totalTransfers ?? 0);
+  return state;
 }
 
 function isChipActiveForPeriod(activePeriodKey: string | null | undefined, periodKey: string | null | undefined) {
@@ -259,11 +304,27 @@ function syncPointsSnapshot(
   state.gamedayPoints = finalPoints;
 }
 
+function syncPersistedPointsState(
+  state: UserState,
+  lineup: { starters: Player[]; bench: Player[] },
+  finalPoints: number,
+  preserveRoster = false
+) {
+  if (preserveRoster) {
+    state.gamedayPoints = Number(finalPoints ?? 0);
+    return state;
+  }
+
+  syncPointsSnapshot(state, lineup, finalPoints);
+  return state;
+}
+
 function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: string; label: string; deadline: string; gamedayIndex: number } | null) {
   const apply = (players: Player[]) =>
     players.map((player) => ({
       ...player,
-      points: player.pointsWindowKey === scoringPeriod?.key ? Number(player.points ?? 0) : 0
+      points: player.pointsWindowKey === scoringPeriod?.key ? Number(player.points ?? 0) : 0,
+      pointsWindowKey: player.pointsWindowKey === scoringPeriod?.key ? player.pointsWindowKey ?? scoringPeriod?.key ?? null : null
     }));
 
   const starters = apply(state.starters);
@@ -282,9 +343,7 @@ function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: strin
       deadline: scoringPeriod?.deadline ?? ""
     },
     summary: {
-      average: starters.length ? Number((starters.reduce((sum, player) => sum + Number(player.points ?? 0), 0) / starters.length).toFixed(1)) : 0,
-      final: finalPoints,
-      top: starters.length ? Number(Math.max(...starters.map((player) => Number(player.points ?? 0))).toFixed(1)) : 0
+      final: finalPoints
     },
     lineup: {
       starters,
@@ -414,6 +473,20 @@ async function appendLeaguePointsAdjustment(
   };
 
   await writeLeaguePointsLedger(env, ledger);
+  return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+}
+
+async function removeLeaguePointsAdjustmentsByPrefix(env: Env, userId: string | number, keyPrefix: string) {
+  const ledger = await readLeaguePointsLedger(env);
+  const userKey = String(userId);
+  const existingUserLedger = ledger[userKey] ?? {};
+  const filteredEntries = Object.entries(existingUserLedger).filter(([entryKey]) => !entryKey.startsWith(`${keyPrefix}:`));
+
+  if (filteredEntries.length !== Object.keys(existingUserLedger).length) {
+    ledger[userKey] = Object.fromEntries(filteredEntries);
+    await writeLeaguePointsLedger(env, ledger);
+  }
+
   return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
 }
 
@@ -625,11 +698,14 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
-  const scoringState = getScoringState(state, chips, (await getScoringPeriodContext(env)) as ScoringPeriodContext);
+  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+  const scoringState = getScoringState(state, chips, scoringPeriod);
+  const preserveRosterPoints =
+    Boolean(scoringPeriod) && isChipActiveForPeriod(chips.allStar.activePeriodKey, scoringPeriod?.key) && Boolean(chips.allStar.activeLineup);
   const livePreview = await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null);
   if (livePreview) {
     syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
-    const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
+    syncPersistedPointsState(state, livePreview.lineup, livePreview.finalPoints, preserveRosterPoints);
     const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
     state.overallPoints = Number(overallPoints.toFixed(1));
     await saveStateForUser(env, userId, state);
@@ -644,9 +720,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
         message: "Points will unlock after Round 1 Day 1 deadline.",
         gameweek: editableContext.gameweek,
         summary: {
-          average: 0,
-          final: 0,
-          top: 0
+          final: 0
         },
         lineup: {
           starters: withVisiblePoints(scoringState.starters, true),
@@ -658,7 +732,6 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     };
   }
 
-  const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
   const fallbackPoints = buildStoredPointsSnapshot(scoringState, scoringPeriod);
   state.gamedayPoints = fallbackPoints.summary.final;
   const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
@@ -682,6 +755,8 @@ async function commitTransactionBatch(params: {
 }) {
   const { env, userId, baseState, chips, editableContext, drafts, requestedChip } = params;
   const activeChip = getActiveTransactionChip(chips, editableContext);
+  const activatingChipNow = Boolean(requestedChip && !activeChip);
+  const penaltyKeyPrefix = `penalty:${editableContext.transferWindow.key}`;
 
   if (requestedChip && activeChip && requestedChip !== activeChip) {
     return { ok: false as const, error: "Another chip is already active for this deadline." };
@@ -696,6 +771,14 @@ async function commitTransactionBatch(params: {
   }
 
   const effectiveChip = requestedChip ?? activeChip;
+  const currentWindowSnapshot = getWindowSnapshotForContext(chips, editableContext.transferWindow.key);
+  if (activatingChipNow) {
+    restoreTransferWindowBaseline(baseState, currentWindowSnapshot ?? buildTransferWindowSnapshot(baseState, editableContext.transferWindow.key));
+    syncTransferWindowState(baseState, editableContext.transferWindow);
+    const recalculatedPoints = await removeLeaguePointsAdjustmentsByPrefix(env, userId, penaltyKeyPrefix);
+    baseState.overallPoints = Number(recalculatedPoints.toFixed(1));
+  }
+
   const workingState = getTransactionsState(baseState, chips, editableContext);
   const budget = await getInitialBudget(env);
   const nextMatchupByTeam = await getNextMatchupByTeam(env);
@@ -758,9 +841,18 @@ async function commitTransactionBatch(params: {
 
   const totalPenalty = Number(historyEntries.reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0).toFixed(1));
   const nextChips: UserChipsState = {
+    transferWindowSnapshot: currentWindowSnapshot,
     wildcard: { ...chips.wildcard },
     allStar: { ...chips.allStar }
   };
+
+  if (!effectiveChip && !nextChips.transferWindowSnapshot && drafts.length) {
+    nextChips.transferWindowSnapshot = buildTransferWindowSnapshot(baseState, editableContext.transferWindow.key);
+  }
+
+  if (activatingChipNow) {
+    nextChips.transferWindowSnapshot = null;
+  }
 
   if (effectiveChip === "wildcard") {
     nextChips.wildcard.used = true;
@@ -772,7 +864,8 @@ async function commitTransactionBatch(params: {
     nextChips.allStar.used = true;
     nextChips.allStar.activePeriodKey = editableContext.period.key;
     nextChips.allStar.activatedAt = nextChips.allStar.activatedAt ?? new Date().toISOString();
-    nextChips.allStar.originalLineup = nextChips.allStar.originalLineup ?? buildStoredLineupSnapshot(baseState);
+    nextChips.allStar.originalLineup =
+      activatingChipNow || !nextChips.allStar.originalLineup ? buildStoredLineupSnapshot(baseState) : nextChips.allStar.originalLineup;
     nextChips.allStar.activeLineup = buildStoredLineupSnapshot(workingState);
   }
 
@@ -790,7 +883,7 @@ async function commitTransactionBatch(params: {
       roundNumber: editableContext.period.roundNumber,
       dayNumber: editableContext.period.dayNumber,
       points: totalPenalty,
-      keyPrefix: `penalty:${editableContext.period.key}`
+      keyPrefix: penaltyKeyPrefix
     });
     baseState.overallPoints = Number(totalPoints.toFixed(1));
   }
@@ -882,6 +975,11 @@ export default {
           return json({ message: "Account already exists." }, { status: 400 }, env);
         }
 
+        const existingGameUser = await getUserByGameId(env, gameId);
+        if (existingGameUser) {
+          return json({ message: "Game ID already exists." }, { status: 400 }, env);
+        }
+
         try {
           const passwordHash = bcrypt.hashSync(password, 10);
           const user = await registerUser(env, account, gameId, passwordHash);
@@ -889,7 +987,12 @@ export default {
 
           return json({ token, user }, { status: 201 }, env);
         } catch (error) {
-          const message = error instanceof Error && error.message.includes("UNIQUE constraint failed") ? "Account already exists." : "Failed to register user.";
+          const message =
+            error instanceof Error && error.message.includes("users.game_id")
+              ? "Game ID already exists."
+              : error instanceof Error && error.message.includes("UNIQUE constraint failed")
+                ? "Account already exists."
+                : "Failed to register user.";
           return json({ message }, { status: 500 }, env);
         }
       }
@@ -950,7 +1053,13 @@ export default {
         }
 
         const state = await getStateForUser(env, auth.authUser.id);
-        const excludeIds = state ? getRosterPlayers(state).map((player) => player.id) : [];
+        let excludeIds: string[] = [];
+        if (state) {
+          const chips = await getUserChipsState(env, auth.authUser.id);
+          const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+          const effectiveState = getTransactionsState(state, chips, editableContext);
+          excludeIds = getRosterPlayers(effectiveState).map((player) => player.id);
+        }
         const nextMatchupByTeam = await getNextMatchupByTeam(env);
         const players = await searchPlayerPool(
           env,
@@ -1046,11 +1155,16 @@ export default {
         const displayState = getDisplayProfileState(state, beforeDeadline);
         const currentScoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
         const scoringState = getScoringState(state, chips, currentScoringPeriod);
+        const preserveRosterPoints =
+          Boolean(currentScoringPeriod) &&
+          isChipActiveForPeriod(chips.allStar.activePeriodKey, currentScoringPeriod?.key) &&
+          Boolean(chips.allStar.activeLineup);
         const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null) : null;
         const fallbackProfilePoints = !beforeDeadline ? buildStoredPointsSnapshot(scoringState, currentScoringPeriod) : null;
 
         if (livePreview) {
           syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
+          syncPersistedPointsState(state, livePreview.lineup, livePreview.finalPoints, preserveRosterPoints);
         }
 
         if (!beforeDeadline) {

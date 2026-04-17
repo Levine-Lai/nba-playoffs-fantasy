@@ -39,6 +39,7 @@ Recent transaction rules implemented in the current build:
 - `backend/src/worker/liveData.ts`
 - `backend/src/worker/gameplay.ts`
 - `backend/migrations/0001_init.sql`
+- `backend/migrations/0002_users_game_id_unique.sql`
 - `backend/wrangler.toml`
 
 ## Local Development
@@ -114,6 +115,7 @@ npm run dev
 - Worker type-check: `npm run typecheck --prefix backend`
 - Frontend production build: `npm run build --prefix frontend`
 - Transaction flow now also uses `POST /api/transactions/confirm` for batch-confirm + chip activation
+- Registration now requires both `account` and `gameId` to be unique; apply `backend/migrations/0002_users_game_id_unique.sql` anywhere the D1 schema already exists
 - Root build check: `npm run build`
 - Local D1 migration applied successfully
 - Local D1 seed imported from current SQLite data

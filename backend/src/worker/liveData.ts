@@ -799,7 +799,7 @@ async function buildFantasyPointsPreviewForSlate(
     return {
       ...player,
       points: livePoints,
-      pointsWindowKey: slate.periodKey,
+      pointsWindowKey: game ? slate.periodKey : null,
       nextOpponent: opponent,
       upcoming: buildUpcomingSlateCells(game)
     };
@@ -807,7 +807,6 @@ async function buildFantasyPointsPreviewForSlate(
 
   const starters = state.starters.map(hydratePlayer);
   const bench = state.bench.map(hydratePlayer);
-  const starterPoints = starters.map((player) => Number(player.points ?? 0));
   const finalPoints = calcFinalPoints({
     ...state,
     starters,
@@ -823,9 +822,7 @@ async function buildFantasyPointsPreviewForSlate(
       deadline: slate.deadlineLabel
     },
     summary: {
-      average: starterPoints.length ? Number((starterPoints.reduce((sum, value) => sum + value, 0) / starterPoints.length).toFixed(1)) : 0,
-      final: finalPoints,
-      top: starterPoints.length ? Number(Math.max(...starterPoints).toFixed(1)) : 0
+      final: finalPoints
     },
     lineup: {
       starters,
