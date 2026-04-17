@@ -587,6 +587,7 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
   const selectedPhaseKey = phaseOptions.some((option) => option.key === requestedPhaseKey)
     ? String(requestedPhaseKey)
     : "overall";
+  const beforeDeadline = await isBeforeFirstDeadline(env);
 
   let members = await listStandingMembers(env);
   for (const member of members) {
@@ -603,6 +604,8 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
   members = await listStandingMembers(env);
   const ledger = await readLeaguePointsLedger(env);
   return {
+    visible: !beforeDeadline,
+    message: beforeDeadline ? "Points will unlock after Day 1 deadline." : undefined,
     selectedPhaseKey,
     phaseOptions,
     members: buildRankedMembers(members, selectedPhaseKey, ledger)

@@ -94,6 +94,11 @@ export default function StandingPage() {
       </div>
 
       <div className="panel-body overflow-x-auto">
+        {data.visible === false ? (
+          <p className="mb-4 rounded bg-slate-100 p-3 text-sm text-slate-700">
+            {data.message ?? "Points will unlock after Day 1 deadline."}
+          </p>
+        ) : null}
         <table className="table-shell">
           <thead>
             <tr>
@@ -120,21 +125,27 @@ export default function StandingPage() {
                     </div>
                   </td>
                   <td>
-                    <Link
-                      href={{
-                        pathname: "/points",
-                        query: {
-                          userId: member.userId,
-                          phase: data.selectedPhaseKey ?? selectedPhase
-                        }
-                      }}
-                      className={isCurrentUser ? "font-semibold text-brand-darkBlue hover:underline" : "font-semibold text-[#0a3c98] hover:underline"}
-                    >
-                      {getDisplayTeamName(member.teamName, member.gameId)}
-                    </Link>
+                    {data.visible === false ? (
+                      <span className={isCurrentUser ? "font-semibold text-brand-darkBlue" : "font-semibold text-slate-700"}>
+                        {getDisplayTeamName(member.teamName, member.gameId)}
+                      </span>
+                    ) : (
+                      <Link
+                        href={{
+                          pathname: "/points",
+                          query: {
+                            userId: member.userId,
+                            phase: data.selectedPhaseKey ?? selectedPhase
+                          }
+                        }}
+                        className={isCurrentUser ? "font-semibold text-brand-darkBlue hover:underline" : "font-semibold text-[#0a3c98] hover:underline"}
+                      >
+                        {getDisplayTeamName(member.teamName, member.gameId)}
+                      </Link>
+                    )}
                   </td>
-                  <td>{Number(member.phasePoints ?? member.gamedayPoints ?? 0).toFixed(1)}</td>
-                  <td>{Number(member.totalPoints ?? 0).toFixed(1)}</td>
+                  <td>{data.visible === false ? "-" : Number(member.phasePoints ?? member.gamedayPoints ?? 0).toFixed(1)}</td>
+                  <td>{data.visible === false ? "-" : Number(member.totalPoints ?? 0).toFixed(1)}</td>
                 </tr>
               );
               })

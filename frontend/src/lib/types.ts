@@ -187,6 +187,8 @@ export interface StandingPhaseOption {
 }
 
 export interface StandingResponse {
+  visible?: boolean;
+  message?: string;
   selectedPhaseKey: string;
   phaseOptions: StandingPhaseOption[];
   members: StandingMemberEntry[];

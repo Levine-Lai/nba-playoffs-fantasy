@@ -93,50 +93,59 @@ function PointsPageContent() {
             <p className="text-sm text-slate-600">Daily points snapshot</p>
           </div>
 
-          {data.message ? <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">{data.message}</p> : null}
-          {data.visible === false ? <p className="rounded bg-slate-100 p-3 text-sm text-slate-700">{data.message ?? "Points will unlock after Day 1 deadline."}</p> : null}
+          {data.visible === false ? (
+            <p className="rounded bg-slate-100 p-3 text-sm text-slate-700">{data.message ?? "Points will unlock after Day 1 deadline."}</p>
+          ) : (
+            <>
+              {data.message ? <p className="rounded bg-amber-50 p-3 text-sm text-amber-900">{data.message}</p> : null}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-1">
-            <article className="nba-stat-card">
-              <p className="text-sm">Gameday Points</p>
-              <p className="text-5xl font-semibold">{data.summary.final}</p>
-            </article>
-          </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-1">
+                <article className="nba-stat-card">
+                  <p className="text-sm">Gameday Points</p>
+                  <p className="text-5xl font-semibold">{data.summary.final}</p>
+                </article>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
-      <section className="panel overflow-hidden">
-        <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Starting 5</div>
-        <div className="court-formation">
-          <div className="court-row court-row--top">
-            {starterFrontCourt.map((player) => (
-              <div key={player.id} className="court-slot">
-                <CourtPlayerCard player={player} captain={data.lineup.captainId === player.id} showPoints />
+      {data.visible === false ? null : (
+        <>
+          <section className="panel overflow-hidden">
+            <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Starting 5</div>
+            <div className="court-formation">
+              <div className="court-row court-row--top">
+                {starterFrontCourt.map((player) => (
+                  <div key={player.id} className="court-slot">
+                    <CourtPlayerCard player={player} captain={data.lineup.captainId === player.id} showPoints />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="court-row court-row--bottom">
-            {starterBackCourt.map((player) => (
-              <div key={player.id} className="court-slot">
-                <CourtPlayerCard player={player} captain={data.lineup.captainId === player.id} showPoints />
+              <div className="court-row court-row--bottom">
+                {starterBackCourt.map((player) => (
+                  <div key={player.id} className="court-slot">
+                    <CourtPlayerCard player={player} captain={data.lineup.captainId === player.id} showPoints />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
 
-      <section className="panel overflow-hidden">
-        <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Bench</div>
-        <div className="panel-body">
-          <div className="court-bench">
-            {data.lineup.bench.map((player) => (
-              <div key={player.id} className="court-slot">
-                <CourtPlayerCard player={player} compact showPoints captain={data.lineup.captainId === player.id} />
+          <section className="panel overflow-hidden">
+            <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Bench</div>
+            <div className="panel-body">
+              <div className="court-bench">
+                {data.lineup.bench.map((player) => (
+                  <div key={player.id} className="court-slot">
+                    <CourtPlayerCard player={player} compact showPoints captain={data.lineup.captainId === player.id} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
+        </>
+      )}
     </ContentWithSidebar>
   );
 }
