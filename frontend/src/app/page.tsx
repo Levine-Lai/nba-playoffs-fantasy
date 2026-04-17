@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getMe, login, logout, register } from "@/lib/api";
+import { getMe, getProfile, login, logout, register, updateTeamName } from "@/lib/api";
 import { AuthUser } from "@/lib/types";
 
 type Mode = "login" | "register";
@@ -14,6 +14,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [teamName, setTeamName] = useState("");
+  const [teamNameDraft, setTeamNameDraft] = useState("");
+  const [teamNameSaving, setTeamNameSaving] = useState(false);
 
   const [loginAccount, setLoginAccount] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -55,6 +58,40 @@ export default function HomePage() {
       window.localStorage.removeItem("playoff_user");
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!currentUser) {
+      setTeamName("");
+      setTeamNameDraft("");
+      return () => {
+        active = false;
+      };
+    }
+
+    void getProfile()
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+
+        setTeamName(response.profile.teamName);
+        setTeamNameDraft(response.profile.teamName);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setTeamName("");
+        setTeamNameDraft("");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
 
   async function onLogin(event: FormEvent) {
     event.preventDefault();
@@ -104,7 +141,33 @@ export default function HomePage() {
     window.localStorage.removeItem("playoff_token");
     window.localStorage.removeItem("playoff_user");
     setCurrentUser(null);
+    setTeamName("");
+    setTeamNameDraft("");
     setMessage("Logged out.");
+  }
+
+  async function onTeamNameSubmit(event: FormEvent) {
+    event.preventDefault();
+
+    const nextTeamName = teamNameDraft.trim();
+    if (!nextTeamName) {
+      setMessage("Team name is required.");
+      return;
+    }
+
+    setTeamNameSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await updateTeamName(nextTeamName);
+      setTeamName(response.teamName);
+      setTeamNameDraft(response.teamName);
+      setMessage("Team name updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to update team name.");
+    } finally {
+      setTeamNameSaving(false);
+    }
   }
 
   return (
@@ -116,12 +179,38 @@ export default function HomePage() {
             <div className="space-y-4">
               <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-semibold uppercase tracking-[0.06em] text-emerald-800">Logged in</p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Player Name</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{currentUser.gameId}</p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Team Name</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-900">{teamName || currentUser.gameId}</p>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Player Name</p>
+                <p className="mt-1 text-lg font-semibold text-slate-800">{currentUser.gameId}</p>
+                <p className="mt-2 text-sm text-slate-600">Your team is ready to manage.</p>
                 <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Account</p>
                 <p className="mt-1 text-base font-semibold text-slate-700">{currentUser.account}</p>
-                <p className="mt-1 text-sm text-slate-600">Your team is ready to manage.</p>
               </div>
+              <form className="space-y-3 rounded border border-slate-200 bg-white p-4" onSubmit={onTeamNameSubmit}>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Edit Team Name</p>
+                  <p className="mt-1 text-xs text-slate-500">This updates the team name shown in profile and points views.</p>
+                </div>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-semibold text-slate-700">Team Name</span>
+                  <input
+                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                    value={teamNameDraft}
+                    onChange={(event) => setTeamNameDraft(event.target.value)}
+                    type="text"
+                    maxLength={30}
+                    required
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="w-full rounded bg-brand-blue px-3 py-2 text-sm font-semibold text-white hover:bg-brand-darkBlue"
+                  disabled={teamNameSaving}
+                >
+                  {teamNameSaving ? "Saving..." : "Save Team Name"}
+                </button>
+              </form>
               <div className="grid gap-2 sm:grid-cols-2">
                 <Link className="rounded bg-brand-yellow px-3 py-3 text-center text-sm font-semibold" href="/edit-lineup">
                   Edit Line-up

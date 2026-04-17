@@ -44,7 +44,7 @@ Recreate the NBA Fantasy playoff look with strong blue and yellow branding, righ
 - /points/today
 - /transactions/options
 - /transactions
-- /leagues
+- /standings
 - /schedule
 - /help/rules
 
@@ -63,7 +63,7 @@ Recreate the NBA Fantasy playoff look with strong blue and yellow branding, righ
 ## Short term
 - Real NBA data ingestion
 - Deadline lock for gameweek changes
-- Private league invite flow
+- Standing filters and ranking history drill-in
 
 ## Mid term
 - Redis caching for schedules and points

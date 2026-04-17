@@ -14,10 +14,10 @@ import type {
   EditablePeriodContext,
   Env,
   GameweekPayload,
-  LeaguePhaseOption,
   NextMatchup,
   Player,
   PlayerScheduleCell,
+  StandingPhaseOption,
   StoredScheduleCache,
   StoredScheduleGame,
   TeamAsset,
@@ -673,9 +673,9 @@ export async function getScoringPeriodContext(env: Env) {
   return scoringPeriod;
 }
 
-function buildLeaguePhaseOptionsFromGames(
+function buildStandingPhaseOptionsFromGames(
   games: Array<{ id: string; date: string; gamedayKey?: string | null }>
-): LeaguePhaseOption[] {
+): StandingPhaseOption[] {
   const periods = buildPlayoffPeriods(
     games,
     (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
@@ -691,11 +691,11 @@ function buildLeaguePhaseOptionsFromGames(
   ];
 }
 
-export async function getLeaguePhaseOptionsByDay(env: Env): Promise<LeaguePhaseOption[]> {
+export async function getStandingPhaseOptionsByDay(env: Env): Promise<StandingPhaseOption[]> {
   try {
     const officialGames = await getOfficialScheduleGames(env);
     if (officialGames.length) {
-      return buildLeaguePhaseOptionsFromGames(
+      return buildStandingPhaseOptionsFromGames(
         officialGames.map((game) => ({
           id: game.id,
           date: game.date,
@@ -709,7 +709,7 @@ export async function getLeaguePhaseOptionsByDay(env: Env): Promise<LeaguePhaseO
 
   const cachedSchedule = await getStoredScheduleCache(env);
   const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
-  return buildLeaguePhaseOptionsFromGames(
+  return buildStandingPhaseOptionsFromGames(
     cachedGames.map((game) => ({
       id: game.id,
       date: game.date,

@@ -3,12 +3,11 @@ import { buildPlayoffPeriods, findEditablePlayoffPeriod, isPostseasonGameId, nor
 import type {
   AuthUser,
   Env,
-  LeagueEntry,
-  LeagueMemberEntry,
   NextMatchup,
   Player,
   UserChipsState,
   PublicUser,
+  StandingMemberEntry,
   StoredScheduleCache,
   TeamAsset,
   UserState
@@ -169,11 +168,6 @@ function buildPublicUser(user: { id: string | number; account: string; gameId: s
 function randomTokenHex(size = 32) {
   const bytes = crypto.getRandomValues(new Uint8Array(size));
   return [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
-}
-
-function randomLeagueCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
 }
 
 export async function readAppState<T>(env: Env, key: string, fallback: T) {
@@ -640,54 +634,6 @@ export async function getPlayerDataSummary(env: Env) {
   };
 }
 
-async function getPrivateLeagueByCode(env: Env, code: string) {
-  return first<{ id: number; name: string; code: string; ownerUserId: number; createdAt: string }>(
-    env,
-    `
-      SELECT
-        id,
-        name,
-        code,
-        owner_user_id AS ownerUserId,
-        created_at AS createdAt
-      FROM private_leagues
-      WHERE code = ?
-    `,
-    code
-  );
-}
-
-async function getPrivateLeagueMembership(env: Env, leagueId: number, userId: number) {
-  return first<{ leagueId: number; userId: number }>(
-    env,
-    "SELECT league_id AS leagueId, user_id AS userId FROM private_league_members WHERE league_id = ? AND user_id = ?",
-    leagueId,
-    userId
-  );
-}
-
-export async function usersSharePrivateLeague(env: Env, leftUserId: string | number, rightUserId: string | number) {
-  if (Number(leftUserId) === Number(rightUserId)) {
-    return true;
-  }
-
-  const row = await first<{ sharedLeagueId: number }>(
-    env,
-    `
-      SELECT lm1.league_id AS sharedLeagueId
-      FROM private_league_members lm1
-      JOIN private_league_members lm2
-        ON lm2.league_id = lm1.league_id
-      WHERE lm1.user_id = ? AND lm2.user_id = ?
-      LIMIT 1
-    `,
-    Number(leftUserId),
-    Number(rightUserId)
-  );
-
-  return Boolean(row?.sharedLeagueId);
-}
-
 export async function listStandingMembers(env: Env) {
   const rows = await all<{
     userId: number;
@@ -721,172 +667,8 @@ export async function listStandingMembers(env: Env) {
       rank: index + 1,
       gamedayPoints: Number(row.gamedayPoints ?? 0),
       totalPoints: Number(row.overallPoints ?? 0)
-    } satisfies LeagueMemberEntry;
+    } satisfies StandingMemberEntry;
   });
-}
-
-async function buildLeagueMembers(env: Env, leagueId: number) {
-  const rows = await all<{
-    userId: number;
-    gameId: string;
-    teamName: string;
-    managerName: string;
-    overallPoints: number;
-    gamedayPoints: number;
-  }>(
-    env,
-    `
-      SELECT
-        u.id AS userId,
-        u.game_id AS gameId,
-        s.team_name AS teamName,
-        s.manager_name AS managerName,
-        s.overall_points AS overallPoints,
-        s.gameday_points AS gamedayPoints
-      FROM private_league_members m
-      JOIN users u ON u.id = m.user_id
-      JOIN user_states s ON s.user_id = u.id
-      WHERE m.league_id = ?
-      ORDER BY s.overall_points DESC, u.game_id COLLATE NOCASE ASC
-    `,
-    leagueId
-  );
-
-  return rows.map((row, index) => {
-    return {
-      userId: String(row.userId),
-      gameId: row.gameId,
-      teamName: row.teamName,
-      managerName: row.managerName,
-      rank: index + 1,
-      gamedayPoints: Number(row.gamedayPoints ?? 0),
-      totalPoints: Number(row.overallPoints ?? 0)
-    } satisfies LeagueMemberEntry;
-  });
-}
-
-export async function listPrivateLeaguesForUser(env: Env, userId: string | number) {
-  const leagues = await all<{
-    id: number;
-    name: string;
-    code: string;
-    ownerUserId: number;
-    createdAt: string;
-    memberCount: number;
-  }>(
-    env,
-    `
-      SELECT
-        l.id AS id,
-        l.name AS name,
-        l.code AS code,
-        l.owner_user_id AS ownerUserId,
-        l.created_at AS createdAt,
-        COUNT(all_members.user_id) AS memberCount
-      FROM private_leagues l
-      JOIN private_league_members my_membership
-        ON my_membership.league_id = l.id AND my_membership.user_id = ?
-      LEFT JOIN private_league_members all_members
-        ON all_members.league_id = l.id
-      GROUP BY l.id, l.name, l.code, l.owner_user_id, l.created_at
-      ORDER BY l.created_at DESC, l.id DESC
-    `,
-    Number(userId)
-  );
-
-  const entries: LeagueEntry[] = [];
-  for (const league of leagues) {
-    const members = await buildLeagueMembers(env, league.id);
-    const currentMember = members.find((member) => member.userId === String(userId));
-    entries.push({
-      id: String(league.id),
-      name: league.name,
-      code: league.code,
-      rank: currentMember?.rank ?? 0,
-      lastRank: currentMember?.rank ?? 0,
-      memberCount: Number(league.memberCount ?? 0),
-      isOwner: Number(league.ownerUserId) === Number(userId),
-      members
-    });
-  }
-
-  return entries;
-}
-
-export async function createPrivateLeague(env: Env, ownerUserId: string | number, name: string) {
-  const now = new Date().toISOString();
-  const numericOwnerId = Number(ownerUserId);
-
-  for (let attempt = 0; attempt < 25; attempt += 1) {
-    const code = randomLeagueCode();
-    const existing = await getPrivateLeagueByCode(env, code);
-    if (existing) {
-      continue;
-    }
-
-    try {
-      const insertResult = await run(
-        env,
-        "INSERT INTO private_leagues (name, code, owner_user_id, created_at) VALUES (?, ?, ?, ?)",
-        name,
-        code,
-        numericOwnerId,
-        now
-      );
-      const leagueId = Number(insertResult.meta.last_row_id ?? 0);
-      await run(
-        env,
-        "INSERT INTO private_league_members (league_id, user_id, joined_at) VALUES (?, ?, ?)",
-        leagueId,
-        numericOwnerId,
-        now
-      );
-
-      return {
-        id: String(leagueId),
-        name,
-        code
-      };
-    } catch {
-      // Retry on rare code collisions.
-    }
-  }
-
-  throw new Error("Failed to create league code.");
-}
-
-export async function joinPrivateLeague(env: Env, userId: string | number, rawCode: string) {
-  const code = String(rawCode ?? "").trim().toUpperCase();
-  if (!code) {
-    return { ok: false as const, error: "League code is required." };
-  }
-
-  const league = await getPrivateLeagueByCode(env, code);
-  if (!league) {
-    return { ok: false as const, error: "League code not found." };
-  }
-
-  const membership = await getPrivateLeagueMembership(env, league.id, Number(userId));
-  if (membership) {
-    return { ok: false as const, error: "You are already in this league." };
-  }
-
-  await run(
-    env,
-    "INSERT INTO private_league_members (league_id, user_id, joined_at) VALUES (?, ?, ?)",
-    league.id,
-    Number(userId),
-    new Date().toISOString()
-  );
-
-  return {
-    ok: true as const,
-    league: {
-      id: String(league.id),
-      name: league.name,
-      code: league.code
-    }
-  };
 }
 
 export async function getStoredScheduleCache(env: Env) {

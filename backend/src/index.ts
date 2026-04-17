@@ -17,10 +17,9 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getLeaguePhaseOptionsByDay, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext } from "./worker/liveData";
+import { buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay } from "./worker/liveData";
 import {
   buildPublicUser,
-  createPrivateLeague,
   createSession,
   DB_PATH_LABEL,
   deleteSession,
@@ -34,8 +33,6 @@ import {
   getUserByAccount,
   getUserByGameId,
   getUserChipsState,
-  joinPrivateLeague,
-  listPrivateLeaguesForUser,
   listStandingMembers,
   readAppState,
   registerUser,
@@ -48,10 +45,8 @@ import type {
   AuthUser,
   EditablePeriodContext,
   Env,
-  LeagueEntry,
-  LeagueMemberEntry,
-  LeaguePhaseOption,
   Player,
+  StandingMemberEntry,
   StoredLineupSnapshot,
   TransferWindowSnapshot,
   TransferHistoryItem,
@@ -403,8 +398,8 @@ function sumLeagueLedgerPoints(entries: LeaguePointsLedgerEntry[] | undefined) {
   );
 }
 
-async function getLeaguePhaseOptions(env: Env) {
-  return getLeaguePhaseOptionsByDay(env);
+async function getStandingPhaseOptions(env: Env) {
+  return getStandingPhaseOptionsByDay(env);
 }
 
 function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
@@ -526,7 +521,7 @@ function countPenaltyTransfersForPeriod(history: TransferHistoryItem[], periodKe
   return history.filter((item) => item.windowKey === periodKey && item.countsTowardLimit !== false).length;
 }
 
-function buildRankedMembers(members: LeagueMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
+function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
   const overallMembers = members
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
@@ -587,36 +582,8 @@ function buildRankedMembers(members: LeagueMemberEntry[], phaseKey: string, ledg
     }));
 }
 
-async function buildLeagueDetailPayload(env: Env, league: LeagueEntry, requestedPhaseKey: string | null) {
-  const phaseOptions = await getLeaguePhaseOptions(env);
-  const selectedPhaseKey = phaseOptions.some((option) => option.key === requestedPhaseKey)
-    ? String(requestedPhaseKey)
-    : "overall";
-
-  for (const member of league.members ?? []) {
-    const state = await safeLoadState(env, member.userId);
-    if (!state || !hasCreatedTeam(state)) {
-      continue;
-    }
-
-    const chips = await getUserChipsState(env, member.userId);
-    await backfillOfficialPointsLedger(env, member.userId, state, chips);
-    await saveStateForUser(env, member.userId, state);
-  }
-
-  const ledger = await readLeaguePointsLedger(env);
-  const memberIds = new Set((league.members ?? []).map((member) => member.userId));
-  const refreshedMembers = (await listStandingMembers(env)).filter((member) => memberIds.has(member.userId));
-  return {
-    ...league,
-    selectedPhaseKey,
-    phaseOptions,
-    members: buildRankedMembers(refreshedMembers, selectedPhaseKey, ledger)
-  } satisfies LeagueEntry;
-}
-
 async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) {
-  const phaseOptions = await getLeaguePhaseOptions(env);
+  const phaseOptions = await getStandingPhaseOptions(env);
   const selectedPhaseKey = phaseOptions.some((option) => option.key === requestedPhaseKey)
     ? String(requestedPhaseKey)
     : "overall";
@@ -1342,15 +1309,38 @@ export default {
               total: state.totalTransfers,
               rosterValue: state.rosterValue,
               bank: state.bank
-            },
-            leagues: {
-              global: [],
-              privateClassic: []
             }
           },
           { status: 200 },
           env
         );
+      }
+
+      if (pathname === "/api/profile/team-name" && request.method === "PUT") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        const body = await parseJsonBody<{ teamName?: string }>(request);
+        const teamName = String(body.teamName ?? "").trim();
+
+        if (!teamName) {
+          return json({ message: "Team name is required." }, { status: 400 }, env);
+        }
+
+        if (teamName.length > 30) {
+          return json({ message: "Team name must be 30 characters or fewer." }, { status: 400 }, env);
+        }
+
+        const state = await safeLoadState(env, auth.authUser.id);
+        if (!state) {
+          return json({ message: "User state not found." }, { status: 500 }, env);
+        }
+
+        state.teamName = teamName;
+        await saveStateForUser(env, auth.authUser.id, state);
+        return json({ teamName: state.teamName }, { status: 200 }, env);
       }
 
       if (pathname === "/api/lineup" && request.method === "GET") {
@@ -1649,115 +1639,6 @@ export default {
             })
           },
           { status: 200 },
-          env
-        );
-      }
-
-      if (pathname === "/api/leagues" && request.method === "GET") {
-        const auth = await requireAuth(request, env);
-        if (!auth.ok) {
-          return auth.response;
-        }
-
-        const state = await safeLoadState(env, auth.authUser.id);
-        if (!state) {
-          return json({ message: "User state not found." }, { status: 500 }, env);
-        }
-
-        return json(
-          {
-            privateClassic: await listPrivateLeaguesForUser(env, auth.authUser.id),
-            publicClassic: [],
-            global: []
-          },
-          { status: 200 },
-          env
-        );
-      }
-
-      const leagueMatch = pathname.match(/^\/api\/leagues\/([^/]+)$/);
-      if (leagueMatch && request.method === "GET") {
-        const auth = await requireAuth(request, env);
-        if (!auth.ok) {
-          return auth.response;
-        }
-
-        const state = await safeLoadState(env, auth.authUser.id);
-        if (!state) {
-          return json({ message: "User state not found." }, { status: 500 }, env);
-        }
-
-        const leagues = await listPrivateLeaguesForUser(env, auth.authUser.id);
-        const league = leagues.find((item) => item.id === String(leagueMatch[1]));
-        if (!league) {
-          return json({ message: "League not found." }, { status: 404 }, env);
-        }
-
-        return json(
-          { league: await buildLeagueDetailPayload(env, league, url.searchParams.get("phase")) },
-          { status: 200 },
-          env
-        );
-      }
-
-      if (pathname === "/api/leagues/create" && request.method === "POST") {
-        const auth = await requireAuth(request, env);
-        if (!auth.ok) {
-          return auth.response;
-        }
-
-        const body = await parseJsonBody<{ name?: string }>(request);
-        const name = String(body.name ?? "").trim();
-
-        if (!name) {
-          return json({ message: "League name is required." }, { status: 400 }, env);
-        }
-
-        if (name.length > 30) {
-          return json({ message: "League name must be 30 characters or fewer." }, { status: 400 }, env);
-        }
-
-        try {
-          const league = await createPrivateLeague(env, auth.authUser.id, name);
-          return json(
-            {
-              league,
-              leagues: {
-                privateClassic: await listPrivateLeaguesForUser(env, auth.authUser.id),
-                publicClassic: [],
-                global: []
-              }
-            },
-            { status: 201 },
-            env
-          );
-        } catch (error) {
-          return json({ message: error instanceof Error ? error.message : "Failed to create league." }, { status: 500 }, env);
-        }
-      }
-
-      if (pathname === "/api/leagues/join" && request.method === "POST") {
-        const auth = await requireAuth(request, env);
-        if (!auth.ok) {
-          return auth.response;
-        }
-
-        const body = await parseJsonBody<{ code?: string }>(request);
-        const result = await joinPrivateLeague(env, auth.authUser.id, String(body.code ?? ""));
-        if (!result.ok) {
-          return json({ message: result.error }, { status: 400 }, env);
-        }
-
-        return json(
-          {
-            league: result.league,
-            leagues: {
-              privateClassic: await listPrivateLeaguesForUser(env, auth.authUser.id),
-              publicClassic: [],
-              global: []
-            }
-          },
-          { status: 201 },
           env
         );
       }

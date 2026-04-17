@@ -12,7 +12,7 @@ The user-facing gameplay stays the same:
 - line-up editing
 - points view
 - transactions
-- private leagues
+- standings
 - schedule
 - help / rules
 

@@ -168,7 +168,7 @@ export interface EditablePeriodContext {
   };
 }
 
-export interface LeagueMemberEntry {
+export interface StandingMemberEntry {
   userId: string;
   gameId: string;
   teamName: string;
@@ -180,22 +180,9 @@ export interface LeagueMemberEntry {
   totalPoints: number;
 }
 
-export interface LeaguePhaseOption {
+export interface StandingPhaseOption {
   key: string;
   label: string;
-}
-
-export interface LeagueEntry {
-  id: string;
-  name: string;
-  code?: string;
-  rank: number;
-  lastRank: number;
-  memberCount?: number;
-  isOwner?: boolean;
-  selectedPhaseKey?: string;
-  phaseOptions?: LeaguePhaseOption[];
-  members?: LeagueMemberEntry[];
 }
 
 export interface TransactionsPayload {

@@ -1,9 +1,6 @@
 import {
   AuthUser,
   HelpResponse,
-  LeagueDetailResponse,
-  LeagueMutationResponse,
-  LeaguesResponse,
   LineupResponse,
   LoginResponse,
   PlayerSearchResponse,
@@ -12,7 +9,8 @@ import {
   RegisterResponse,
   ScheduleResponse,
   StandingResponse,
-  TransactionsResponse
+  TransactionsResponse,
+  UpdateTeamNameResponse
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8787/api";
@@ -64,6 +62,13 @@ export function getMe() {
 
 export function getProfile() {
   return request<ProfileResponse>("/profile");
+}
+
+export function updateTeamName(teamName: string) {
+  return request<UpdateTeamNameResponse>("/profile/team-name", {
+    method: "PUT",
+    body: JSON.stringify({ teamName })
+  });
 }
 
 export function getLineup() {
@@ -141,20 +146,6 @@ export function confirmTransactions(
   });
 }
 
-export function getLeagues() {
-  return request<LeaguesResponse>("/leagues");
-}
-
-export function getLeague(leagueId: string, phase?: string) {
-  const query = new URLSearchParams();
-  if (phase) {
-    query.set("phase", phase);
-  }
-
-  const queryString = query.toString();
-  return request<LeagueDetailResponse>(`/leagues/${leagueId}${queryString ? `?${queryString}` : ""}`);
-}
-
 export function getStandings(phase?: string) {
   const query = new URLSearchParams();
   if (phase) {
@@ -172,20 +163,6 @@ export function getStandingPreview(userId: string, phase?: string) {
     query.set("phase", phase);
   }
   return request<PointsResponse>(`/standings/preview?${query.toString()}`);
-}
-
-export function createLeague(name: string) {
-  return request<LeagueMutationResponse>("/leagues/create", {
-    method: "POST",
-    body: JSON.stringify({ name })
-  });
-}
-
-export function joinLeague(code: string) {
-  return request<LeagueMutationResponse>("/leagues/join", {
-    method: "POST",
-    body: JSON.stringify({ code })
-  });
 }
 
 export function getSchedule() {

@@ -83,10 +83,10 @@ export interface ProfileResponse {
     rosterValue: number;
     bank: number;
   };
-  leagues: {
-    global: LeagueEntry[];
-    privateClassic: LeagueEntry[];
-  };
+}
+
+export interface UpdateTeamNameResponse {
+  teamName: string;
 }
 
 export interface PointsResponse {
@@ -169,20 +169,7 @@ export interface TransactionsResponse {
   market: TransferMarketPlayer[];
 }
 
-export interface LeagueEntry {
-  id: string;
-  name: string;
-  code?: string;
-  rank: number;
-  lastRank: number;
-  memberCount?: number;
-  isOwner?: boolean;
-  selectedPhaseKey?: string;
-  phaseOptions?: LeaguePhaseOption[];
-  members?: LeagueMemberEntry[];
-}
-
-export interface LeagueMemberEntry {
+export interface StandingMemberEntry {
   userId: string;
   gameId: string;
   teamName: string;
@@ -194,34 +181,15 @@ export interface LeagueMemberEntry {
   totalPoints: number;
 }
 
-export interface LeaguePhaseOption {
+export interface StandingPhaseOption {
   key: string;
   label: string;
 }
 
-export interface LeaguesResponse {
-  privateClassic: LeagueEntry[];
-  publicClassic: LeagueEntry[];
-  global: LeagueEntry[];
-}
-
-export interface LeagueMutationResponse {
-  league: {
-    id: string;
-    name: string;
-    code: string;
-  };
-  leagues: LeaguesResponse;
-}
-
-export interface LeagueDetailResponse {
-  league: LeagueEntry;
-}
-
 export interface StandingResponse {
   selectedPhaseKey: string;
-  phaseOptions: LeaguePhaseOption[];
-  members: LeagueMemberEntry[];
+  phaseOptions: StandingPhaseOption[];
+  members: StandingMemberEntry[];
 }
 
 export interface ScheduleGame {
