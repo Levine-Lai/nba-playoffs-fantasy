@@ -348,5 +348,5 @@ export function replacePlayerForState(params: {
 }
 
 function gameweekLabelFromWindow(transferWindow: TransferWindowContext) {
-  return transferWindow.label === "Round 1" ? "Round 1 Day 1" : transferWindow.label;
+  return transferWindow.label;
 }

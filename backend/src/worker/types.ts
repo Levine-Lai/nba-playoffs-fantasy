@@ -95,7 +95,7 @@ export interface StoredLineupSnapshot {
 }
 
 export interface TransferWindowSnapshot {
-  windowKey: string;
+  periodKey: string;
   lineup: StoredLineupSnapshot;
   history: TransferHistoryItem[];
   totalTransfers: number;

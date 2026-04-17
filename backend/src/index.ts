@@ -114,7 +114,7 @@ async function getInitialBudget(env: Env) {
 }
 
 async function getWeeklyFreeTransfers(env: Env) {
-  return Number((await getRuleValue(env, "weekly_free_transfers", "2")) ?? "2");
+  return Number((await getRuleValue(env, "weekly_free_transfers", "3")) ?? "3");
 }
 
 async function getFirstDeadline(env: Env) {
@@ -153,8 +153,10 @@ function cloneTransferWindowSnapshot(snapshot: TransferWindowSnapshot | null | u
     return null;
   }
 
+  const periodKey = (snapshot as TransferWindowSnapshot & { windowKey?: string | null }).periodKey ?? (snapshot as { windowKey?: string | null }).windowKey ?? "";
+
   return {
-    windowKey: snapshot.windowKey,
+    periodKey,
     lineup: {
       starters: snapshot.lineup.starters.map(clonePlayer),
       bench: snapshot.lineup.bench.map(clonePlayer),
@@ -167,17 +169,21 @@ function cloneTransferWindowSnapshot(snapshot: TransferWindowSnapshot | null | u
   };
 }
 
-function buildTransferWindowSnapshot(state: UserState, windowKey: string): TransferWindowSnapshot {
+function buildTransferWindowSnapshot(state: UserState, periodKey: string): TransferWindowSnapshot {
   return {
-    windowKey,
+    periodKey,
     lineup: buildStoredLineupSnapshot(state),
     history: state.history.map((item) => ({ ...item })),
     totalTransfers: Number(state.totalTransfers ?? 0)
   };
 }
 
-function getWindowSnapshotForContext(chips: UserChipsState, windowKey: string) {
-  if (chips.transferWindowSnapshot?.windowKey !== windowKey) {
+function getWindowSnapshotForContext(chips: UserChipsState, periodKey: string) {
+  const snapshotPeriodKey =
+    (chips.transferWindowSnapshot as (TransferWindowSnapshot & { windowKey?: string | null }) | null | undefined)?.periodKey ??
+    (chips.transferWindowSnapshot as { windowKey?: string | null } | null | undefined)?.windowKey ??
+    null;
+  if (snapshotPeriodKey !== periodKey) {
     return null;
   }
 
@@ -443,25 +449,36 @@ async function syncLeaguePointsLedger(
   return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
 }
 
-async function appendLeaguePointsAdjustment(
+async function syncLeaguePointsAdjustment(
   env: Env,
   userId: string | number,
   adjustment: {
+    key: string;
     label: string;
     roundNumber: number;
     dayNumber: number;
     points: number;
-    keyPrefix: string;
   }
 ) {
   const numericPoints = Number(adjustment.points ?? 0);
   const ledger = await readLeaguePointsLedger(env);
   const userKey = String(userId);
-  const entryKey = `${adjustment.keyPrefix}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
   const existingUserLedger = ledger[userKey] ?? {};
+  const entryKey = adjustment.key;
+  const baseEntries = Object.fromEntries(
+    Object.entries(existingUserLedger).filter(([key]) => key !== entryKey && !key.startsWith(`${entryKey}:`))
+  );
+
+  if (numericPoints === 0) {
+    if (Object.keys(baseEntries).length !== Object.keys(existingUserLedger).length) {
+      ledger[userKey] = baseEntries;
+      await writeLeaguePointsLedger(env, ledger);
+    }
+    return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+  }
 
   ledger[userKey] = {
-    ...existingUserLedger,
+    ...baseEntries,
     [entryKey]: {
       periodKey: entryKey,
       label: adjustment.label,
@@ -473,20 +490,6 @@ async function appendLeaguePointsAdjustment(
   };
 
   await writeLeaguePointsLedger(env, ledger);
-  return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
-}
-
-async function removeLeaguePointsAdjustmentsByPrefix(env: Env, userId: string | number, keyPrefix: string) {
-  const ledger = await readLeaguePointsLedger(env);
-  const userKey = String(userId);
-  const existingUserLedger = ledger[userKey] ?? {};
-  const filteredEntries = Object.entries(existingUserLedger).filter(([entryKey]) => !entryKey.startsWith(`${keyPrefix}:`));
-
-  if (filteredEntries.length !== Object.keys(existingUserLedger).length) {
-    ledger[userKey] = Object.fromEntries(filteredEntries);
-    await writeLeaguePointsLedger(env, ledger);
-  }
-
   return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
 }
 
@@ -756,7 +759,7 @@ async function commitTransactionBatch(params: {
   const { env, userId, baseState, chips, editableContext, drafts, requestedChip } = params;
   const activeChip = getActiveTransactionChip(chips, editableContext);
   const activatingChipNow = Boolean(requestedChip && !activeChip);
-  const penaltyKeyPrefix = `penalty:${editableContext.transferWindow.key}`;
+  const penaltyEntryKey = `penalty:${editableContext.transferWindow.key}`;
 
   if (requestedChip && activeChip && requestedChip !== activeChip) {
     return { ok: false as const, error: "Another chip is already active for this deadline." };
@@ -771,12 +774,10 @@ async function commitTransactionBatch(params: {
   }
 
   const effectiveChip = requestedChip ?? activeChip;
-  const currentWindowSnapshot = getWindowSnapshotForContext(chips, editableContext.transferWindow.key);
+  const currentWindowSnapshot = getWindowSnapshotForContext(chips, editableContext.period.key);
   if (activatingChipNow) {
-    restoreTransferWindowBaseline(baseState, currentWindowSnapshot ?? buildTransferWindowSnapshot(baseState, editableContext.transferWindow.key));
+    restoreTransferWindowBaseline(baseState, currentWindowSnapshot ?? buildTransferWindowSnapshot(baseState, editableContext.period.key));
     syncTransferWindowState(baseState, editableContext.transferWindow);
-    const recalculatedPoints = await removeLeaguePointsAdjustmentsByPrefix(env, userId, penaltyKeyPrefix);
-    baseState.overallPoints = Number(recalculatedPoints.toFixed(1));
   }
 
   const workingState = getTransactionsState(baseState, chips, editableContext);
@@ -839,7 +840,6 @@ async function commitTransactionBatch(params: {
     });
   }
 
-  const totalPenalty = Number(historyEntries.reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0).toFixed(1));
   const nextChips: UserChipsState = {
     transferWindowSnapshot: currentWindowSnapshot,
     wildcard: { ...chips.wildcard },
@@ -847,7 +847,7 @@ async function commitTransactionBatch(params: {
   };
 
   if (!effectiveChip && !nextChips.transferWindowSnapshot && drafts.length) {
-    nextChips.transferWindowSnapshot = buildTransferWindowSnapshot(baseState, editableContext.transferWindow.key);
+    nextChips.transferWindowSnapshot = buildTransferWindowSnapshot(baseState, editableContext.period.key);
   }
 
   if (activatingChipNow) {
@@ -877,16 +877,18 @@ async function commitTransactionBatch(params: {
     applyStoredLineupSnapshot(baseState, buildStoredLineupSnapshot(workingState));
   }
 
-  if (totalPenalty !== 0) {
-    const totalPoints = await appendLeaguePointsAdjustment(env, userId, {
-      label: `Transfer penalty for ${editableContext.gameweek.label}`,
-      roundNumber: editableContext.period.roundNumber,
-      dayNumber: editableContext.period.dayNumber,
-      points: totalPenalty,
-      keyPrefix: penaltyKeyPrefix
-    });
-    baseState.overallPoints = Number(totalPoints.toFixed(1));
-  }
+  const transfersUsedThisRound = baseState.history.filter(
+    (item) => item.windowKey === editableContext.transferWindow.key && item.countsTowardLimit !== false
+  ).length;
+  const roundPenalty = editableContext.transferWindow.mode === "LIMITLESS" ? 0 : -100 * Math.max(0, transfersUsedThisRound - editableContext.transferWindow.limit);
+  const totalPoints = await syncLeaguePointsAdjustment(env, userId, {
+    key: penaltyEntryKey,
+    label: `Transfer penalty for ${editableContext.transferWindow.label}`,
+    roundNumber: editableContext.period.roundNumber,
+    dayNumber: editableContext.period.dayNumber,
+    points: roundPenalty
+  });
+  baseState.overallPoints = Number(totalPoints.toFixed(1));
 
   await saveStateForUser(env, userId, baseState);
   await saveUserChipsState(env, userId, nextChips);

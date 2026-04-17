@@ -70,12 +70,12 @@ export default function HelpPage() {
       </section>
 
       <section className="panel">
-        <div className="panel-head">Weekly Flow</div>
+        <div className="panel-head">Playoff Flow</div>
         <div className="panel-body text-sm text-slate-700">
           <ol className="list-decimal space-y-2 pl-5">
-            <li>Open week before deadline and confirm your 10-man lineup.</li>
-            <li>Use free transfers to optimize matchups during each playoff week.</li>
-            <li>Track daily points and league ranking changes.</li>
+            <li>Before each playable gameday deadline, confirm the squad you want counted.</li>
+            <li>Use the shared round transfer allowance to optimize upcoming gamedays.</li>
+            <li>After the deadline, that locked squad becomes the points lineup for the day.</li>
             <li>Repeat until playoffs finish and final rank is locked.</li>
           </ol>
         </div>

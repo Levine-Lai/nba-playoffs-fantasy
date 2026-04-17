@@ -55,10 +55,11 @@ export const HELP_RULES = {
     "Each team starts with 10 players: 5 starters and 5 bench players.",
     "Only starters score full points for the day.",
     "Captain receives 1.5x points multiplier.",
-    "Free transfers refresh every playoff week.",
+    "Free transfers refresh at the start of each playoff round.",
     "Each transfer above the free limit costs -100 points.",
-    "Wildcard can be used once for the whole playoff run and removes transfer penalties before the deadline.",
-    "All-Star can be used once for the whole playoff run, ignores budget for that deadline, and then restores the original squad."
+    "After a gameday deadline, the locked lineup becomes that day's scoring lineup, and the next playable gameday opens for edits.",
+    "Wildcard can be used once for the whole playoff run and removes transfer penalties for that gameday without reverting the confirmed squad.",
+    "All-Star can be used once for the whole playoff run, ignores budget for that gameday, and then restores the original squad."
   ],
   scoringRules: [
     { event: "Point", value: 1 },
@@ -85,7 +86,7 @@ export function buildInitialUserState(gameId: string): UserState {
     bench: [],
     market: [],
     usedThisWeek: 0,
-    weeklyFreeLimit: 2,
+    weeklyFreeLimit: 3,
     totalTransfers: 0,
     rosterValue: 0,
     bank: 100,
