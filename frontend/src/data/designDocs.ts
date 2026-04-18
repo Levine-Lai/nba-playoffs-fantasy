@@ -28,7 +28,7 @@ Recreate the NBA Fantasy playoff look with strong blue and yellow branding, righ
 
 ## Interaction
 - Active tab highlight
-- Captain toggle in lineup page
+- No captain feature in lineup page
 - Transfer action with free-transfer counter`
   },
   {
@@ -180,7 +180,7 @@ Schedule game objects may include \`homeTeam\` and \`awayTeam\` objects with \`n
 - Primary tables:
   - \`users\`: account, game_id, password hash, created time
   - \`sessions\`: login token to user mapping
-  - \`user_states\`: roster, captain, bank, transfers, profile state
+- \`user_states\`: roster, bank, transfers, profile state
 - Quick inspect command:
   - \`npm run db:users\`
 - Optional filter:

@@ -6,7 +6,6 @@ import { Player } from "@/lib/types";
 interface PlayerCardProps {
   player: Player;
   showPoints?: boolean;
-  captain?: boolean;
 }
 
 function shortName(name: string) {
@@ -29,7 +28,7 @@ function useFallbackImage(event: SyntheticEvent<HTMLImageElement>, fallback?: st
   image.hidden = true;
 }
 
-export default function PlayerCard({ player, showPoints, captain }: PlayerCardProps) {
+export default function PlayerCard({ player, showPoints }: PlayerCardProps) {
   const isHot = player.color === "hot";
   const footerValue = showPoints ? (player.pointsWindowKey ? Number(player.points ?? 0).toFixed(1) : "-") : player.salary.toFixed(1);
   const headshotUrl = player.headshotUrl ?? player.headshotFallbackUrl;
@@ -49,12 +48,6 @@ export default function PlayerCard({ player, showPoints, captain }: PlayerCardPr
         />
       ) : null}
       <span className="player-card__team">{player.team}</span>
-
-      {captain ? (
-        <span className="absolute left-8 top-2 z-[3] rounded-sm bg-brand-yellow px-2 py-0.5 text-[0.65rem] font-bold uppercase text-black shadow">
-          Captain
-        </span>
-      ) : null}
 
       <div className="player-card__photo" aria-hidden="true">
         {headshotUrl ? (

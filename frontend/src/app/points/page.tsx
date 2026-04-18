@@ -98,14 +98,14 @@ function PointsPageContent() {
               <div className="court-row court-row--top">
                 {starterFrontCourt.map((player) => (
                   <div key={player.id} className="court-slot">
-                    <CourtPlayerCard player={player} captain={data.lineup.captainId === player.id} showPoints />
+                    <CourtPlayerCard player={player} showPoints />
                   </div>
                 ))}
               </div>
               <div className="court-row court-row--bottom">
                 {starterBackCourt.map((player) => (
                   <div key={player.id} className="court-slot">
-                    <CourtPlayerCard player={player} captain={data.lineup.captainId === player.id} showPoints />
+                    <CourtPlayerCard player={player} showPoints />
                   </div>
                 ))}
               </div>
@@ -118,7 +118,7 @@ function PointsPageContent() {
               <div className="court-bench">
                 {data.lineup.bench.map((player) => (
                   <div key={player.id} className="court-slot">
-                    <CourtPlayerCard player={player} compact showPoints captain={data.lineup.captainId === player.id} />
+                    <CourtPlayerCard player={player} compact showPoints />
                   </div>
                 ))}
               </div>

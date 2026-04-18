@@ -217,7 +217,7 @@ export function createInitialTeam(playerIds: string[]) {
   });
 }
 
-export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captainId?: string; captainDecisionLocked?: boolean }) {
+export function saveLineup(lineup: Pick<LineupResponse["lineup"], "starters" | "bench">) {
   return request<LineupResponse>("/lineup", {
     method: "PUT",
     body: JSON.stringify(lineup)

@@ -1,39 +1,10 @@
 const scoringRules = [
-  {
-    label: "得分",
-    value: "+1",
-    detail: "球员每得到 1 分，Fantasy 记 1 分。"
-  },
-  {
-    label: "篮板",
-    value: "+1",
-    detail: "前场篮板和后场篮板统一按 1 分计算。"
-  },
-  {
-    label: "助攻",
-    value: "+2",
-    detail: "每次助攻记 2 分。"
-  },
-  {
-    label: "抢断",
-    value: "+3",
-    detail: "每次抢断记 3 分。"
-  },
-  {
-    label: "盖帽",
-    value: "+3",
-    detail: "每次盖帽记 3 分。"
-  },
-  {
-    label: "失误",
-    value: "-1",
-    detail: "每次失误扣 1 分。"
-  },
-  {
-    label: "Captain 加成",
-    value: "x1.5",
-    detail: "Captain 必须来自首发 5 人，且只有被计入有效得分时才享受 1.5 倍。"
-  }
+  ["得分", "+1", "每得到 1 分，Fantasy 记 1 分。"],
+  ["篮板", "+1", "前场篮板和后场篮板统一按 1 分计算。"],
+  ["助攻", "+2", "每次助攻记 2 分。"],
+  ["抢断", "+3", "每次抢断记 3 分。"],
+  ["盖帽", "+3", "每次盖帽记 3 分。"],
+  ["失误", "-1", "每次失误扣 1 分。"]
 ] as const;
 
 const transferStages = [
@@ -77,43 +48,33 @@ const transferNotes = [
   "如果递补后只能形成少于 5 人的合法阵型，就按该有效人数计分。"
 ] as const;
 
-function RulePill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold tracking-[0.02em] text-slate-600 sm:text-xs">
-      {children}
-    </span>
-  );
-}
-
 export default function HelpPage() {
   return (
     <div className="space-y-4 sm:space-y-5">
       <section className="panel overflow-hidden">
         <div className="panel-head">计分规则</div>
         <div className="panel-body p-3 sm:p-5">
-          <div className="space-y-2.5 sm:space-y-3">
-            {scoringRules.map((rule) => (
-              <article
-                key={rule.label}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-[15px] font-semibold leading-5 text-slate-900 sm:text-base">{rule.label}</h2>
-                    <p className="mt-1 text-[12.5px] leading-5 text-slate-600 sm:text-sm">{rule.detail}</p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-sm font-bold sm:text-base ${
-                      rule.value.startsWith("-")
-                        ? "bg-rose-50 text-rose-700"
-                        : "bg-emerald-50 text-emerald-700"
-                    }`}
-                  >
-                    {rule.value}
-                  </span>
-                </div>
-              </article>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="table-shell table-fixed">
+              <thead>
+                <tr>
+                  <th className="w-[24%] text-[12px] sm:text-sm">项目</th>
+                  <th className="w-[18%] text-[12px] sm:text-sm">分值</th>
+                  <th className="text-[12px] sm:text-sm">说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoringRules.map(([label, value, detail]) => (
+                  <tr key={label}>
+                    <td className="break-words text-[12px] font-semibold text-slate-900 sm:text-sm">{label}</td>
+                    <td className={`text-[12px] font-bold sm:text-sm ${value.startsWith("-") ? "text-rose-700" : "text-emerald-700"}`}>
+                      {value}
+                    </td>
+                    <td className="break-words text-[12px] leading-5 text-slate-600 sm:text-sm">{detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -141,13 +102,7 @@ export default function HelpPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 sm:px-4 sm:py-4">
-            <div className="flex flex-wrap gap-2">
-              <RulePill>整个季后赛共 6 个 FT</RulePill>
-              <RulePill>FT 用完后每换 1 人 -50</RulePill>
-              <RulePill>WC / AS 仅 Day 1 DDL 后可用</RulePill>
-            </div>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               {chipRules.map((chip) => (
                 <article key={chip.label} className="rounded-xl border border-slate-200 bg-white px-3 py-3">
                   <h3 className="text-sm font-semibold text-slate-900 sm:text-[15px]">{chip.label}</h3>

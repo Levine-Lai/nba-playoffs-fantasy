@@ -71,12 +71,7 @@ function simulateSwitch(lineup: LineupResponse["lineup"], sourceId: string, targ
     return null;
   }
 
-  let captainId = lineup.captainId;
-  if (!starters.some((player) => player.id === captainId)) {
-    captainId = starters[0]?.id ?? "";
-  }
-
-  return { starters, bench, captainId };
+  return { starters, bench, captainId: "" };
 }
 
 export default function EditLineupPage() {
@@ -88,7 +83,6 @@ export default function EditLineupPage() {
   const [playerModalId, setPlayerModalId] = useState<string | null>(null);
   const [switchSourceId, setSwitchSourceId] = useState<string | null>(null);
   const [switchConfirm, setSwitchConfirm] = useState<SwitchConfirm | null>(null);
-  const [captainMode, setCaptainMode] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -166,35 +160,10 @@ export default function EditLineupPage() {
     setPlayerModalId(playerId);
   }
 
-  function markCaptain(playerId: string) {
-    setData((prev) => {
-      if (!prev) {
-        return prev;
-      }
-
-      if (!prev.lineup.starters.some((player) => player.id === playerId)) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        lineup: {
-          ...prev.lineup,
-          captainId: playerId
-        }
-      };
-    });
-    setDirty(true);
-    setCaptainMode(false);
-    setPlayerModalId(null);
-    setFeedback("Captain updated. Click Save to keep this change.");
-  }
-
   function startSwitch(playerId: string) {
     setSwitchSourceId(playerId);
     setSwitchConfirm(null);
     setPlayerModalId(null);
-    setCaptainMode(false);
     const sourcePlayer = lineupPlayers.find((player) => player.id === playerId);
     setFeedback(sourcePlayer ? `Switch mode active for ${sourcePlayer.name}. Click any highlighted card to continue.` : "Switch mode active.");
   }
@@ -230,13 +199,11 @@ export default function EditLineupPage() {
 
     try {
       const next = await saveLineup({
-        captainId: data.lineup.captainId,
         starters: data.lineup.starters,
         bench: data.lineup.bench
       });
       setData(next);
       setDirty(false);
-      setCaptainMode(false);
       clearSwitchFlow();
       setFeedback(`Line-up saved for ${next.gameweek.label}.`);
     } catch (nextError) {
@@ -296,7 +263,6 @@ export default function EditLineupPage() {
               >
                 <CourtPlayerCard
                   player={player}
-                  captain={data.lineup.captainId === player.id}
                   highlighted={switchSourceId === player.id}
                   selectable={switchSourceId ? validSwitchTargets.has(player.id) || switchSourceId === player.id : true}
                   onClick={() => handleCardClick(player.id)}
@@ -312,7 +278,6 @@ export default function EditLineupPage() {
               >
                 <CourtPlayerCard
                   player={player}
-                  captain={data.lineup.captainId === player.id}
                   highlighted={switchSourceId === player.id}
                   selectable={switchSourceId ? validSwitchTargets.has(player.id) || switchSourceId === player.id : true}
                   onClick={() => handleCardClick(player.id)}
@@ -323,50 +288,15 @@ export default function EditLineupPage() {
         </div>
       </section>
 
-      <div className="captain-bar-scroll">
-        <div className="captain-bar">
-          <div className="captain-bar__title">
-            <span>Gameday Captain</span>
-            <span className="court-card__info">i</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              clearSwitchFlow();
-              if (captainMode) {
-                setCaptainMode(false);
-                setFeedback("Captain mode cancelled.");
-                return;
-              }
-
-              if (data.lineup.captainId) {
-                setData((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        lineup: {
-                          ...prev.lineup,
-                          captainId: ""
-                        }
-                      }
-                    : prev
-                );
-                setDirty(true);
-                setFeedback("Captain removed. Click Save to keep the no-captain state.");
-                return;
-              }
-
-              setCaptainMode(true);
-              setFeedback("Captain mode active. Open any starter card and choose Make Captain.");
-            }}
-            className={`captain-bar__button ${captainMode ? "captain-bar__button--active" : ""}`}
-          >
-            {captainMode || data.lineup.captainId ? "Cancel" : "Select Captain"}
-          </button>
-          <button className="captain-bar__button captain-bar__button--save" type="button" onClick={onSave} disabled={!dirty || saving}>
-            {saving ? "Saving..." : dirty ? "Save" : "Saved"}
-          </button>
-        </div>
+      <div className="rounded-md bg-brand-darkBlue p-2">
+        <button
+          className="w-full rounded bg-white px-4 py-3 text-sm font-semibold text-brand-darkBlue"
+          type="button"
+          onClick={onSave}
+          disabled={!dirty || saving}
+        >
+          {saving ? "Saving..." : dirty ? "Save" : "Saved"}
+        </button>
       </div>
 
       <section className="panel overflow-hidden">
@@ -410,11 +340,6 @@ export default function EditLineupPage() {
                 <button type="button" className="lineup-modal__action" onClick={() => startSwitch(actionPlayer.id)}>
                   Switch
                 </button>
-                {captainMode && data.lineup.starters.some((player) => player.id === actionPlayer.id) ? (
-                  <button type="button" className="lineup-modal__action lineup-modal__action--yellow" onClick={() => markCaptain(actionPlayer.id)}>
-                    Make Captain
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   className="lineup-modal__action"

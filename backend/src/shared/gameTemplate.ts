@@ -54,7 +54,6 @@ export const HELP_RULES = {
   rosterRules: [
     "Each team starts with 10 players: 5 starters and 5 bench players.",
     "Only starters score full points for the day.",
-    "Captain receives 1.5x points multiplier.",
     "Playable slates are numbered Day 1, Day 2, and so on until the final playoff game.",
     "Before the first deadline, transfers are unlimited.",
     "After Day 1 starts, every normal transfer costs -50 points for that slate.",

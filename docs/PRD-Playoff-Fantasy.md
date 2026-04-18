@@ -27,7 +27,6 @@ Users set a 10-player squad before playoff rounds, manage transfers across playa
 - Slate Day: every playoff calendar date that has at least one game, numbered globally as `Day 1`, `Day 2`, and so on until the Finals end.
 - Wildcard: one-time playoff chip that allows unlimited pre-deadline transfers with no penalty for that slate day and keeps the confirmed squad afterward.
 - All-Star: one-time playoff chip that allows unlimited pre-deadline transfers with no penalty, ignores budget for that deadline, scores with the temporary squad for that day, then restores the pre-chip squad.
-- Captain: selected player with 1.5x multiplier.
 
 ## 2. Scope
 ### 2.1 MVP Pages
@@ -57,7 +56,6 @@ D --> B
 - Initial roster budget defaults to 100.
 - New accounts start with an empty roster and must create a team before editing lineup, viewing points, or making transfers.
 - 5 starters count toward daily score.
-- Captain receives 1.5x score multiplier.
 - Each playoff slate day is numbered globally from `Day 1` to the last playoff game day.
 - `Day 1` is the official game start. Before its deadline, transfers are unlimited.
 - After `Day 1` starts, every normal transfer costs `-50` points.
@@ -85,7 +83,6 @@ D --> B
 - Show current editable round/day label and deadline.
 - Show starters and bench cards.
 - Show `Next` opponent based on the current editable day; if the player has no game that day, show `-`.
-- Allow captain selection.
 - Save lineup.
 
 ### 3.3 Points
@@ -161,7 +158,6 @@ D --> B
 | userId | number | Yes | Account owner |
 | starters | Player[] | Yes | Starting 5 |
 | bench | Player[] | Yes | Bench 5 |
-| captainId | string | No | Captain player ID |
 | rosterValue | number | Yes | Sum of roster salary |
 | bank | number | Yes | Budget remaining |
 | usedThisWeek | number | Yes | Playoff FT already consumed across the entire postseason |
@@ -186,7 +182,6 @@ D --> B
 - New account starts with empty roster.
 - Initial team builder can create a legal 10-player roster.
 - Illegal initial teams are rejected when over budget or not 5 `BC` + 5 `FC`.
-- Edit line-up can save captain choice.
 - Points are locked before `Day 1` deadline.
 - Points page renders summary and player cards.
 - Transactions are limitless before `Day 1` deadline.

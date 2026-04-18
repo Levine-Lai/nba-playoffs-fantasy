@@ -5,7 +5,6 @@ import { Player } from "@/lib/types";
 
 interface CourtPlayerCardProps {
   player: Player;
-  captain?: boolean;
   compact?: boolean;
   showPoints?: boolean;
   dimmed?: boolean;
@@ -36,7 +35,6 @@ function formatCardName(name: string) {
 
 export default function CourtPlayerCard({
   player,
-  captain,
   compact,
   showPoints,
   dimmed,
@@ -79,7 +77,6 @@ export default function CourtPlayerCard({
     <>
       <div className="court-card__top">
         <span className="court-card__info">i</span>
-        {captain ? <span className="court-card__captain">C</span> : null}
       </div>
 
       <div className="court-card__header">

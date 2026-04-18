@@ -8,7 +8,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Backend lives in `backend/` and runs on Cloudflare Workers + D1.
 - The game is a playoff-only NBA fantasy product with 10-player rosters.
 - The old floating `Design Docs` button is removed from the main app shell and should stay out of the player-facing UI unless explicitly brought back.
-- The `Help` page is now a frontend-owned Chinese rules page with only two mobile-first cards (`计分规则`, `换人与 FT 规则`); do not rely on the old backend English rules payload for user-facing copy.
+- The `Help` page is frontend-owned and now only shows two mobile-first cards: `计分规则` and `换人与 FT 规则`.
 
 ## Naming And Route Conventions
 - User-facing leaderboard language is `Standing`, not `League`.
@@ -24,8 +24,9 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Once those `6` FT are gone, each extra normal transfer costs `-50`.
 - `Wildcard` and `All-Star` must remain locked until after the `Day 1` deadline.
 - Play-in games (`005...`) are excluded from schedule, scoring, and standings logic.
+- There is no captain feature in the game: no captain selection UI, no captain marker, and no captain score multiplier.
+- Fantasy scoring weights are `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`.
 - Standings should display effective scoring, including penalties and valid negative totals.
-- Fantasy scoring weights are `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`, with captain still adding a 1.5x multiplier on that player's counted score.
 - Effective scoring should follow the valid lineup shape rules:
   - Count up to 5 scoring players.
   - Use starters first.
@@ -38,6 +39,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Old `teamName` values that look like `<gameId> Squad` should be treated as legacy defaults and normalized in UI display.
 - Standing rows should highlight the current logged-in user.
 - The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats.
+- `captain_id` still exists in storage only for backward compatibility; gameplay should ignore it.
 
 ## Release Workflow
 - After validating code changes, the agent should push and deploy by default unless the user says not to.

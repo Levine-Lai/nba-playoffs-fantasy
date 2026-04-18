@@ -47,9 +47,7 @@ export function calcFinalPoints(state: UserState) {
 
   const effectivePlayers = buildEffectiveScoringPlayers(state);
   const startersTotal = effectivePlayers.reduce((sum, item) => sum + Number(item.points ?? 0), 0);
-  const captain = effectivePlayers.find((item) => item.id === state.captainId) ?? null;
-  const captainBonus = captain ? Number(captain.points ?? 0) * 0.5 : 0;
-  return Number((startersTotal + captainBonus).toFixed(1));
+  return Number(startersTotal.toFixed(1));
 }
 
 function buildEffectiveScoringPlayers(state: UserState) {
@@ -213,7 +211,7 @@ export function buildLineupPayload(params: {
     lineup: {
       starters: withVisiblePoints(state.starters, beforeFirstDeadline),
       bench: withVisiblePoints(state.bench, beforeFirstDeadline),
-      captainId: state.captainId
+      captainId: ""
     },
     transactions: {
       transferMode: transferWindow.mode,
@@ -254,7 +252,7 @@ export function buildTransactionsPayload(params: {
     lineup: {
       starters: withVisiblePoints(state.starters, beforeFirstDeadline),
       bench: withVisiblePoints(state.bench, beforeFirstDeadline),
-      captainId: state.captainId
+      captainId: ""
     },
     market: withVisiblePoints(market, beforeFirstDeadline)
   };

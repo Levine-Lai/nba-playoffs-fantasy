@@ -348,7 +348,7 @@ function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: strin
     lineup: {
       starters,
       bench,
-      captainId: state.captainId
+      captainId: ""
     }
   };
 }
@@ -707,9 +707,6 @@ function replaceRosterPlayerByIdentity(state: UserState, currentPlayerId: string
 
     const previous = pool[index];
     pool[index] = clonePlayer(replacement);
-    if (state.captainId === previous.id) {
-      state.captainId = replacement.id;
-    }
     return true;
   };
 
@@ -812,7 +809,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
         lineup: {
           starters: withVisiblePoints(state.starters, true),
           bench: withVisiblePoints(state.bench, true),
-          captainId: state.captainId
+          captainId: ""
         },
         viewer
       }
@@ -1407,7 +1404,6 @@ export default {
         const body = await parseJsonBody<{
           starters?: Player[];
           bench?: Player[];
-          captainId?: string;
         }>(request);
 
         const proposedStarters = Array.isArray(body.starters) ? body.starters : state.starters;
@@ -1431,14 +1427,9 @@ export default {
           return json({ message: "Line-up save can only reorder players already in your roster." }, { status: 400 }, env);
         }
 
-        const proposedCaptainId = body.captainId ?? state.captainId;
-        if (proposedCaptainId && !proposedStarters.some((player) => player.id === proposedCaptainId)) {
-          return json({ message: "Captain must be selected from your Starting 5." }, { status: 400 }, env);
-        }
-
         state.starters = proposedStarters;
         state.bench = proposedBench;
-        state.captainId = proposedCaptainId ?? "";
+        state.captainId = "";
         state.captainDecisionLocked = false;
 
         await saveStateForUser(env, auth.authUser.id, state);

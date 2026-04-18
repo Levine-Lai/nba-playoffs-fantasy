@@ -892,7 +892,7 @@ async function buildFantasyPointsPreviewForSlate(
     lineup: {
       starters,
       bench,
-      captainId: state.captainId
+      captainId: ""
     },
     finalPoints,
     period: {
