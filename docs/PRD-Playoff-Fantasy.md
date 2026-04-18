@@ -58,7 +58,8 @@ D --> B
 - 5 starters count toward daily score.
 - Each playoff slate day is numbered globally from `Day 1` to the last playoff game day.
 - `Day 1` is the official game start. Before its deadline, transfers are unlimited.
-- After `Day 1` starts, every normal transfer costs `-50` points.
+- After the `Day 1` deadline, each team gets `6` total free transfers for the full playoffs.
+- Once those `6` free transfers are gone, each extra normal transfer costs `-50` points.
 - Transfer penalties only hit standings after that slate deadline passes.
 - Wildcard and All-Star are each available once per account for the full playoff run.
 - Each playable day has a deadline 30 minutes before the first game of that day.

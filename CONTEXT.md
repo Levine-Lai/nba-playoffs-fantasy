@@ -8,7 +8,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Backend lives in `backend/` and runs on Cloudflare Workers + D1.
 - The game is a playoff-only NBA fantasy product with 10-player rosters.
 - The old floating `Design Docs` button is removed from the main app shell and should stay out of the player-facing UI unless explicitly brought back.
-- The `Help` page is frontend-owned and now only shows a single `计分规则` table card.
+- The `Help` page is frontend-owned and should show both playoff-rule bullets and the scoring table.
 
 ## Naming And Route Conventions
 - User-facing leaderboard language is `Standing`, not `League`.
@@ -23,6 +23,8 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - After the `Day 1` deadline, each team gets `6` total playoff FT for the entire postseason.
 - Once those `6` FT are gone, each extra normal transfer costs `-50`.
 - `Wildcard` and `All-Star` must remain locked until after the `Day 1` deadline.
+- Each manager has one `Wildcard` and one `All-Star` chip for the full playoff run, matching regular-season chip behavior.
+- There is no per-team player cap during the playoffs.
 - Play-in games (`005...`) are excluded from schedule, scoring, and standings logic.
 - There is no captain feature in the game: no captain selection UI, no captain marker, and no captain score multiplier.
 - Fantasy scoring weights are `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`.

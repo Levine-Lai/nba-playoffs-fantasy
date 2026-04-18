@@ -53,14 +53,18 @@ export const SCHEDULE = {
 export const HELP_RULES = {
   rosterRules: [
     "Each team starts with 10 players: 5 starters and 5 bench players.",
+    "Initial roster build must contain 5 BC and 5 FC players.",
+    "There is no per-team player cap during the playoffs.",
     "Only starters score full points for the day.",
     "Playable slates are numbered Day 1, Day 2, and so on until the final playoff game.",
-    "Before the first deadline, transfers are unlimited.",
-    "After Day 1 starts, every normal transfer costs -50 points for that slate.",
+    "Before the Day 1 deadline, transfers are unlimited setup moves.",
+    "After the Day 1 deadline, each team gets 6 free transfers for the entire playoffs.",
+    "Once those 6 playoff free transfers are gone, each extra normal transfer costs -50 points.",
     "Transfer penalties appear in standings only after that slate deadline has passed.",
     "After a gameday deadline, the locked lineup becomes that day's scoring lineup, and the next playable gameday opens for edits.",
-    "Wildcard can be used once for the whole playoff run and removes transfer penalties for that gameday without reverting the confirmed squad.",
-    "All-Star can be used once for the whole playoff run, ignores budget for that gameday, and then restores the original squad."
+    "Each manager has one Wildcard and one All-Star chip for the playoff run.",
+    "Wildcard follows the regular-season behavior: transfers for that gameday are free and the confirmed squad stays after the deadline.",
+    "All-Star follows the regular-season behavior: transfers are free, budget is ignored for that gameday, and the original squad is restored after the deadline."
   ],
   scoringRules: [
     { event: "Point", value: 1 },
