@@ -178,6 +178,7 @@ export interface StandingMemberEntry {
   phasePoints?: number;
   gamedayPoints: number;
   totalPoints: number;
+  totalTransfers: number;
 }
 
 export interface StandingPhaseOption {

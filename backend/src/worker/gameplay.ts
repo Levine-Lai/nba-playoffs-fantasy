@@ -159,12 +159,20 @@ function countsTowardSeasonFreeTransfer(item: TransferHistoryItem) {
   return item.countsTowardLimit === true && Number(item.cost ?? 0) === 0;
 }
 
+export function isUnlimitedSetupTransfer(item: TransferHistoryItem) {
+  return String(item.note ?? "").startsWith("Unlimited before ");
+}
+
 function countUsedSeasonFreeTransfers(history: TransferHistoryItem[]) {
   return history.filter(countsTowardSeasonFreeTransfer).length;
 }
 
 function countRemainingSeasonFreeTransfers(history: TransferHistoryItem[], totalFreeTransfers: number) {
   return Math.max(0, Number(totalFreeTransfers ?? 0) - countUsedSeasonFreeTransfers(history));
+}
+
+export function countTrackedTotalTransfers(history: TransferHistoryItem[]) {
+  return history.filter((item) => !isUnlimitedSetupTransfer(item)).length;
 }
 
 export function isValidStarterMix(starters: Player[]) {
@@ -431,7 +439,6 @@ export function replacePlayerForState(params: {
     return applied;
   }
 
-  state.totalTransfers += 1;
   const freeTransfersLeft = countRemainingSeasonFreeTransfers(state.history, transferWindow.limit);
   const usesFreeTransfer = transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && freeTransfersLeft > 0;
   state.usedThisWeek = countUsedSeasonFreeTransfers(state.history) + (usesFreeTransfer ? 1 : 0);
@@ -458,6 +465,7 @@ export function replacePlayerForState(params: {
   };
 
   state.history.unshift(record);
+  state.totalTransfers = countTrackedTotalTransfers(state.history);
 
   return {
     ok: true as const,

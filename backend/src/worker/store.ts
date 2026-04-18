@@ -1,10 +1,12 @@
 import { buildInitialUserState } from "../shared/gameTemplate";
 import { buildPlayoffPeriods, findEditablePlayoffPeriod, isPostseasonGameId, normalizeScheduleDateKey } from "../shared/scheduleUtils";
+import { countTrackedTotalTransfers } from "./gameplay";
 import type {
   AuthUser,
   Env,
   NextMatchup,
   Player,
+  TransferHistoryItem,
   UserChipsState,
   PublicUser,
   StandingMemberEntry,
@@ -380,6 +382,8 @@ export async function getStateForUser(env: Env, userId: string | number) {
     return null;
   }
 
+  const history = safeJsonParse(row.historyJson, []);
+
   return {
     teamName: row.teamName,
     managerName: row.managerName,
@@ -395,14 +399,15 @@ export async function getStateForUser(env: Env, userId: string | number) {
     market: safeJsonParse<Player[]>(row.marketJson, []),
     usedThisWeek: Number(row.usedThisWeek ?? 0),
     weeklyFreeLimit: Number(row.weeklyFreeLimit ?? 0),
-    totalTransfers: Number(row.totalTransfers ?? 0),
+    totalTransfers: countTrackedTotalTransfers(history),
     rosterValue: Number(row.rosterValue ?? 0),
     bank: Number(row.bank ?? 0),
-    history: safeJsonParse(row.historyJson, [])
+    history
   } satisfies UserState;
 }
 
 export async function saveStateForUser(env: Env, userId: string | number, state: UserState) {
+  state.totalTransfers = countTrackedTotalTransfers(state.history);
   await run(
     env,
     `
@@ -642,6 +647,7 @@ export async function listStandingMembers(env: Env) {
     managerName: string;
     overallPoints: number;
     gamedayPoints: number;
+    historyJson: string;
   }>(
     env,
     `
@@ -651,14 +657,16 @@ export async function listStandingMembers(env: Env) {
         s.team_name AS teamName,
         s.manager_name AS managerName,
         s.overall_points AS overallPoints,
-        s.gameday_points AS gamedayPoints
+        s.gameday_points AS gamedayPoints,
+        s.history_json AS historyJson
       FROM users u
       JOIN user_states s ON s.user_id = u.id
-      ORDER BY s.overall_points DESC, u.game_id COLLATE NOCASE ASC
+      ORDER BY s.overall_points DESC, s.team_name COLLATE NOCASE ASC, u.game_id COLLATE NOCASE ASC
     `
   );
 
   return rows.map((row, index) => {
+    const history = safeJsonParse<TransferHistoryItem[]>(row.historyJson, []);
     return {
       userId: String(row.userId),
       gameId: row.gameId,
@@ -666,7 +674,8 @@ export async function listStandingMembers(env: Env) {
       managerName: row.managerName,
       rank: index + 1,
       gamedayPoints: Number(row.gamedayPoints ?? 0),
-      totalPoints: Number(row.overallPoints ?? 0)
+      totalPoints: Number(row.overallPoints ?? 0),
+      totalTransfers: countTrackedTotalTransfers(history)
     } satisfies StandingMemberEntry;
   });
 }

@@ -6,6 +6,7 @@ import {
   buildStoredLineupSnapshot,
   buildTransactionsPayload,
   calcFinalPoints,
+  countTrackedTotalTransfers,
   createInitialTeamForState,
   getDisplayProfileState,
   getRosterPlayers,
@@ -542,6 +543,15 @@ function countPenaltyTransfersForPeriod(history: TransferHistoryItem[], periodKe
   return history.filter((item) => item.windowKey === periodKey && Number(item.cost ?? 0) < 0).length;
 }
 
+function compareStandingIdentity(left: StandingMemberEntry, right: StandingMemberEntry) {
+  const teamNameDiff = String(left.teamName ?? "").localeCompare(String(right.teamName ?? ""), undefined, { sensitivity: "base" });
+  if (teamNameDiff !== 0) {
+    return teamNameDiff;
+  }
+
+  return String(left.gameId ?? "").localeCompare(String(right.gameId ?? ""), undefined, { sensitivity: "base" });
+}
+
 function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
   const overallMembers = members
     .map((member) => {
@@ -561,7 +571,12 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
         return pointsDiff;
       }
 
-      return String(left.gameId).localeCompare(String(right.gameId), undefined, { sensitivity: "base" });
+      const transferDiff = Number(left.totalTransfers ?? 0) - Number(right.totalTransfers ?? 0);
+      if (transferDiff !== 0) {
+        return transferDiff;
+      }
+
+      return compareStandingIdentity(left, right);
     })
     .map((member, index) => ({
       ...member,
@@ -595,7 +610,12 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
         return totalDiff;
       }
 
-      return String(left.gameId).localeCompare(String(right.gameId), undefined, { sensitivity: "base" });
+      const transferDiff = Number(left.totalTransfers ?? 0) - Number(right.totalTransfers ?? 0);
+      if (transferDiff !== 0) {
+        return transferDiff;
+      }
+
+      return compareStandingIdentity(left, right);
     })
     .map((member, index) => ({
       ...member,
@@ -699,6 +719,7 @@ async function syncProfileStandingState(env: Env, userId: string | number, state
 
   state.overallRank = currentMember?.rank ?? 0;
   state.totalPlayers = rankedMembers.length;
+  state.totalTransfers = countTrackedTotalTransfers(state.history);
   return {
     overallRank: state.overallRank,
     totalPlayers: state.totalPlayers
@@ -1035,8 +1056,8 @@ async function commitTransactionBatch(params: {
     nextChips.allStar.activeLineup = buildStoredLineupSnapshot(workingState);
   }
 
-  baseState.totalTransfers += drafts.length;
   baseState.history = [...historyEntries.reverse(), ...baseState.history];
+  baseState.totalTransfers = countTrackedTotalTransfers(baseState.history);
   syncTransferWindowState(baseState, editableContext.transferWindow);
 
   if (effectiveChip !== "all-star") {

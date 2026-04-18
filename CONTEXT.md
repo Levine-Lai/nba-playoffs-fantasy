@@ -19,6 +19,7 @@ This file is the project's cross-conversation memory. Update it after every mean
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是实际季后赛揭幕日，日期为 `2026-04-18`。
 - `Points` stay hidden until the `Day 1` deadline passes. / 在 `Day 1` 截止前，`Points` 保持隐藏。
 - Before the `Day 1` deadline, transfers are unlimited setup moves and do not consume playoff FT. / 在 `Day 1` 截止前，转会属于不限次数的建队调整，不消耗季后赛 FT。
+- Before the `Day 1` deadline, transfers also do not count toward `Total transactions`. / 在 `Day 1` 截止前，转会也不计入 `Total transactions`。
 - After the `Day 1` deadline, each team gets `6` total playoff FT for the entire postseason. / `Day 1` 截止后，每支队伍整个季后赛总共只有 `6` 次 FT。
 - Once those `6` FT are gone, each extra normal transfer costs `-50`. / `6` 次 FT 用完后，每一次额外普通转会扣 `-50`。
 - `Wildcard` and `All-Star` must remain locked until after the `Day 1` deadline. / `Wildcard` 和 `All-Star` 必须在 `Day 1` 截止后才解锁。
@@ -38,9 +39,12 @@ This file is the project's cross-conversation memory. Update it after every mean
 - Standing rows should highlight the current logged-in user. / 排名列表中应高亮当前登录用户。
 - The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats. / 右侧个人信息面板故意隐藏 `Total Players` 和 `Standard transfer cost`，让信息区域聚焦在可操作数据上。
 - On the transactions page, player-selection rows should open the candidate modal from the whole row, not just the headshot, and when both FC and BC replacement slots are open the picker should allow any player and auto-assign to the matching position slot. / 在 transactions 页面里，`Player Selection` 的整行都应能打开候选球员弹窗，而不只是头像；当 FC 和 BC 替换槽同时打开时，选择器应允许点击任意球员，并自动分配到对应位置的空槽。
+- On the transactions page, the main submit button should turn yellow whenever there are unconfirmed transfer drafts, and stay in its default style when the roster is unchanged. / 在 transactions 页面里，只要存在未确认的转会草稿，主提交按钮就应变成黄色；如果阵容仍未变动，则保持默认样式。
+- On the transactions summary cards, keep `FT Used` and remove the separate `FT Remaining` card to avoid duplicate FT information. / 在 transactions 顶部摘要卡片里，保留 `FT Used`，去掉单独的 `FT Remaining` 卡片，避免 FT 信息重复展示。
 - `captain_id` still exists in storage only for backward compatibility; gameplay should ignore it. / `captain_id` 仍保留在存储层，仅用于兼容历史数据；玩法逻辑应忽略它。
 - The current local SQLite DB and remote D1 DB were manually cleaned down to a single surviving account: `Test1`. / 当前本地 SQLite 和远程 D1 数据库都曾手动清理到仅保留一个账号：`Test1`。
 - Batch transfer budget validation now uses the final post-confirm roster total instead of failing on an intermediate upgrade step before a balancing downgrade. / 批量转会的预算校验现在基于确认后的最终阵容总价，而不是在中途先升级后降级的过程中提前失败。
+- Standing tie-breaks now work as: higher points first, then fewer `Total transactions`, then alphabetical order by displayed team identity. Existing player totals are normalized from transfer history so pre-`Day 1` setup moves no longer count. / standing 的同分排序现在是：先比积分高低，再比 `Total transactions` 更少者优先，最后按展示队名的字母顺序排序。现有玩家的总转会数会根据转会历史自动归一化，因此 `Day 1` 前的建队转会不再计入。
 - Because the site is now live with real players, any future change that could impact existing live data or alter a current player's game progress must be surfaced before implementation and requires explicit user approval; pure UI or interaction changes are exempt. / 由于网站已正式上线且已有真实玩家参与，今后任何可能影响线上现有数据或改变玩家游戏进程的修改，都必须在实施前先提示并获得用户明确同意；纯 UI 或交互调整不受此限制。
 - `Agents.md` and `CONTEXT.md` are now maintained bilingually; future additions and edits must include both Chinese and English. / `Agents.md` 和 `CONTEXT.md` 现已改为双语维护；后续新增和修改都必须同时提供中英文。
 

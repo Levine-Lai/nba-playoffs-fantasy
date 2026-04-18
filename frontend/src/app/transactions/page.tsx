@@ -331,6 +331,7 @@ export default function TransactionsPage() {
     data && data.transferMode !== "LIMITLESS" && !effectiveChip ? Math.max(0, pendingDrafts.length - freeTransfersRemaining) : 0;
   const transferCost = -50 * penalizedDraftCount;
   const chipOnlyActivation = Boolean(chipDraft && pendingDrafts.length === 0);
+  const hasPendingTransferDrafts = pendingDrafts.length > 0;
   const canSubmit = Boolean(
     !submitting &&
       (chipOnlyActivation || (allDraftsFilled && (effectiveChip === "all-star" || projectedBank >= 0)))
@@ -591,11 +592,7 @@ export default function TransactionsPage() {
               </p>
             )}
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
-                <span>FT Remaining</span>
-                <strong>{freeTransfersRemaining}</strong>
-              </article>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
                 <span>FT Used</span>
                 <strong>
@@ -691,7 +688,11 @@ export default function TransactionsPage() {
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="mx-auto w-full max-w-[470px] rounded-sm border border-slate-700 bg-white px-6 py-3 text-[1.05rem] font-semibold text-black disabled:opacity-50"
+                className={`mx-auto w-full max-w-[470px] rounded-sm border px-6 py-3 text-[1.05rem] font-semibold disabled:opacity-50 ${
+                  hasPendingTransferDrafts
+                    ? "border-[#efc21d] bg-[#ffde58] text-black"
+                    : "border-slate-700 bg-white text-black"
+                }`}
               >
                 {submitting ? (chipOnlyActivation ? "Activating Chip..." : "Making Transaction...") : chipOnlyActivation ? "Activate Chip" : "Make Transactions"}
               </button>
