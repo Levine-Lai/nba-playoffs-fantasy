@@ -9,7 +9,7 @@ import {
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
 import { calcFinalPoints } from "./gameplay";
-import { buildNextMatchupByTeamFromCache, getStoredScheduleCache, toTeamAsset } from "./store";
+import { buildNextMatchupByTeamFromCache, getRuleValue, getStoredScheduleCache, toTeamAsset } from "./store";
 import type {
   EditablePeriodContext,
   Env,
@@ -616,10 +616,11 @@ function buildEditableContextFromGames(
 }
 
 export async function getEditablePeriodContext(env: Env, fallbackDeadline: string): Promise<EditablePeriodContext> {
+  const seasonFreeTransfers = Number((await getRuleValue(env, "weekly_free_transfers", "6")) ?? "6");
   try {
     const officialGames = await getOfficialScheduleGames(env);
     if (officialGames.length) {
-      return buildEditableContextFromGames(
+      const context = buildEditableContextFromGames(
         officialGames.map((game) => ({
           id: game.id,
           date: game.date,
@@ -627,6 +628,13 @@ export async function getEditablePeriodContext(env: Env, fallbackDeadline: strin
         })),
         fallbackDeadline
       );
+      return {
+        ...context,
+        transferWindow: {
+          ...context.transferWindow,
+          limit: seasonFreeTransfers
+        }
+      };
     }
   } catch {
     // Fall back to stored cache below.
@@ -634,7 +642,7 @@ export async function getEditablePeriodContext(env: Env, fallbackDeadline: strin
 
   const cachedSchedule = await getStoredScheduleCache(env);
   const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
-  return buildEditableContextFromGames(
+  const context = buildEditableContextFromGames(
     cachedGames.map((game) => ({
       id: game.id,
       date: game.date,
@@ -642,6 +650,13 @@ export async function getEditablePeriodContext(env: Env, fallbackDeadline: strin
     })),
     fallbackDeadline
   );
+  return {
+    ...context,
+    transferWindow: {
+      ...context.transferWindow,
+      limit: seasonFreeTransfers
+    }
+  };
 }
 
 export async function getScoringPeriodContext(env: Env) {

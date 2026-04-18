@@ -288,8 +288,12 @@ export default function TransactionsPage() {
   const projectedBank = data ? Number((data.bank + totalOutgoing - totalIncoming).toFixed(1)) : 0;
   const allDraftsFilled = pendingDrafts.length > 0 && pendingDrafts.every((draft) => draft.inPlayer);
   const displayedSelectionCount = groupedSelection.reduce((total, group) => total + group.players.length, 0);
-  const countsTowardLimit = Boolean(data && data.transferMode !== "LIMITLESS" && !effectiveChip);
-  const transferCost = countsTowardLimit ? -50 * pendingDrafts.length : 0;
+  const freeTransfersRemaining = data?.freeTransfersLeft ?? 0;
+  const seasonFreeTransferLimit = data?.weeklyFreeLimit ?? 0;
+  const seasonFreeTransfersUsed = data?.usedThisWeek ?? 0;
+  const penalizedDraftCount =
+    data && data.transferMode !== "LIMITLESS" && !effectiveChip ? Math.max(0, pendingDrafts.length - freeTransfersRemaining) : 0;
+  const transferCost = -50 * penalizedDraftCount;
   const canSubmit = Boolean(allDraftsFilled && !submitting && (effectiveChip === "all-star" || projectedBank >= 0));
 
   function upsertDraft(player: Player, keepReplacement: boolean) {
@@ -532,10 +536,26 @@ export default function TransactionsPage() {
             </div>
 
             {data.transferMode === "LIMITLESS" ? (
-              <p className="text-sm text-slate-600">Wildcard and All-Star unlock after the Day 1 deadline.</p>
-            ) : null}
+              <p className="text-sm text-slate-600">
+                Day 1 deadline before lock: setup moves are unlimited. Your playoff FT pool is {seasonFreeTransferLimit}, and WC / All-Star unlock after the deadline.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Playoff FT remaining: {freeTransfersRemaining}/{seasonFreeTransferLimit}. After those are used, each extra transfer costs -50 unless a chip is active.
+              </p>
+            )}
 
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
+                <span>FT Remaining</span>
+                <strong>{freeTransfersRemaining}</strong>
+              </article>
+              <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
+                <span>FT Used</span>
+                <strong>
+                  {seasonFreeTransfersUsed}/{seasonFreeTransferLimit}
+                </strong>
+              </article>
               <article
                 className={`flex items-center justify-between rounded-sm border-2 px-4 py-3 text-lg ${
                   transferCost < 0 ? "border-[#d11f3a] bg-[#d11f3a] text-white" : "border-brand-yellow bg-white"

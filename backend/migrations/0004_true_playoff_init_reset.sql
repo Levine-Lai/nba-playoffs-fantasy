@@ -5,7 +5,7 @@ ON CONFLICT(key) DO UPDATE SET
   updated_at = excluded.updated_at;
 
 INSERT INTO game_rules (key, value, updated_at)
-VALUES ('weekly_free_transfers', '0', CURRENT_TIMESTAMP)
+VALUES ('weekly_free_transfers', '6', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET
   value = excluded.value,
   updated_at = excluded.updated_at;
@@ -23,7 +23,7 @@ SET
   total_players = 0,
   gameday_points = 0,
   used_this_week = 0,
-  weekly_free_limit = 0,
+  weekly_free_limit = 6,
   total_transfers = 0,
   history_json = '[]',
   updated_at = CURRENT_TIMESTAMP;

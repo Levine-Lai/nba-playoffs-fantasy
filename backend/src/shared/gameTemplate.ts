@@ -88,7 +88,7 @@ export function buildInitialUserState(gameId: string): UserState {
     bench: [],
     market: [],
     usedThisWeek: 0,
-    weeklyFreeLimit: 0,
+    weeklyFreeLimit: 6,
     totalTransfers: 0,
     rosterValue: 0,
     bank: 100,

@@ -76,6 +76,10 @@ export default function RightSidebar() {
         <h4 className="sidebar-card__head">Transactions And Finance</h4>
           <dl>
             <div className="sidebar-row">
+              <dt>FT remaining</dt>
+              <dd className="font-semibold">{data.transactions.freeLeft}</dd>
+            </div>
+            <div className="sidebar-row">
               <dt>Standard transfer cost</dt>
               <dd className="font-semibold">-50</dd>
             </div>

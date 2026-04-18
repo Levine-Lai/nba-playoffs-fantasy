@@ -164,7 +164,7 @@ D --> B
 | captainId | string | No | Captain player ID |
 | rosterValue | number | Yes | Sum of roster salary |
 | bank | number | Yes | Budget remaining |
-| usedThisWeek | number | Yes | Transfers already confirmed for the current editable slate day |
+| usedThisWeek | number | Yes | Playoff FT already consumed across the entire postseason |
 
 ### 5.3 Transaction
 | Field | Type | Required | Description |
@@ -177,7 +177,7 @@ D --> B
 | Field | Type | Required | Description |
 |---|---|---|---|
 | initial_budget | number | Yes | Default 100 |
-| weekly_free_transfers | number | Yes | Legacy value kept at `0` for compatibility |
+| weekly_free_transfers | number | Yes | Compatibility key now used for the season-long playoff FT total, default `6` |
 | transfer_penalty | number | Yes | Default penalty value per normal transfer after `Day 1` starts |
 | first_deadline | ISO string | Yes | Legacy fallback for `Day 1` launch lock |
 

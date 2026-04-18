@@ -157,6 +157,18 @@ function compareBenchPriority(left: number[], right: number[]) {
   return 0;
 }
 
+function countsTowardSeasonFreeTransfer(item: TransferHistoryItem) {
+  return item.countsTowardLimit === true && Number(item.cost ?? 0) === 0;
+}
+
+function countUsedSeasonFreeTransfers(history: TransferHistoryItem[]) {
+  return history.filter(countsTowardSeasonFreeTransfer).length;
+}
+
+function countRemainingSeasonFreeTransfers(history: TransferHistoryItem[], totalFreeTransfers: number) {
+  return Math.max(0, Number(totalFreeTransfers ?? 0) - countUsedSeasonFreeTransfers(history));
+}
+
 export function isValidStarterMix(starters: Player[]) {
   const bcCount = starters.filter((player) => player.position === "BC").length;
   const fcCount = starters.filter((player) => player.position === "FC").length;
@@ -174,13 +186,9 @@ export function withVisiblePoints(players: Player[], beforeFirstDeadline: boolea
   }));
 }
 
-function countTransfersForWindow(history: TransferHistoryItem[], windowKey: string) {
-  return history.filter((item) => item.windowKey === windowKey && item.countsTowardLimit !== false).length;
-}
-
 export function syncTransferWindowState(state: UserState, transferWindow: TransferWindowContext) {
   state.weeklyFreeLimit = transferWindow.limit;
-  state.usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  state.usedThisWeek = countUsedSeasonFreeTransfers(state.history);
   return state;
 }
 
@@ -192,8 +200,8 @@ export function buildLineupPayload(params: {
   transferWindow: TransferWindowContext;
 }) {
   const { state, gameweek, budget, beforeFirstDeadline, transferWindow } = params;
-  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
-  const freeLeft = transferWindow.mode === "LIMITLESS" ? 999 : usedThisWeek;
+  const usedThisWeek = countUsedSeasonFreeTransfers(state.history);
+  const freeLeft = countRemainingSeasonFreeTransfers(state.history, transferWindow.limit);
 
   return {
     gameweek,
@@ -228,14 +236,15 @@ export function buildTransactionsPayload(params: {
   };
 }): TransactionsPayload {
   const { state, gameweek, market, beforeFirstDeadline, transferWindow, chips } = params;
-  const usedThisWeek = countTransfersForWindow(state.history, transferWindow.key);
+  const usedThisWeek = countUsedSeasonFreeTransfers(state.history);
   const limitless = transferWindow.mode === "LIMITLESS";
+  const freeTransfersLeft = countRemainingSeasonFreeTransfers(state.history, transferWindow.limit);
 
   return {
     gameweek,
     hasTeam: hasCreatedTeam(state),
     transferMode: limitless ? "LIMITLESS" : "LIMITED",
-    freeTransfersLeft: limitless ? 999 : 0,
+    freeTransfersLeft,
     usedThisWeek,
     weeklyFreeLimit: transferWindow.limit,
     bank: state.bank,
@@ -425,10 +434,12 @@ export function replacePlayerForState(params: {
   }
 
   state.totalTransfers += 1;
-  state.usedThisWeek = countTransfersForWindow(state.history, transferWindow.key) + 1;
+  const freeTransfersLeft = countRemainingSeasonFreeTransfers(state.history, transferWindow.limit);
+  const usesFreeTransfer = transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && freeTransfersLeft > 0;
+  state.usedThisWeek = countUsedSeasonFreeTransfers(state.history) + (usesFreeTransfer ? 1 : 0);
   state.weeklyFreeLimit = transferWindow.limit;
-  const countsTowardLimit = transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline;
-  const cost = countsTowardLimit ? -50 : 0;
+  const countsTowardLimit = usesFreeTransfer;
+  const cost = transferWindow.mode !== "LIMITLESS" && !beforeFirstDeadline && !usesFreeTransfer ? -50 : 0;
 
   const record = {
     id: `tx-${Date.now()}`,
@@ -441,6 +452,8 @@ export function replacePlayerForState(params: {
     note:
       transferWindow.mode === "LIMITLESS"
         ? `Unlimited before ${gameweekLabelFromWindow(transferWindow)} deadline`
+        : usesFreeTransfer
+          ? `Uses playoff FT ${state.usedThisWeek}/${transferWindow.limit}`
         : `Transfer penalty queued for ${transferWindow.label}`,
     windowKey: transferWindow.key,
     countsTowardLimit

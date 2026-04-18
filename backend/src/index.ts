@@ -103,7 +103,7 @@ async function getInitialBudget(env: Env) {
 }
 
 async function getWeeklyFreeTransfers(env: Env) {
-  return Number((await getRuleValue(env, "weekly_free_transfers", "0")) ?? "0");
+  return Number((await getRuleValue(env, "weekly_free_transfers", "6")) ?? "6");
 }
 
 async function getTransferPenalty(env: Env) {
@@ -522,7 +522,7 @@ async function syncLeaguePointsAdjustment(
 }
 
 function countPenaltyTransfersForPeriod(history: TransferHistoryItem[], periodKey: string) {
-  return history.filter((item) => item.windowKey === periodKey && item.countsTowardLimit !== false).length;
+  return history.filter((item) => item.windowKey === periodKey && Number(item.cost ?? 0) < 0).length;
 }
 
 function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
@@ -924,6 +924,7 @@ async function commitTransactionBatch(params: {
   const incomingById = new Map(incomingPlayers.map((player) => [player.id, player]));
 
   const historyEntries: TransferHistoryItem[] = [];
+  let remainingFreeTransfers = Math.max(0, Number(baseState.weeklyFreeLimit ?? editableContext.transferWindow.limit ?? 0) - Number(baseState.usedThisWeek ?? 0));
 
   for (const [index, draft] of drafts.entries()) {
     const incoming = incomingById.get(draft.inPlayerId);
@@ -942,8 +943,17 @@ async function commitTransactionBatch(params: {
       return applied;
     }
 
-    const countsTowardLimit = effectiveChip === null && editableContext.transferWindow.mode !== "LIMITLESS";
-    const cost = countsTowardLimit ? -transferPenalty : 0;
+    const usesFreeTransfer =
+      effectiveChip === null &&
+      editableContext.transferWindow.mode !== "LIMITLESS" &&
+      remainingFreeTransfers > 0;
+    const countsTowardLimit = usesFreeTransfer;
+    const cost =
+      effectiveChip === null && editableContext.transferWindow.mode !== "LIMITLESS" && !usesFreeTransfer ? -transferPenalty : 0;
+
+    if (usesFreeTransfer) {
+      remainingFreeTransfers -= 1;
+    }
 
     historyEntries.push({
       id: `tx-${Date.now()}-${index}`,
@@ -958,6 +968,8 @@ async function commitTransactionBatch(params: {
           ? `Wildcard active for ${editableContext.gameweek.label}`
           : effectiveChip === "all-star"
             ? `All-Star active for ${editableContext.gameweek.label}`
+            : usesFreeTransfer
+              ? `Uses playoff FT ${editableContext.transferWindow.limit - remainingFreeTransfers}/${editableContext.transferWindow.limit}`
             : editableContext.transferWindow.mode === "LIMITLESS"
               ? `Unlimited before ${editableContext.gameweek.label} deadline`
               : `Transfer penalty queued for ${editableContext.gameweek.label}`,
@@ -1317,7 +1329,7 @@ export default {
               fanLeague: displayState.fanLeague
             },
             transactions: {
-              freeLeft: editableContext.transferWindow.mode === "LIMITLESS" ? 999 : state.usedThisWeek,
+              freeLeft: Math.max(0, Number(state.weeklyFreeLimit ?? 0) - Number(state.usedThisWeek ?? 0)),
               total: state.totalTransfers,
               rosterValue: state.rosterValue,
               bank: state.bank

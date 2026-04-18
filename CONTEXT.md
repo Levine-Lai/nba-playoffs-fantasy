@@ -17,7 +17,9 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 ## Live Gameplay Rules
 - `Day 1` is the real playoff opener on `2026-04-18`.
 - `Points` stay hidden until the `Day 1` deadline passes.
-- Before the `Day 1` deadline, transfers are unlimited and do not incur penalties.
+- Before the `Day 1` deadline, transfers are unlimited setup moves and do not consume playoff FT.
+- After the `Day 1` deadline, each team gets `6` total playoff FT for the entire postseason.
+- Once those `6` FT are gone, each extra normal transfer costs `-50`.
 - `Wildcard` and `All-Star` must remain locked until after the `Day 1` deadline.
 - Play-in games (`005...`) are excluded from schedule, scoring, and standings logic.
 - Standings should display effective scoring, including penalties and valid negative totals.

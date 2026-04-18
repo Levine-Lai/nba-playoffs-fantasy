@@ -170,7 +170,7 @@ function sanitizeUserStateRow(row) {
     bench_json: JSON.stringify(resetStoredPlayers(row.bench_json)),
     market_json: JSON.stringify(resetStoredPlayers(row.market_json)),
     used_this_week: 0,
-    weekly_free_limit: 0,
+    weekly_free_limit: 6,
     total_transfers: 0,
     history_json: "[]",
     updated_at: now
@@ -262,7 +262,7 @@ statements.push(
 statements.push(
   buildInsert("game_rules", ["key", "value", "updated_at"], {
     key: "weekly_free_transfers",
-    value: "0",
+    value: "6",
     updated_at: now
   })
 );

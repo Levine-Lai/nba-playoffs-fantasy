@@ -143,7 +143,7 @@ statements.push(
 statements.push(
   buildInsert("game_rules", ["key", "value", "updated_at"], {
     key: "weekly_free_transfers",
-    value: String(process.env.PLAYOFF_WEEKLY_FREE_TRANSFERS ?? 0),
+    value: String(process.env.PLAYOFF_WEEKLY_FREE_TRANSFERS ?? 6),
     updated_at: now
   })
 );

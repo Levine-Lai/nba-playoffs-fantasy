@@ -93,7 +93,7 @@ Let a newly registered user create an empty-to-playable playoff roster before en
 
 ## Data
 - Player pool is imported from NBA Fantasy bootstrap data.
-- Game rules live in SQLite game_rules: initial_budget, transfer_penalty, first_deadline.
+- Game rules live in SQLite game_rules: initial_budget, weekly_free_transfers, transfer_penalty, first_deadline.
 - Transactions are limitless before first_deadline and cost a flat points penalty per move after launch.`
   },
   {

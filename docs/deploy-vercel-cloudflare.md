@@ -53,13 +53,15 @@ Still in `backend/`:
 npm run db:migrate:remote
 ```
 
-This applies every SQL file under `backend/migrations/`, including `0001_init.sql`, `0002_users_game_id_unique.sql`, and `0003_day_slate_transfer_penalty.sql`.
+This applies every SQL file under `backend/migrations/`, including `0001_init.sql`, `0002_users_game_id_unique.sql`, `0003_day_slate_transfer_penalty.sql`, `0004_true_playoff_init_reset.sql`, and `0005_playoff_total_free_transfers.sql`.
 
 For the 2026 playoff launch reset, `0004_true_playoff_init_reset.sql` also:
 
 - moves `Day 1` to `2026-04-18T16:30:00Z`
 - clears old play-in standings / penalty ledger state
 - resets transfer history and chip usage while preserving accounts, rosters, and leagues
+
+`0005_playoff_total_free_transfers.sql` sets the season-long playoff FT pool to `6`.
 
 ## 4. Choose How To Seed Production Data
 
@@ -80,7 +82,7 @@ npm run db:seed:apply:remote
 
 Use this if you want a clean online launch without carrying local accounts or league data.
 
-This seed now defaults to the real playoff opener deadline `2026-04-18T16:30:00Z`, with pre-`Day 1` unlimited transfers and post-deadline `-50` transfer penalties.
+This seed now defaults to the real playoff opener deadline `2026-04-18T16:30:00Z`, with pre-`Day 1` unlimited setup transfers, `6` total playoff FT after the deadline, and `-50` for extra normal transfers once those FT are exhausted.
 
 ```bash
 npm run db:seed:bootstrap
@@ -158,10 +160,10 @@ After both deployments finish:
 2. Register a new test account.
 3. Confirm you land on `Edit line-up`.
 4. Build an initial 10-player team.
-5. Open `Transactions`, `Points`, `Schedule`, `Help`, and `Leagues`.
-6. Create a private league.
-7. Create a second account and join the league by code.
-8. Confirm lineup state and league membership are isolated by account.
+5. Open `Transactions`, `Points`, `Schedule`, `Help`, and `Standing`.
+6. Confirm `Points` stay hidden before the `Day 1` deadline and unlock afterward.
+7. Confirm `Transactions` shows `6` playoff FT after the deadline.
+8. Confirm lineup state remains isolated by account.
 
 ## 8. Recommended Release Order
 
