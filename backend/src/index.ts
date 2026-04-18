@@ -641,7 +641,37 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
     ? String(requestedPhaseKey)
     : "overall";
   const beforeDeadline = await isBeforeFirstDeadline(env);
-  const members = await listStandingMembers(env);
+  let members = await listStandingMembers(env);
+
+  if (!beforeDeadline) {
+    const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
+
+    if (currentScoringPeriod) {
+      for (const member of members) {
+        const state = await safeLoadState(env, member.userId, { hydrateAssets: false });
+        if (!state || !hasCreatedTeam(state)) {
+          continue;
+        }
+
+        const chips = await getUserChipsState(env, member.userId);
+        const scoringState = getScoringState(state, chips, currentScoringPeriod);
+        const livePreview = await buildOfficialLivePointsPreview(env, scoringState, false).catch(() => null);
+        const nextGamedayPoints = Number(
+          (livePreview?.finalPoints ?? buildStoredPointsSnapshot(scoringState, currentScoringPeriod).summary.final ?? 0).toFixed(1)
+        );
+        const nextOverallPoints = Number((await syncLeaguePointsLedger(env, member.userId, currentScoringPeriod, nextGamedayPoints)).toFixed(1));
+
+        if (Number(state.gamedayPoints ?? 0) !== nextGamedayPoints || Number(state.overallPoints ?? 0) !== nextOverallPoints) {
+          state.gamedayPoints = nextGamedayPoints;
+          state.overallPoints = nextOverallPoints;
+          await saveStateForUser(env, member.userId, state);
+        }
+      }
+
+      members = await listStandingMembers(env);
+    }
+  }
+
   const ledger = await readLeaguePointsLedger(env);
   return {
     visible: !beforeDeadline,

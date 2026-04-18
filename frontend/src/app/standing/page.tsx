@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getStandings } from "@/lib/api";
 import { AuthUser, StandingResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 function RankTrend({ rank, previousRank }: { rank: number; previousRank: number }) {
   const diff = previousRank - rank;
@@ -26,6 +27,16 @@ export default function StandingPage() {
   const [selectedPhase, setSelectedPhase] = useState("overall");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  const loadStandings = async () => {
+    try {
+      const payload = await getStandings(selectedPhase);
+      setData(payload);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load standings.");
+    }
+  };
+
   useEffect(() => {
     const rawUser = window.localStorage.getItem("playoff_user");
     if (!rawUser) {
@@ -41,14 +52,7 @@ export default function StandingPage() {
     }
   }, []);
 
-  useEffect(() => {
-    getStandings(selectedPhase)
-      .then((payload) => {
-        setData(payload);
-        setError(null);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load standings."));
-  }, [selectedPhase]);
+  useVisibilityPolling(loadStandings, 15000, [selectedPhase]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading standings...</div>;
