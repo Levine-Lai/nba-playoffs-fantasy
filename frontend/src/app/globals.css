@@ -1023,101 +1023,161 @@ button:disabled {
   }
 
   .court-row {
-    justify-content: flex-start;
-    gap: 0.45rem;
-    overflow-x: auto;
-    padding: 0.7rem 0.45rem;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
+    justify-content: center;
+    gap: 0.35rem;
+    overflow: visible;
+    padding: 0.65rem 0.25rem;
   }
 
   .court-bench {
     display: grid;
-    grid-auto-columns: minmax(104px, 1fr);
-    grid-auto-flow: column;
-    justify-content: flex-start;
-    gap: 0.45rem;
-    overflow-x: auto;
-    padding-bottom: 0.2rem;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.25rem;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .court-slot {
     flex: 0 0 auto;
-    padding: 0.15rem;
-    scroll-snap-align: start;
+    min-width: 0;
+    padding: 0.1rem;
   }
 
   .court-card {
-    width: 124px;
-  }
-
-  .court-card--compact {
     width: 108px;
   }
 
+  .court-card--compact {
+    width: 100%;
+  }
+
   .court-card__team {
-    font-size: 1.2rem;
+    font-size: 1rem;
   }
 
   .court-card__photo {
-    height: 86px;
+    height: 72px;
   }
 
   .court-card__photo--portrait {
-    height: 116px;
+    height: 88px;
   }
 
   .court-card__headshot,
   .court-card__fallback-logo {
-    width: 72px;
+    width: 60px;
   }
 
   .court-card__headshot--portrait {
-    width: 92px;
+    width: 70px;
   }
 
   .court-card__name {
-    font-size: 0.86rem;
-    min-height: 36px;
-    padding: 0.45rem 0.35rem 0.35rem;
+    font-size: 0.76rem;
+    min-height: 30px;
+    padding: 0.35rem 0.2rem 0.28rem;
   }
 
   .court-card__logo {
-    height: 26px;
-    width: 26px;
+    height: 20px;
+    width: 20px;
   }
 
   .court-card__schedule-row {
-    gap: 0.35rem;
-    padding: 0.38rem 0.2rem;
-    font-size: 0.68rem;
+    gap: 0.2rem;
+    padding: 0.28rem 0.12rem;
+    font-size: 0.58rem;
+  }
+
+  .court-card__schedule-row img {
+    height: 0.7rem;
+    width: 0.7rem;
   }
 
   .court-card__points-only strong {
-    font-size: 1.45rem;
+    font-size: 1.18rem;
+  }
+
+  .court-card__top {
+    padding: 0.22rem 0.24rem 0;
+  }
+
+  .court-card__info {
+    height: 16px;
+    width: 16px;
+    font-size: 0.62rem;
+  }
+
+  .court-card__captain {
+    height: 20px;
+    width: 20px;
+    font-size: 0.68rem;
+  }
+
+  .court-card__header {
+    gap: 0.25rem;
+    padding: 0.15rem 0.28rem 0;
+  }
+
+  .court-card--compact .court-card__top {
+    padding-top: 0.18rem;
+  }
+
+  .court-card--compact .court-card__team {
+    font-size: 0.82rem;
+  }
+
+  .court-card--compact .court-card__name {
+    min-height: 28px;
+    font-size: 0.66rem;
+    line-height: 1.05;
+    padding: 0.28rem 0.1rem 0.24rem;
+  }
+
+  .court-card--compact .court-card__schedule {
+    padding: 0 0.08rem 0.2rem;
+  }
+
+  .court-card--compact .court-card__schedule-row {
+    font-size: 0.52rem;
+    line-height: 1;
+    gap: 0.1rem;
+    padding: 0.24rem 0.05rem;
+  }
+
+  .court-card--compact .court-card__schedule-row img {
+    height: 0.58rem;
+    width: 0.58rem;
+  }
+
+  .court-card--compact .court-card__points-only {
+    min-height: 48px;
+  }
+
+  .court-card--compact .court-card__points-only strong {
+    font-size: 0.9rem;
   }
 
   .captain-bar__title {
     justify-content: flex-start;
-    min-width: 170px;
-    padding: 0 0.55rem;
-    font-size: 0.84rem;
+    min-width: 0;
+    padding: 0 0.35rem;
+    font-size: 0.72rem;
   }
 
   .captain-bar {
-    width: max-content;
-    min-width: 100%;
-    grid-template-columns: 170px 160px 120px;
-    gap: 0.35rem;
-    padding: 0.3rem;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 78px;
+    gap: 0.28rem;
+    padding: 0.25rem;
   }
 
   .captain-bar__button {
-    min-height: 42px;
-    padding: 0 0.65rem;
-    font-size: 0.86rem;
+    min-height: 38px;
+    padding: 0 0.4rem;
+    font-size: 0.72rem;
   }
 
   .transactions-table {
