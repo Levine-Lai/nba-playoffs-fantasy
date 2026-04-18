@@ -8,6 +8,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Backend lives in `backend/` and runs on Cloudflare Workers + D1.
 - The game is a playoff-only NBA fantasy product with 10-player rosters.
 - The old floating `Design Docs` button is removed from the main app shell and should stay out of the player-facing UI unless explicitly brought back.
+- The `Help` page is now a frontend-owned Chinese rules page with tables and structured guidance; do not rely on the old backend English rules payload for user-facing copy.
 
 ## Naming And Route Conventions
 - User-facing leaderboard language is `Standing`, not `League`.
