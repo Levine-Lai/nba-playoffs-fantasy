@@ -49,10 +49,6 @@ export default function RightSidebar() {
               <dd className="font-semibold">{data.profile.overallRank}</dd>
             </div>
             <div className="sidebar-row">
-              <dt>Total Players</dt>
-              <dd className="font-semibold">{data.profile.totalPlayers.toLocaleString()}</dd>
-            </div>
-            <div className="sidebar-row">
               <dt>Gameday Fantasy Points</dt>
               <dd className="font-semibold">{data.profile.gamedayPoints}</dd>
             </div>
@@ -78,10 +74,6 @@ export default function RightSidebar() {
             <div className="sidebar-row">
               <dt>FT remaining</dt>
               <dd className="font-semibold">{data.transactions.freeLeft}</dd>
-            </div>
-            <div className="sidebar-row">
-              <dt>Standard transfer cost</dt>
-              <dd className="font-semibold">-50</dd>
             </div>
           <div className="sidebar-row">
             <dt>Total transactions</dt>

@@ -37,6 +37,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - New users should default `teamName` to `gameId`.
 - Old `teamName` values that look like `<gameId> Squad` should be treated as legacy defaults and normalized in UI display.
 - Standing rows should highlight the current logged-in user.
+- The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats.
 
 ## Release Workflow
 - After validating code changes, the agent should push and deploy by default unless the user says not to.
