@@ -8,7 +8,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Backend lives in `backend/` and runs on Cloudflare Workers + D1.
 - The game is a playoff-only NBA fantasy product with 10-player rosters.
 - The old floating `Design Docs` button is removed from the main app shell and should stay out of the player-facing UI unless explicitly brought back.
-- The `Help` page is frontend-owned and now only shows two mobile-first cards: `计分规则` and `换人与 FT 规则`.
+- The `Help` page is frontend-owned and now only shows a single `计分规则` table card.
 
 ## Naming And Route Conventions
 - User-facing leaderboard language is `Standing`, not `League`.
@@ -40,6 +40,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - Standing rows should highlight the current logged-in user.
 - The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats.
 - `captain_id` still exists in storage only for backward compatibility; gameplay should ignore it.
+- The current local SQLite DB and remote D1 DB were manually cleaned down to a single surviving account: `Test1`.
 
 ## Release Workflow
 - After validating code changes, the agent should push and deploy by default unless the user says not to.
