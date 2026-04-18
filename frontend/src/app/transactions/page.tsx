@@ -583,9 +583,7 @@ export default function TransactionsPage() {
             </div>
 
             {data.transferMode === "LIMITLESS" ? (
-              <p className="text-sm text-slate-600">
-                Day 1 deadline before lock: setup moves are unlimited. Your playoff FT pool is {seasonFreeTransferLimit}, and WC / All-Star unlock after the deadline.
-              </p>
+              null
             ) : (
               <p className="text-sm text-slate-600">
                 Playoff FT remaining: {freeTransfersRemaining}/{seasonFreeTransferLimit}. After those are used, each extra transfer costs -50 unless a chip is active. If you activate WC or All-Star later in the same gameday, your confirmed transfers stay and that day's FT or penalty is cleared.
@@ -880,11 +878,6 @@ export default function TransactionsPage() {
               >
                 Add player
               </button>
-              {assignableDraftForCandidate ? (
-                <p className="text-center text-sm text-slate-600">
-                  This player will fill the {assignableDraftForCandidate.outPlayer.position} slot for {assignableDraftForCandidate.outPlayer.name}.
-                </p>
-              ) : null}
               <button
                 type="button"
                 onClick={() => {

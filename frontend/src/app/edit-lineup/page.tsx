@@ -246,7 +246,6 @@ export default function EditLineupPage() {
           <div>
             <h1 className="text-3xl font-semibold uppercase sm:text-4xl">{data.gameweek.label}</h1>
             <p className="mt-1 text-sm text-slate-600">Deadline: {new Date(data.gameweek.deadline).toLocaleString()}</p>
-            <p className="mt-1 text-sm text-slate-600">Standard transfers cost -50 each after the first playable deadline. Wildcard and All-Star stay available on the transactions page.</p>
           </div>
           {feedback ? <p className="rounded bg-slate-100 p-2 text-sm text-slate-700">{feedback}</p> : null}
         </div>
