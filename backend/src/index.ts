@@ -8,6 +8,7 @@ import {
   calcFinalPoints,
   countTrackedTotalTransfers,
   createInitialTeamForState,
+  getEffectiveScoringPlayerIds,
   getDisplayProfileState,
   getRosterPlayers,
   hasCreatedTeam,
@@ -347,6 +348,11 @@ function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: strin
 
   const starters = apply(state.starters);
   const bench = apply(state.bench);
+  const effectiveIds = getEffectiveScoringPlayerIds({
+    ...state,
+    starters,
+    bench
+  });
   const finalPoints = calcFinalPoints({
     ...state,
     starters,
@@ -364,8 +370,14 @@ function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: strin
       final: finalPoints
     },
     lineup: {
-      starters,
-      bench,
+      starters: starters.map((player) => ({
+        ...player,
+        countsForGameday: effectiveIds.has(player.id)
+      })),
+      bench: bench.map((player) => ({
+        ...player,
+        countsForGameday: effectiveIds.has(player.id)
+      })),
       captainId: ""
     }
   };
@@ -831,19 +843,37 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     managerName: state.managerName,
     isCurrentUser: targetUser.id === viewerUserId
   };
+  const buildProfileSnapshot = (gamedayPoints: number) => ({
+    profile: {
+      teamName: state.teamName,
+      managerName: state.managerName,
+      overallPoints: Number(state.overallPoints ?? 0),
+      overallRank: Number(state.overallRank ?? 0),
+      totalPlayers: Number(state.totalPlayers ?? 0),
+      gamedayPoints: Number(gamedayPoints ?? 0),
+      fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
+    },
+    transactions: {
+      freeLeft: Math.max(0, Number(state.weeklyFreeLimit ?? 0) - Number(state.usedThisWeek ?? 0)),
+      total: Number(state.totalTransfers ?? 0),
+      rosterValue: Number(state.rosterValue ?? 0),
+      bank: Number(state.bank ?? 0)
+    }
+  });
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
   if (beforeDeadline) {
     return {
       ok: true as const,
-      payload: {
-        visible: false,
-        message: "Points will unlock after Day 1 deadline.",
-        gameweek: editableContext.gameweek,
-        summary: {
-          final: 0
-        },
+        payload: {
+          visible: false,
+          message: "Points will unlock after Day 1 deadline.",
+          gameweek: editableContext.gameweek,
+          profileSnapshot: buildProfileSnapshot(0),
+          summary: {
+            final: 0
+          },
         lineup: {
           starters: withVisiblePoints(state.starters, true),
           bench: withVisiblePoints(state.bench, true),
@@ -869,11 +899,12 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
         const penaltyDelta = Number((phaseTotal - Number(preview.finalPoints ?? preview.summary.final ?? 0)).toFixed(1));
         return {
           ok: true as const,
-          payload: {
-            ...preview,
-            summary: {
-              final: phaseTotal
-            },
+            payload: {
+              ...preview,
+              profileSnapshot: buildProfileSnapshot(phaseTotal),
+              summary: {
+                final: phaseTotal
+              },
             message:
               penaltyDelta !== 0
                 ? `Includes ${penaltyDelta > 0 ? "+" : ""}${penaltyDelta.toFixed(1)} adjustment for transfer penalties on ${targetPeriod.label}.`
@@ -896,7 +927,14 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
     state.overallPoints = Number(overallPoints.toFixed(1));
     await saveStateForUser(env, userId, state);
-    return { ok: true as const, payload: { ...livePreview, viewer } };
+    return {
+      ok: true as const,
+      payload: {
+        ...livePreview,
+        viewer,
+        profileSnapshot: buildProfileSnapshot(livePreview.finalPoints)
+      }
+    };
   }
 
   const fallbackPoints = buildStoredPointsSnapshot(scoringState, scoringPeriod);
@@ -907,7 +945,11 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
 
   return {
     ok: true as const,
-    payload: { ...fallbackPoints, viewer }
+    payload: {
+      ...fallbackPoints,
+      viewer,
+      profileSnapshot: buildProfileSnapshot(fallbackPoints.summary.final)
+    }
   };
 }
 

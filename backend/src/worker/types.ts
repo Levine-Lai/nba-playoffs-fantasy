@@ -52,6 +52,7 @@ export interface Player {
   headshotFallbackUrl?: string | null;
   teamLogoUrl?: string | null;
   teamLogoFallbackUrl?: string | null;
+  countsForGameday?: boolean;
 }
 
 export interface TransferHistoryItem {

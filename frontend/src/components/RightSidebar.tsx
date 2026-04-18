@@ -6,11 +6,17 @@ import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { ProfileResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
 
-export default function RightSidebar() {
+export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse | null }) {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useVisibilityPolling(async () => {
+    if (snapshot) {
+      setData(snapshot);
+      setError(null);
+      return;
+    }
+
     try {
       const payload = await getProfile();
       setData(payload);
@@ -18,13 +24,15 @@ export default function RightSidebar() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load profile.");
     }
-  }, 120000, []);
+  }, 120000, [snapshot]);
 
-  if (error) {
+  if (error && !snapshot) {
     return <aside className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</aside>;
   }
 
-  if (!data) {
+  const display = snapshot ?? data;
+
+  if (!display) {
     return <aside className="sidebar-card p-4 text-sm text-slate-600">Loading panel...</aside>;
   }
 
@@ -33,7 +41,7 @@ export default function RightSidebar() {
       <section className="sidebar-card">
         <div className="px-4 py-4">
           <h3 className="nba-wordmark text-[2rem] leading-none text-[#111]">
-            {getDisplayTeamName(data.profile.teamName, data.profile.managerName)}
+            {getDisplayTeamName(display.profile.teamName, display.profile.managerName)}
           </h3>
         </div>
 
@@ -42,28 +50,28 @@ export default function RightSidebar() {
           <dl>
             <div className="sidebar-row">
               <dt>Overall Points</dt>
-              <dd className="font-semibold">{data.profile.overallPoints}</dd>
+              <dd className="font-semibold">{display.profile.overallPoints}</dd>
             </div>
             <div className="sidebar-row">
               <dt>Overall Rank</dt>
-              <dd className="font-semibold">{data.profile.overallRank}</dd>
+              <dd className="font-semibold">{display.profile.overallRank}</dd>
             </div>
             <div className="sidebar-row">
               <dt>Gameday Fantasy Points</dt>
-              <dd className="font-semibold">{data.profile.gamedayPoints}</dd>
+              <dd className="font-semibold">{display.profile.gamedayPoints}</dd>
             </div>
           </dl>
         </div>
       </section>
 
-      {data.profile.fanLeague ? (
+      {display.profile.fanLeague ? (
         <section className="sidebar-card">
           <h4 className="sidebar-card__head">Fan League</h4>
           <div className="grid place-items-center px-4 py-5 text-center">
             <div className="grid h-28 w-28 place-items-center rounded-full bg-black text-sm font-bold uppercase leading-tight tracking-[0.2em] text-white shadow-card">
-              {data.profile.fanLeague}
+              {display.profile.fanLeague}
             </div>
-            <p className="mt-4 text-sm font-semibold text-brand-darkBlue">View {data.profile.fanLeague} Fan League &gt;</p>
+            <p className="mt-4 text-sm font-semibold text-brand-darkBlue">View {display.profile.fanLeague} Fan League &gt;</p>
           </div>
         </section>
       ) : null}
@@ -73,19 +81,19 @@ export default function RightSidebar() {
           <dl>
             <div className="sidebar-row">
               <dt>FT remaining</dt>
-              <dd className="font-semibold">{data.transactions.freeLeft}</dd>
+              <dd className="font-semibold">{display.transactions.freeLeft}</dd>
             </div>
           <div className="sidebar-row">
             <dt>Total transactions</dt>
-            <dd className="font-semibold">{data.transactions.total}</dd>
+            <dd className="font-semibold">{display.transactions.total}</dd>
           </div>
           <div className="sidebar-row">
             <dt>Roster value</dt>
-            <dd className="font-semibold">{data.transactions.rosterValue}</dd>
+            <dd className="font-semibold">{display.transactions.rosterValue}</dd>
           </div>
           <div className="sidebar-row">
             <dt>In the bank</dt>
-            <dd className="font-semibold">{data.transactions.bank}</dd>
+            <dd className="font-semibold">{display.transactions.bank}</dd>
           </div>
         </dl>
       </section>

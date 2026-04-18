@@ -8,7 +8,7 @@ import {
   isPostseasonGameId,
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
-import { calcFinalPoints } from "./gameplay";
+import { calcFinalPoints, getEffectiveScoringPlayerIds } from "./gameplay";
 import { buildNextMatchupByTeamFromCache, getRuleValue, getStoredScheduleCache, toTeamAsset } from "./store";
 import type {
   EditablePeriodContext,
@@ -872,6 +872,11 @@ async function buildFantasyPointsPreviewForSlate(
 
   const starters = state.starters.map(hydratePlayer);
   const bench = state.bench.map(hydratePlayer);
+  const effectiveIds = getEffectiveScoringPlayerIds({
+    ...state,
+    starters,
+    bench
+  });
   const finalPoints = calcFinalPoints({
     ...state,
     starters,
@@ -890,8 +895,14 @@ async function buildFantasyPointsPreviewForSlate(
       final: finalPoints
     },
     lineup: {
-      starters,
-      bench,
+      starters: starters.map((player) => ({
+        ...player,
+        countsForGameday: effectiveIds.has(player.id)
+      })),
+      bench: bench.map((player) => ({
+        ...player,
+        countsForGameday: effectiveIds.has(player.id)
+      })),
       captainId: ""
     },
     finalPoints,

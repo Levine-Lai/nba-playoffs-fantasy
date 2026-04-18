@@ -58,7 +58,7 @@ function PointsPageContent() {
   }
 
   return (
-    <ContentWithSidebar sidebar={<RightSidebar />}>
+    <ContentWithSidebar sidebar={<RightSidebar snapshot={data.profileSnapshot} />}>
       <section className="panel">
         <div className="panel-body space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -98,14 +98,14 @@ function PointsPageContent() {
               <div className="court-row court-row--top">
                 {starterFrontCourt.map((player) => (
                   <div key={player.id} className="court-slot">
-                    <CourtPlayerCard player={player} showPoints />
+                    <CourtPlayerCard player={player} showPoints highlighted={player.countsForGameday} />
                   </div>
                 ))}
               </div>
               <div className="court-row court-row--bottom">
                 {starterBackCourt.map((player) => (
                   <div key={player.id} className="court-slot">
-                    <CourtPlayerCard player={player} showPoints />
+                    <CourtPlayerCard player={player} showPoints highlighted={player.countsForGameday} />
                   </div>
                 ))}
               </div>
@@ -118,7 +118,7 @@ function PointsPageContent() {
               <div className="court-bench">
                 {data.lineup.bench.map((player) => (
                   <div key={player.id} className="court-slot">
-                    <CourtPlayerCard player={player} compact showPoints />
+                    <CourtPlayerCard player={player} compact showPoints highlighted={player.countsForGameday} />
                   </div>
                 ))}
               </div>

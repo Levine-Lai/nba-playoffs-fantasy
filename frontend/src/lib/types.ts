@@ -37,6 +37,7 @@ export interface Player {
   headshotFallbackUrl?: string | null;
   teamLogoUrl?: string | null;
   teamLogoFallbackUrl?: string | null;
+  countsForGameday?: boolean;
 }
 
 export interface Lineup {
@@ -100,6 +101,7 @@ export interface PointsResponse {
     managerName: string;
     isCurrentUser: boolean;
   };
+  profileSnapshot?: ProfileResponse;
   summary: {
     final: number;
   };

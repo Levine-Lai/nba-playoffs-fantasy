@@ -14,7 +14,7 @@ This file is the project's cross-conversation memory. Update it after every mean
 - Main leaderboard page is `/standing`. / 主排行榜页面是 `/standing`。
 - Legacy `/leagues` now exists only as a redirect and should not receive new feature work. / 旧的 `/leagues` 现在只保留跳转用途，不应继续承载新功能开发。
 - Team identity should be shown as `Team Name`; do not reintroduce separate `Player Name` UI unless explicitly requested. / 队伍身份展示为 `Team Name`；除非明确要求，不要重新引入单独的 `Player Name` UI。
-- The `/schedule` page now uses month-calendar views for April, May, and June instead of the old gameday list; each game shows matchup logos, the score-only center label, the `Day X` tag on the date row, and an `R? G?` marker below the score, while unguaranteed placeholder games (such as conditional G5/G6/G7) stay hidden until the series state makes them certain. / `/schedule` 页面现已改为 4 月、5 月、6 月的月历视图，替代旧的按比赛日列表；每场比赛展示对阵双方 logo、仅比分的中间标签、日期行右侧的 `Day X` 标记，以及比分下方的 `R? G?` 标记；同时像条件成立前的 G5/G6/G7 这类尚未确定的占位赛程会继续隐藏，直到系列赛进展确认它们必然发生。
+- The `/schedule` page is currently back on the stable version: the original grouped gameday list remains the main view, and only the simpler April calendar preview stays at the bottom for further iteration. / `/schedule` 页面当前已回到稳定版本：原来的按比赛日分组列表继续作为主视图，仅保留页面底部较简洁的 4 月日历预览，供后续继续迭代。
 
 ## Live Gameplay Rules | 当前生效玩法规则
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是实际季后赛揭幕日，日期为 `2026-04-18`。
@@ -39,6 +39,8 @@ This file is the project's cross-conversation memory. Update it after every mean
 - Old `teamName` values that look like `<gameId> Squad` should be treated as legacy defaults and normalized in UI display. / 旧的、形如 `<gameId> Squad` 的 `teamName` 视为历史默认值，UI 展示时应做归一化处理。
 - Standing rows should highlight the current logged-in user with a deeper blue background that stays highlighted on hover. / 排名列表中当前登录用户应使用更深的蓝色高亮背景，并在鼠标悬停时保持高亮。
 - The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats. / 右侧个人信息面板故意隐藏 `Total Players` 和 `Standard transfer cost`，让信息区域聚焦在可操作数据上。
+- When viewing another manager's `Points` page, the right-side profile panel should render that viewed manager's snapshot instead of falling back to the logged-in user's own profile data. / 查看其他玩家的 `Points` 页面时，右侧个人信息面板应展示被查看玩家的快照信息，而不是回退成当前登录用户自己的资料。
+- `Points` lineup cards should visually highlight the effective scoring players in yellow, and that highlight must stay aligned with the existing effective-lineup scoring logic rather than introducing a separate scoring rule. / `Points` 阵容卡片应以黄色高亮实际计入得分的球员，并且该高亮必须与现有效阵容计分逻辑保持一致，不能额外引入一套独立计分规则。
 - On the transactions page, player-selection rows should open the candidate modal from the whole row, not just the headshot, and when both FC and BC replacement slots are open the picker should allow any player and auto-assign to the matching position slot. / 在 transactions 页面里，`Player Selection` 的整行都应能打开候选球员弹窗，而不只是头像；当 FC 和 BC 替换槽同时打开时，选择器应允许点击任意球员，并自动分配到对应位置的空槽。
 - On the transactions page, the main submit button should turn yellow whenever there are unconfirmed transfer drafts, and stay in its default style when the roster is unchanged. / 在 transactions 页面里，只要存在未确认的转会草稿，主提交按钮就应变成黄色；如果阵容仍未变动，则保持默认样式。
 - On the transactions summary cards, keep `FT Used` and remove the separate `FT Remaining` card to avoid duplicate FT information. / 在 transactions 顶部摘要卡片里，保留 `FT Used`，去掉单独的 `FT Remaining` 卡片，避免 FT 信息重复展示。

@@ -110,6 +110,10 @@ function buildEffectiveScoringPlayers(state: UserState) {
   return candidates[0]?.selected ?? activeStarters.slice(0, 5);
 }
 
+export function getEffectiveScoringPlayerIds(state: UserState) {
+  return new Set(buildEffectiveScoringPlayers(state).map((player) => player.id));
+}
+
 function hasScoringOpportunity(player: Player) {
   return Boolean(String(player.pointsWindowKey ?? "").trim());
 }
