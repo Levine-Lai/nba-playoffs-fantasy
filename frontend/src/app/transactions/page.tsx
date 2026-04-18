@@ -531,6 +531,10 @@ export default function TransactionsPage() {
               </button>
             </div>
 
+            {data.transferMode === "LIMITLESS" ? (
+              <p className="text-sm text-slate-600">Wildcard and All-Star unlock after the Day 1 deadline.</p>
+            ) : null}
+
             <div className="grid gap-3 md:grid-cols-2">
               <article
                 className={`flex items-center justify-between rounded-sm border-2 px-4 py-3 text-lg ${

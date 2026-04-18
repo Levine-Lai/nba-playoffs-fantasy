@@ -45,10 +45,116 @@ export function calcFinalPoints(state: UserState) {
     return 0;
   }
 
-  const startersTotal = state.starters.reduce((sum, item) => sum + Number(item.points ?? 0), 0);
-  const captain = state.starters.find((item) => item.id === state.captainId) ?? state.bench.find((item) => item.id === state.captainId);
+  const effectivePlayers = buildEffectiveScoringPlayers(state);
+  const startersTotal = effectivePlayers.reduce((sum, item) => sum + Number(item.points ?? 0), 0);
+  const captain = effectivePlayers.find((item) => item.id === state.captainId) ?? null;
   const captainBonus = captain ? Number(captain.points ?? 0) * 0.5 : 0;
   return Number((startersTotal + captainBonus).toFixed(1));
+}
+
+function buildEffectiveScoringPlayers(state: UserState) {
+  const activeStarters = state.starters.filter(hasScoringOpportunity);
+  const activeBench = state.bench
+    .map((player, index) => ({ player, index }))
+    .filter((entry) => hasScoringOpportunity(entry.player));
+  const starterCounts = countPlayersByPosition(activeStarters);
+  const targetShapes = [
+    { bc: 3, fc: 2 },
+    { bc: 2, fc: 3 }
+  ];
+
+  const candidates = targetShapes
+    .filter((shape) => starterCounts.bc <= shape.bc && starterCounts.fc <= shape.fc)
+    .map((shape) => {
+      const selected = [...activeStarters];
+      const benchIndices: number[] = [];
+      let remainingBC = shape.bc - starterCounts.bc;
+      let remainingFC = shape.fc - starterCounts.fc;
+
+      for (const entry of activeBench) {
+        if (selected.length >= 5) {
+          break;
+        }
+
+        if (entry.player.position === "BC" && remainingBC > 0) {
+          selected.push(entry.player);
+          benchIndices.push(entry.index);
+          remainingBC -= 1;
+          continue;
+        }
+
+        if (entry.player.position === "FC" && remainingFC > 0) {
+          selected.push(entry.player);
+          benchIndices.push(entry.index);
+          remainingFC -= 1;
+        }
+      }
+
+      return {
+        selected,
+        benchIndices
+      };
+    });
+
+  if (!candidates.length) {
+    return activeStarters.slice(0, 5);
+  }
+
+  candidates.sort((left, right) => {
+    const countDiff = right.selected.length - left.selected.length;
+    if (countDiff !== 0) {
+      return countDiff;
+    }
+
+    return compareBenchPriority(left.benchIndices, right.benchIndices);
+  });
+
+  return candidates[0]?.selected ?? activeStarters.slice(0, 5);
+}
+
+function hasScoringOpportunity(player: Player) {
+  return Boolean(String(player.pointsWindowKey ?? "").trim());
+}
+
+function countPlayersByPosition(players: Player[]) {
+  return players.reduce(
+    (counts, player) => {
+      if (player.position === "BC") {
+        counts.bc += 1;
+      } else if (player.position === "FC") {
+        counts.fc += 1;
+      }
+
+      return counts;
+    },
+    { bc: 0, fc: 0 }
+  );
+}
+
+function compareBenchPriority(left: number[], right: number[]) {
+  const maxLength = Math.max(left.length, right.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftValue = left[index];
+    const rightValue = right[index];
+
+    if (leftValue === undefined && rightValue === undefined) {
+      return 0;
+    }
+
+    if (leftValue === undefined) {
+      return 1;
+    }
+
+    if (rightValue === undefined) {
+      return -1;
+    }
+
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  return 0;
 }
 
 export function isValidStarterMix(starters: Player[]) {

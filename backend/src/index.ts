@@ -197,17 +197,18 @@ function isChipActiveForPeriod(activePeriodKey: string | null | undefined, perio
 function getTransactionsChipCards(chips: UserChipsState, editableContext: EditablePeriodContext): TransactionChipCards {
   const wildcardActive = isChipActiveForPeriod(chips.wildcard.activePeriodKey, editableContext.period.key);
   const allStarActive = isChipActiveForPeriod(chips.allStar.activePeriodKey, editableContext.period.key);
+  const chipsUnlocked = !editableContext.beforeCompetitionStart;
 
   return {
     wildcard: {
       label: wildcardActive ? "Active" : chips.wildcard.used ? "Played" : "Play",
-      canActivate: !chips.wildcard.used && !allStarActive,
+      canActivate: chipsUnlocked && !chips.wildcard.used && !allStarActive,
       isActive: wildcardActive,
       isPlayed: chips.wildcard.used && !wildcardActive
     },
     allStar: {
       label: allStarActive ? "Active" : chips.allStar.used ? "Played" : "Play",
-      canActivate: !chips.allStar.used && !wildcardActive,
+      canActivate: chipsUnlocked && !chips.allStar.used && !wildcardActive,
       isActive: allStarActive,
       isPlayed: chips.allStar.used && !allStarActive
     }
@@ -798,6 +799,26 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
+  if (beforeDeadline) {
+    return {
+      ok: true as const,
+      payload: {
+        visible: false,
+        message: "Points will unlock after Day 1 deadline.",
+        gameweek: editableContext.gameweek,
+        summary: {
+          final: 0
+        },
+        lineup: {
+          starters: withVisiblePoints(state.starters, true),
+          bench: withVisiblePoints(state.bench, true),
+          captainId: state.captainId
+        },
+        viewer
+      }
+    };
+  }
+
   const targetPhase = String(phaseKey ?? "overall");
   const ledger = await readLeaguePointsLedger(env);
   const targetEntries = Object.values(ledger[String(userId)] ?? {});
@@ -843,26 +864,6 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     return { ok: true as const, payload: { ...livePreview, viewer } };
   }
 
-  if (beforeDeadline) {
-    return {
-      ok: true as const,
-      payload: {
-        visible: false,
-        message: "Points will unlock after Day 1 deadline.",
-        gameweek: editableContext.gameweek,
-        summary: {
-          final: 0
-        },
-        lineup: {
-          starters: withVisiblePoints(scoringState.starters, true),
-          bench: withVisiblePoints(scoringState.bench, true),
-          captainId: scoringState.captainId
-        },
-        viewer
-      }
-    };
-  }
-
   const fallbackPoints = buildStoredPointsSnapshot(scoringState, scoringPeriod);
   state.gamedayPoints = fallbackPoints.summary.final;
   const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
@@ -891,6 +892,10 @@ async function commitTransactionBatch(params: {
 
   if (requestedChip && activeChip && requestedChip !== activeChip) {
     return { ok: false as const, error: "Another chip is already active for this deadline." };
+  }
+
+  if (requestedChip && editableContext.beforeCompetitionStart) {
+    return { ok: false as const, error: "Wildcard and All-Star unlock after the Day 1 deadline." };
   }
 
   if (requestedChip === "wildcard" && chips.wildcard.used && !activeChip) {
