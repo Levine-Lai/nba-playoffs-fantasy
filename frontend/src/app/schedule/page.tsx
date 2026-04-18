@@ -4,7 +4,7 @@ import Link from "next/link";
 import { SyntheticEvent, useEffect, useMemo, useState } from "react";
 import { getSchedule } from "@/lib/api";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
-import { ScheduleResponse, TeamAsset } from "@/lib/types";
+import { ScheduleGame, ScheduleResponse, TeamAsset } from "@/lib/types";
 
 function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
   const image = event.currentTarget;
@@ -43,6 +43,15 @@ function TeamLabel({ team, align = "left" }: { team?: TeamAsset; align?: "left" 
       ) : null}
     </div>
   );
+}
+
+function getGameLocalDate(dateInput: string) {
+  const parsed = new Date(dateInput ?? "");
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function getTeamLogo(team?: TeamAsset) {
+  return team?.logoUrl ?? team?.logoFallbackUrl ?? null;
 }
 
 function formatLocalTipoff(dateInput: string, fallback: string, withZone = false) {
@@ -131,6 +140,62 @@ export default function SchedulePage() {
     return Array.from(map.values()).sort((left, right) => left.key.localeCompare(right.key));
   }, [data]);
 
+  const aprilCalendar = useMemo(() => {
+    if (!data) {
+      return null;
+    }
+
+    const aprilGames = data.games
+      .map((game) => {
+        const localDate = getGameLocalDate(game.date);
+        return localDate ? { game, localDate } : null;
+      })
+      .filter((entry): entry is { game: ScheduleGame; localDate: Date } => Boolean(entry))
+      .filter(({ localDate }) => localDate.getMonth() === 3)
+      .sort((left, right) => left.localDate.getTime() - right.localDate.getTime());
+
+    if (!aprilGames.length) {
+      return null;
+    }
+
+    const year = aprilGames[0].localDate.getFullYear();
+    const monthStart = new Date(year, 3, 1);
+    const daysInMonth = new Date(year, 4, 0).getDate();
+    const startOffset = (monthStart.getDay() + 6) % 7;
+    const gamesByDay = new Map<number, ScheduleGame[]>();
+
+    aprilGames.forEach(({ game, localDate }) => {
+      const day = localDate.getDate();
+      const existing = gamesByDay.get(day) ?? [];
+      existing.push(game);
+      gamesByDay.set(day, existing);
+    });
+
+    const cells: Array<{ key: string; day?: number; games: ScheduleGame[] }> = [];
+
+    for (let index = 0; index < startOffset; index += 1) {
+      cells.push({ key: `blank-start-${index}`, games: [] });
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push({
+        key: `day-${day}`,
+        day,
+        games: gamesByDay.get(day) ?? []
+      });
+    }
+
+    while (cells.length % 7 !== 0) {
+      cells.push({ key: `blank-end-${cells.length}`, games: [] });
+    }
+
+    return {
+      label: "April",
+      weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      cells
+    };
+  }, [data]);
+
   if (!data && !error) {
     return <div className="panel panel-body">Loading schedule...</div>;
   }
@@ -183,6 +248,84 @@ export default function SchedulePage() {
             </div>
           </section>
         ))}
+
+        {aprilCalendar ? (
+          <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 bg-[#eef1f3] px-4 py-2 text-center">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.04em] text-slate-800">{aprilCalendar.label}</h2>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="schedule-calendar min-w-[760px]">
+                <div className="schedule-calendar__weekdays">
+                  {aprilCalendar.weekdays.map((weekday) => (
+                    <div key={weekday} className="schedule-calendar__weekday">
+                      {weekday}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="schedule-calendar__grid">
+                  {aprilCalendar.cells.map((cell) => (
+                    <div
+                      key={cell.key}
+                      className={`schedule-calendar__cell ${cell.day ? "" : "schedule-calendar__cell--empty"}`.trim()}
+                    >
+                      {cell.day ? (
+                        <>
+                          <div className="schedule-calendar__day">{cell.day}</div>
+                          <div className="schedule-calendar__games">
+                            {cell.games.map((game) => {
+                              const homeLogo = getTeamLogo(game.homeTeam);
+                              const awayLogo = getTeamLogo(game.awayTeam);
+                              const hasScore =
+                                game.homeScore !== null &&
+                                game.homeScore !== undefined &&
+                                game.awayScore !== null &&
+                                game.awayScore !== undefined;
+
+                              return (
+                                <div key={game.id} className="schedule-calendar__game">
+                                  {homeLogo ? (
+                                    <img
+                                      src={homeLogo}
+                                      alt=""
+                                      className="schedule-calendar__logo"
+                                      onError={(event) => onLogoError(event, game.homeTeam?.logoFallbackUrl)}
+                                    />
+                                  ) : (
+                                    <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
+                                      {game.homeTeam?.triCode ?? "H"}
+                                    </div>
+                                  )}
+                                  <span className="schedule-calendar__score">
+                                    {hasScore ? `${game.homeScore}-${game.awayScore}` : "vs"}
+                                  </span>
+                                  {awayLogo ? (
+                                    <img
+                                      src={awayLogo}
+                                      alt=""
+                                      className="schedule-calendar__logo"
+                                      onError={(event) => onLogoError(event, game.awayTeam?.logoFallbackUrl)}
+                                    />
+                                  ) : (
+                                    <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
+                                      {game.awayTeam?.triCode ?? "A"}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

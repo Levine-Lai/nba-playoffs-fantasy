@@ -248,6 +248,109 @@ button:disabled {
     background: #fafafa;
   }
 
+  .table-shell tbody tr.standing-row--current td {
+    background: rgba(42, 99, 210, 0.18);
+    color: var(--nba-blue-dark);
+  }
+
+  .table-shell tbody tr.standing-row--current:hover td {
+    background: rgba(42, 99, 210, 0.24);
+  }
+
+  .schedule-calendar {
+    background:
+      linear-gradient(180deg, rgba(238, 241, 243, 0.8) 0, rgba(255, 255, 255, 0) 40px),
+      #fff;
+  }
+
+  .schedule-calendar__weekdays,
+  .schedule-calendar__grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .schedule-calendar__weekday {
+    border-bottom: 1px solid var(--nba-line);
+    color: #5d6772;
+    font-family: var(--font-action);
+    font-size: 0.72rem;
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.8rem 0.45rem;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .schedule-calendar__cell {
+    min-height: 132px;
+    border-right: 1px solid rgba(216, 216, 216, 0.9);
+    border-bottom: 1px solid rgba(216, 216, 216, 0.9);
+    padding: 0.7rem 0.55rem 0.6rem;
+  }
+
+  .schedule-calendar__cell:nth-child(7n) {
+    border-right: 0;
+  }
+
+  .schedule-calendar__cell--empty {
+    background: rgba(238, 240, 242, 0.55);
+  }
+
+  .schedule-calendar__day {
+    margin-bottom: 0.5rem;
+    color: #111;
+    font-family: var(--font-action);
+    font-size: 1rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .schedule-calendar__games {
+    display: grid;
+    gap: 0.38rem;
+  }
+
+  .schedule-calendar__game {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) 26px;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 30px;
+    border: 1px solid rgba(42, 99, 210, 0.14);
+    border-radius: 999px;
+    background: rgba(248, 250, 252, 0.92);
+    padding: 0.18rem 0.26rem;
+  }
+
+  .schedule-calendar__logo {
+    height: 24px;
+    width: 24px;
+    object-fit: contain;
+  }
+
+  .schedule-calendar__logo--placeholder {
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(42, 99, 210, 0.08);
+    color: var(--nba-blue-dark);
+    font-size: 0.62rem;
+    font-weight: 700;
+  }
+
+  .schedule-calendar__score {
+    color: var(--nba-blue-dark);
+    font-family: var(--font-action);
+    font-size: 0.82rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+  }
+
   .nba-button-yellow {
     display: inline-flex;
     align-items: center;
@@ -1187,6 +1290,36 @@ button:disabled {
 
   .transactions-market {
     min-width: 430px;
+  }
+
+  .schedule-calendar__cell {
+    min-height: 108px;
+    padding: 0.48rem 0.36rem 0.44rem;
+  }
+
+  .schedule-calendar__weekday {
+    padding: 0.62rem 0.3rem;
+    font-size: 0.62rem;
+  }
+
+  .schedule-calendar__day {
+    font-size: 0.8rem;
+  }
+
+  .schedule-calendar__game {
+    grid-template-columns: 22px minmax(0, 1fr) 22px;
+    gap: 0.22rem;
+    min-height: 26px;
+    padding: 0.12rem 0.18rem;
+  }
+
+  .schedule-calendar__logo {
+    height: 20px;
+    width: 20px;
+  }
+
+  .schedule-calendar__score {
+    font-size: 0.68rem;
   }
 
   .lineup-modal-overlay {

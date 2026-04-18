@@ -116,7 +116,7 @@ export default function StandingPage() {
                 return (
                 <tr
                   key={member.userId}
-                  className={isCurrentUser ? "bg-brand-blue/10 text-brand-darkBlue" : undefined}
+                  className={isCurrentUser ? "standing-row--current" : undefined}
                 >
                   <td>
                     <div className="flex items-center">

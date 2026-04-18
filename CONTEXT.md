@@ -14,6 +14,7 @@ This file is the project's cross-conversation memory. Update it after every mean
 - Main leaderboard page is `/standing`. / 主排行榜页面是 `/standing`。
 - Legacy `/leagues` now exists only as a redirect and should not receive new feature work. / 旧的 `/leagues` 现在只保留跳转用途，不应继续承载新功能开发。
 - Team identity should be shown as `Team Name`; do not reintroduce separate `Player Name` UI unless explicitly requested. / 队伍身份展示为 `Team Name`；除非明确要求，不要重新引入单独的 `Player Name` UI。
+- The `/schedule` page keeps the existing gameday list and now also includes a simpler month-calendar preview at the bottom; the first pass is April-only and shows matchup logos with a score-only center label. / `/schedule` 页面保留现有按比赛日分组的列表，并在底部追加了更简洁的月历预览；第一版仅覆盖 4 月，并展示对阵双方 logo 与仅比分的中间标签。
 
 ## Live Gameplay Rules | 当前生效玩法规则
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是实际季后赛揭幕日，日期为 `2026-04-18`。
@@ -36,7 +37,7 @@ This file is the project's cross-conversation memory. Update it after every mean
 - Registration still uses `account` plus unique `gameId`. / 注册仍使用 `account` 加唯一 `gameId`。
 - New users should default `teamName` to `gameId`. / 新用户的默认 `teamName` 应等于 `gameId`。
 - Old `teamName` values that look like `<gameId> Squad` should be treated as legacy defaults and normalized in UI display. / 旧的、形如 `<gameId> Squad` 的 `teamName` 视为历史默认值，UI 展示时应做归一化处理。
-- Standing rows should highlight the current logged-in user. / 排名列表中应高亮当前登录用户。
+- Standing rows should highlight the current logged-in user with a deeper blue background that stays highlighted on hover. / 排名列表中当前登录用户应使用更深的蓝色高亮背景，并在鼠标悬停时保持高亮。
 - The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats. / 右侧个人信息面板故意隐藏 `Total Players` 和 `Standard transfer cost`，让信息区域聚焦在可操作数据上。
 - On the transactions page, player-selection rows should open the candidate modal from the whole row, not just the headshot, and when both FC and BC replacement slots are open the picker should allow any player and auto-assign to the matching position slot. / 在 transactions 页面里，`Player Selection` 的整行都应能打开候选球员弹窗，而不只是头像；当 FC 和 BC 替换槽同时打开时，选择器应允许点击任意球员，并自动分配到对应位置的空槽。
 - On the transactions page, the main submit button should turn yellow whenever there are unconfirmed transfer drafts, and stay in its default style when the roster is unchanged. / 在 transactions 页面里，只要存在未确认的转会草稿，主提交按钮就应变成黄色；如果阵容仍未变动，则保持默认样式。
