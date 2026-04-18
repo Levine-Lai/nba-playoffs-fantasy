@@ -298,7 +298,6 @@ button:disabled {
   }
 
   .schedule-calendar__day {
-    margin-bottom: 0.5rem;
     color: #111;
     font-family: var(--font-action);
     font-size: 1rem;
@@ -307,21 +306,43 @@ button:disabled {
     line-height: 1;
   }
 
+  .schedule-calendar__cell-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .schedule-calendar__gameday {
+    color: var(--nba-blue-dark);
+    font-family: var(--font-action);
+    font-size: 0.58rem;
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
   .schedule-calendar__games {
     display: grid;
     gap: 0.38rem;
   }
 
   .schedule-calendar__game {
+    border: 1px solid rgba(42, 99, 210, 0.14);
+    border-radius: 14px;
+    background: rgba(248, 250, 252, 0.92);
+    padding: 0.3rem 0.32rem;
+  }
+
+  .schedule-calendar__matchup {
     display: grid;
     grid-template-columns: 26px minmax(0, 1fr) 26px;
     align-items: center;
     gap: 0.3rem;
-    min-height: 30px;
-    border: 1px solid rgba(42, 99, 210, 0.14);
-    border-radius: 999px;
-    background: rgba(248, 250, 252, 0.92);
-    padding: 0.18rem 0.26rem;
   }
 
   .schedule-calendar__logo {
@@ -348,6 +369,22 @@ button:disabled {
     font-weight: 700;
     line-height: 1;
     text-align: center;
+    white-space: nowrap;
+  }
+
+  .schedule-calendar__score-wrap {
+    display: grid;
+    justify-items: center;
+    gap: 0.12rem;
+  }
+
+  .schedule-calendar__meta {
+    color: #6a7380;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
@@ -1306,11 +1343,22 @@ button:disabled {
     font-size: 0.8rem;
   }
 
+  .schedule-calendar__cell-head {
+    margin-bottom: 0.42rem;
+    gap: 0.28rem;
+  }
+
+  .schedule-calendar__gameday {
+    font-size: 0.48rem;
+  }
+
   .schedule-calendar__game {
+    padding: 0.22rem 0.2rem;
+  }
+
+  .schedule-calendar__matchup {
     grid-template-columns: 22px minmax(0, 1fr) 22px;
     gap: 0.22rem;
-    min-height: 26px;
-    padding: 0.12rem 0.18rem;
   }
 
   .schedule-calendar__logo {
@@ -1320,6 +1368,10 @@ button:disabled {
 
   .schedule-calendar__score {
     font-size: 0.68rem;
+  }
+
+  .schedule-calendar__meta {
+    font-size: 0.5rem;
   }
 
   .lineup-modal-overlay {
