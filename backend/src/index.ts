@@ -190,6 +190,23 @@ function restoreTransferWindowBaseline(state: UserState, snapshot: TransferWindo
   return state;
 }
 
+function buildChipTransferNote(chip: TransactionChipChoice, gameweekLabel: string) {
+  return chip === "wildcard" ? `Wildcard active for ${gameweekLabel}` : `All-Star active for ${gameweekLabel}`;
+}
+
+function neutralizeTransferWindowCosts(history: TransferHistoryItem[], periodKey: string, note: string) {
+  return history.map((item) =>
+    item.windowKey === periodKey
+      ? {
+          ...item,
+          cost: 0,
+          countsTowardLimit: false,
+          note
+        }
+      : item
+  );
+}
+
 function isChipActiveForPeriod(activePeriodKey: string | null | undefined, periodKey: string | null | undefined) {
   return Boolean(activePeriodKey && periodKey && activePeriodKey === periodKey);
 }
@@ -906,7 +923,15 @@ async function commitTransactionBatch(params: {
   const effectiveChip = requestedChip ?? activeChip;
   const currentWindowSnapshot = getWindowSnapshotForContext(chips, editableContext.period.key);
   if (activatingChipNow) {
-    restoreTransferWindowBaseline(baseState, currentWindowSnapshot ?? buildTransferWindowSnapshot(baseState, editableContext.period.key));
+    const activatingChip = requestedChip;
+    if (!activatingChip) {
+      return { ok: false as const, error: "Chip activation state is invalid." };
+    }
+    baseState.history = neutralizeTransferWindowCosts(
+      baseState.history,
+      editableContext.period.key,
+      buildChipTransferNote(activatingChip, editableContext.gameweek.label)
+    );
     syncTransferWindowState(baseState, editableContext.transferWindow);
   }
 
@@ -963,12 +988,10 @@ async function commitTransactionBatch(params: {
       inPlayerId: incoming.id,
       cost,
       note:
-        effectiveChip === "wildcard"
-          ? `Wildcard active for ${editableContext.gameweek.label}`
-          : effectiveChip === "all-star"
-            ? `All-Star active for ${editableContext.gameweek.label}`
-            : usesFreeTransfer
-              ? `Uses playoff FT ${editableContext.transferWindow.limit - remainingFreeTransfers}/${editableContext.transferWindow.limit}`
+        effectiveChip !== null
+          ? buildChipTransferNote(effectiveChip, editableContext.gameweek.label)
+          : usesFreeTransfer
+            ? `Uses playoff FT ${editableContext.transferWindow.limit - remainingFreeTransfers}/${editableContext.transferWindow.limit}`
             : editableContext.transferWindow.mode === "LIMITLESS"
               ? `Unlimited before ${editableContext.gameweek.label} deadline`
               : `Transfer penalty queued for ${editableContext.gameweek.label}`,
@@ -1006,7 +1029,9 @@ async function commitTransactionBatch(params: {
     nextChips.allStar.activePeriodKey = editableContext.period.key;
     nextChips.allStar.activatedAt = nextChips.allStar.activatedAt ?? new Date().toISOString();
     nextChips.allStar.originalLineup =
-      activatingChipNow || !nextChips.allStar.originalLineup ? buildStoredLineupSnapshot(baseState) : nextChips.allStar.originalLineup;
+      activatingChipNow || !nextChips.allStar.originalLineup
+        ? currentWindowSnapshot?.lineup ?? buildStoredLineupSnapshot(baseState)
+        : nextChips.allStar.originalLineup;
     nextChips.allStar.activeLineup = buildStoredLineupSnapshot(workingState);
   }
 
@@ -1548,8 +1573,8 @@ export default {
           : [];
         const requestedChip = body.chip === "wildcard" || body.chip === "all-star" ? body.chip : null;
 
-        if (!drafts.length) {
-          return json({ message: "At least one transfer is required." }, { status: 400 }, env);
+        if (!drafts.length && !requestedChip) {
+          return json({ message: "At least one transfer or chip activation is required." }, { status: 400 }, env);
         }
 
         const state = await safeLoadState(env, auth.authUser.id);

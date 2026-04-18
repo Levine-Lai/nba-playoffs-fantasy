@@ -3,6 +3,7 @@ const playoffRules = [
   "After the Day 1 deadline, each team gets 6 free transfers for the whole playoffs.",
   "After those 6 free transfers are used, every extra normal transfer costs -50 points.",
   "Each manager has 1 Wildcard and 1 All-Star chip, with the same behavior as regular season chips.",
+  "If you activate Wildcard or All-Star after already making transfers for the same gameday, those confirmed transfers stay, but that gameday no longer uses playoff FT or transfer penalties.",
   "There is no limit on how many players you can hold from the same NBA team."
 ] as const;
 

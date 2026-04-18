@@ -63,6 +63,7 @@ export const HELP_RULES = {
     "Transfer penalties appear in standings only after that slate deadline has passed.",
     "After a gameday deadline, the locked lineup becomes that day's scoring lineup, and the next playable gameday opens for edits.",
     "Each manager has one Wildcard and one All-Star chip for the playoff run.",
+    "If Wildcard or All-Star is activated after normal transfers were already confirmed for the same gameday, those transfers stay but that gameday no longer consumes playoff FT or transfer penalties.",
     "Wildcard follows the regular-season behavior: transfers for that gameday are free and the confirmed squad stays after the deadline.",
     "All-Star follows the regular-season behavior: transfers are free, budget is ignored for that gameday, and the original squad is restored after the deadline."
   ],
