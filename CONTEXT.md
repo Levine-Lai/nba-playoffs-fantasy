@@ -43,9 +43,10 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - The right-side profile panel intentionally hides `Total Players` and `Standard transfer cost` to keep the personal info area focused on actionable stats.
 - `captain_id` still exists in storage only for backward compatibility; gameplay should ignore it.
 - The current local SQLite DB and remote D1 DB were manually cleaned down to a single surviving account: `Test1`.
+- Batch transfer budget validation now uses the final post-confirm roster total instead of failing on an intermediate upgrade step before a balancing downgrade.
 
 ## Release Workflow
-- After validating code changes, the agent should push and deploy by default unless the user says not to.
+- Do not push or deploy by default. Only run `git push` or deployment steps when the user explicitly asks for them.
 - The final response must state what was deployed and still include the exact reproducible command block for the user.
 
 ## Keep Updated

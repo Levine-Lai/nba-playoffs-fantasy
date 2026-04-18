@@ -934,7 +934,9 @@ async function commitTransactionBatch(params: {
       outPlayerId: draft.outPlayerId,
       incoming,
       budget,
-      ignoreBudget: effectiveChip === "all-star"
+      // Batch-confirmed transfers should validate against the final roster cost,
+      // not fail midway just because the user selected an upgrade before a downgrade.
+      ignoreBudget: true
     });
     if (!applied.ok) {
       return applied;
@@ -973,6 +975,10 @@ async function commitTransactionBatch(params: {
       windowKey: editableContext.period.key,
       countsTowardLimit
     });
+  }
+
+  if (effectiveChip !== "all-star" && Number(workingState.rosterValue ?? 0) > budget) {
+    return { ok: false as const, error: "Transfer would exceed your budget." };
   }
 
   const nextChips: UserChipsState = {
