@@ -14,26 +14,120 @@ import {
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8787/api";
+const DEFAULT_TIMEOUT_MS = 10000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = typeof window !== "undefined" ? window.localStorage.getItem("playoff_token") : null;
+type RequestOptions = {
+  allowStaleOnError?: boolean;
+  cacheTtlMs?: number;
+  retries?: number;
+  timeoutMs?: number;
+};
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {})
-    },
-    cache: "no-store"
-  });
+type ResponseCacheEntry = {
+  data: unknown;
+  expiresAt: number;
+  staleUntil: number;
+};
 
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? "Request failed");
+const responseCache = new Map<string, ResponseCacheEntry>();
+
+function buildCacheKey(path: string, method: string, token: string | null) {
+  return `${method}:${token ?? "anon"}:${API_BASE}${path}`;
+}
+
+function clearResponseCache() {
+  responseCache.clear();
+}
+
+function isNetworkError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
   }
 
-  return (await response.json()) as T;
+  return error.name === "AbortError" || error.name === "TypeError";
+}
+
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal
+    });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit, options: RequestOptions = {}): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const token = typeof window !== "undefined" ? window.localStorage.getItem("playoff_token") : null;
+  const cacheKey = method === "GET" && options.cacheTtlMs ? buildCacheKey(path, method, token) : null;
+  const cached = cacheKey ? responseCache.get(cacheKey) : null;
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    return cached.data as T;
+  }
+
+  let attempt = 0;
+  const maxRetries = options.retries ?? (method === "GET" ? 1 : 0);
+
+  while (true) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE}${path}`,
+        {
+          ...init,
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(init?.headers ?? {})
+          },
+          cache: "no-store"
+        },
+        options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+      );
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? (response.status === 401 ? "Please log in first." : "Request failed"));
+      }
+
+      const data = (await response.json()) as T;
+
+      if (cacheKey && options.cacheTtlMs) {
+        responseCache.set(cacheKey, {
+          data,
+          expiresAt: now + options.cacheTtlMs,
+          staleUntil: now + Math.max(options.cacheTtlMs * 6, 60000)
+        });
+      }
+
+      if (method !== "GET") {
+        clearResponseCache();
+      }
+
+      return data;
+    } catch (error) {
+      if (attempt < maxRetries && isNetworkError(error)) {
+        attempt += 1;
+        continue;
+      }
+
+      if (cacheKey && options.allowStaleOnError && cached && cached.staleUntil > Date.now()) {
+        return cached.data as T;
+      }
+
+      if (isNetworkError(error)) {
+        throw new Error("Network error. Please try again.");
+      }
+
+      throw error instanceof Error ? error : new Error("Request failed");
+    }
+  }
 }
 
 export function register(account: string, gameId: string, password: string, confirmPassword: string) {
@@ -61,7 +155,10 @@ export function getMe() {
 }
 
 export function getProfile() {
-  return request<ProfileResponse>("/profile");
+  return request<ProfileResponse>("/profile", undefined, {
+    cacheTtlMs: 10000,
+    allowStaleOnError: true
+  });
 }
 
 export function updateTeamName(teamName: string) {
@@ -72,7 +169,10 @@ export function updateTeamName(teamName: string) {
 }
 
 export function getLineup() {
-  return request<LineupResponse>("/lineup");
+  return request<LineupResponse>("/lineup", undefined, {
+    cacheTtlMs: 5000,
+    allowStaleOnError: true
+  });
 }
 
 export function getPlayers(params?: {
@@ -104,7 +204,10 @@ export function getPlayers(params?: {
   }
 
   const queryString = query.toString();
-  return request<PlayerSearchResponse>(`/players${queryString ? `?${queryString}` : ""}`);
+  return request<PlayerSearchResponse>(`/players${queryString ? `?${queryString}` : ""}`, undefined, {
+    cacheTtlMs: 15000,
+    allowStaleOnError: true
+  });
 }
 
 export function createInitialTeam(playerIds: string[]) {
@@ -122,11 +225,17 @@ export function saveLineup(lineup: Partial<LineupResponse["lineup"]> & { captain
 }
 
 export function getPointsToday() {
-  return request<PointsResponse>("/points/today");
+  return request<PointsResponse>("/points/today", undefined, {
+    cacheTtlMs: 15000,
+    allowStaleOnError: true
+  });
 }
 
 export function getTransactionsOptions() {
-  return request<TransactionsResponse>("/transactions/options");
+  return request<TransactionsResponse>("/transactions/options", undefined, {
+    cacheTtlMs: 5000,
+    allowStaleOnError: true
+  });
 }
 
 export function createTransfer(outPlayerId: string, inPlayerId: string) {
@@ -153,7 +262,10 @@ export function getStandings(phase?: string) {
   }
 
   const queryString = query.toString();
-  return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`);
+  return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`, undefined, {
+    cacheTtlMs: 15000,
+    allowStaleOnError: true
+  });
 }
 
 export function getStandingPreview(userId: string, phase?: string) {
@@ -162,14 +274,23 @@ export function getStandingPreview(userId: string, phase?: string) {
   if (phase) {
     query.set("phase", phase);
   }
-  return request<PointsResponse>(`/standings/preview?${query.toString()}`);
+  return request<PointsResponse>(`/standings/preview?${query.toString()}`, undefined, {
+    cacheTtlMs: 15000,
+    allowStaleOnError: true
+  });
 }
 
 export function getSchedule() {
-  return request<ScheduleResponse>("/schedule");
+  return request<ScheduleResponse>("/schedule", undefined, {
+    cacheTtlMs: 30000,
+    allowStaleOnError: true
+  });
 }
 
 export function getHelpRules() {
-  return request<HelpResponse>("/help/rules");
+  return request<HelpResponse>("/help/rules", undefined, {
+    cacheTtlMs: 5 * 60 * 1000,
+    allowStaleOnError: true
+  });
 }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { SyntheticEvent, useEffect, useMemo, useState } from "react";
 import { getSchedule } from "@/lib/api";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { ScheduleResponse, TeamAsset } from "@/lib/types";
 
 function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
@@ -98,34 +99,15 @@ export default function SchedulePage() {
   const [data, setData] = useState<ScheduleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-
-    const load = () => {
-      getSchedule()
-        .then((payload) => {
-          if (!active) {
-            return;
-          }
-          setData(payload);
-          setError(null);
-        })
-        .catch((err) => {
-          if (!active) {
-            return;
-          }
-          setError(err instanceof Error ? err.message : "Failed to load schedule.");
-        });
-    };
-
-    load();
-    const timer = window.setInterval(load, 60000);
-
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
+  useVisibilityPolling(async () => {
+    try {
+      const payload = await getSchedule();
+      setData(payload);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load schedule.");
+    }
+  }, 60000, []);
 
   const grouped = useMemo(() => {
     if (!data) {

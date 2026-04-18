@@ -7,6 +7,7 @@ import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
 import RightSidebar from "@/components/RightSidebar";
 import { getPointsToday, getStandingPreview } from "@/lib/api";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { Player, PointsResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
 
@@ -28,36 +29,15 @@ function PointsPageContent() {
   const starterFrontCourt = data ? data.lineup.starters.filter((player) => player.position === "FC") : ([] as Player[]);
   const starterBackCourt = data ? data.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);
 
-  useEffect(() => {
-    let active = true;
-
-    const load = () => {
-      const request = targetUserId ? getStandingPreview(targetUserId, targetPhase || undefined) : getPointsToday();
-
-      request
-        .then((payload) => {
-          if (!active) {
-            return;
-          }
-          setData(payload);
-          setError(null);
-        })
-        .catch((err) => {
-          if (!active) {
-            return;
-          }
-          setError(err instanceof Error ? err.message : "Failed to load points.");
-        });
-    };
-
-    load();
-    const timer = window.setInterval(load, 30000);
-
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [targetPhase, targetUserId]);
+  useVisibilityPolling(async () => {
+    try {
+      const payload = targetUserId ? await getStandingPreview(targetUserId, targetPhase || undefined) : await getPointsToday();
+      setData(payload);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load points.");
+    }
+  }, 30000, [targetPhase, targetUserId]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading points...</div>;

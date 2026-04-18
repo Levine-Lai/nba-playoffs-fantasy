@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, SyntheticEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, SyntheticEvent, useEffect, useMemo, useRef, useState } from "react";
 import { confirmTransactions, getPlayers, getTransactionsOptions } from "@/lib/api";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { ChipCardState, Player, PlayerScheduleCell, TransactionsResponse } from "@/lib/types";
 
 type SortMode = "salary" | "totalPoints" | "recentAverage";
@@ -155,6 +156,8 @@ export default function TransactionsPage() {
   const [sort, setSort] = useState<SortMode>("salary");
   const [search, setSearch] = useState("");
   const [maxSalary, setMaxSalary] = useState("");
+  const selectionRequestIdRef = useRef(0);
+  const debouncedSearch = useDebouncedValue(search.trim(), 350);
 
   const backendActiveChip = useMemo(() => (data ? getBackendActiveChip(data.chips) : null), [data]);
   const effectiveChip = chipDraft ?? backendActiveChip;
@@ -184,17 +187,26 @@ export default function TransactionsPage() {
 
   async function loadSelection() {
     setLoadingSelection(true);
+    const requestId = selectionRequestIdRef.current + 1;
+    selectionRequestIdRef.current = requestId;
+
     try {
       const parsedView = parseView(view);
       const effectivePosition = focusedOutPlayer?.position ?? parsedView.position;
+      const hasScopedFilters = Boolean(focusedOutPlayer || parsedView.position || parsedView.teamId || debouncedSearch || maxSalary);
+      const limit = focusedOutPlayer ? 80 : hasScopedFilters ? 48 : 24;
       const response = await getPlayers({
         position: effectivePosition || undefined,
         teamId: parsedView.teamId || undefined,
         sort,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         maxSalary: maxSalary || undefined,
-        limit: 120
+        limit
       });
+
+      if (selectionRequestIdRef.current !== requestId) {
+        return;
+      }
 
       setSelection(response.players);
       setTeamOptions(
@@ -204,9 +216,15 @@ export default function TransactionsPage() {
           .map((team) => ({ id: team.id, name: team.name }))
       );
     } catch (nextError) {
+      if (selectionRequestIdRef.current !== requestId) {
+        return;
+      }
+
       setFeedback(nextError instanceof Error ? nextError.message : "Failed to load player selection.");
     } finally {
-      setLoadingSelection(false);
+      if (selectionRequestIdRef.current === requestId) {
+        setLoadingSelection(false);
+      }
     }
   }
 
@@ -222,7 +240,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     void loadSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, sort, replacementFocusId, search, maxSalary]);
+  }, [view, sort, replacementFocusId, debouncedSearch, maxSalary]);
 
   const actionPlayer = useMemo(() => {
     if (!playerModalId) {

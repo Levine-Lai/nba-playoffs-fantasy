@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getProfile } from "@/lib/api";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { ProfileResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
 
@@ -9,34 +10,15 @@ export default function RightSidebar() {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-
-    const load = () => {
-      getProfile()
-        .then((payload) => {
-          if (!active) {
-            return;
-          }
-          setData(payload);
-          setError(null);
-        })
-        .catch((err) => {
-          if (!active) {
-            return;
-          }
-          setError(err.message);
-        });
-    };
-
-    load();
-    const timer = window.setInterval(load, 30000);
-
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
+  useVisibilityPolling(async () => {
+    try {
+      const payload = await getProfile();
+      setData(payload);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load profile.");
+    }
+  }, 120000, []);
 
   if (error) {
     return <aside className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</aside>;
