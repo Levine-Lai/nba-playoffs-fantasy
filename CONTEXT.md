@@ -24,6 +24,7 @@ Update it after every meaningful code, rules, schema, routing, or deployment-flo
 - `Wildcard` and `All-Star` must remain locked until after the `Day 1` deadline.
 - Play-in games (`005...`) are excluded from schedule, scoring, and standings logic.
 - Standings should display effective scoring, including penalties and valid negative totals.
+- Fantasy scoring weights are `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`, with captain still adding a 1.5x multiplier on that player's counted score.
 - Effective scoring should follow the valid lineup shape rules:
   - Count up to 5 scoring players.
   - Use starters first.

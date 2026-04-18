@@ -783,7 +783,7 @@ function calculateFantasyPointsFromBoxScore(statistics: Record<string, unknown> 
   const blocks = Number(statistics.blocks ?? 0);
   const turnovers = Number(statistics.turnovers ?? 0);
 
-  return Number((points + rebounds * 1.2 + assists * 1.5 + steals * 3 + blocks * 3 - turnovers).toFixed(1));
+  return Number((points + rebounds + assists * 2 + steals * 3 + blocks * 3 - turnovers).toFixed(1));
 }
 
 function buildUpcomingSlateCells(game: OfficialScheduleGame | undefined) {

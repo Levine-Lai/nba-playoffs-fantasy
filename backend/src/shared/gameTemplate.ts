@@ -65,8 +65,8 @@ export const HELP_RULES = {
   ],
   scoringRules: [
     { event: "Point", value: 1 },
-    { event: "Rebound", value: 1.2 },
-    { event: "Assist", value: 1.5 },
+    { event: "Rebound", value: 1 },
+    { event: "Assist", value: 2 },
     { event: "Steal", value: 3 },
     { event: "Block", value: 3 },
     { event: "Turnover", value: -1 }
