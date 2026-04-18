@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
-import DesignDocPanel from "@/components/DesignDocPanel";
+import { useMemo } from "react";
 
 interface AppChromeProps {
   children: React.ReactNode;
 }
-
-const PANEL_WIDTH = 420;
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -23,8 +20,6 @@ const navItems = [
 
 export default function AppChrome({ children }: AppChromeProps) {
   const pathname = usePathname();
-  const [panelOpen, setPanelOpen] = useState(false);
-
   const activePath = useMemo(() => pathname ?? "/", [pathname]);
 
   return (
@@ -68,8 +63,6 @@ export default function AppChrome({ children }: AppChromeProps) {
       <main className="mx-auto w-full max-w-[1400px] px-3 py-5 transition-all duration-300 sm:px-5">
         {children}
       </main>
-
-      <DesignDocPanel open={panelOpen} onOpenChange={setPanelOpen} width={PANEL_WIDTH} />
     </div>
   );
 }
