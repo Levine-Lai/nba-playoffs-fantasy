@@ -526,6 +526,10 @@ button:disabled {
     background: #fafafa;
   }
 
+  .builder-selection-table {
+    min-width: 100%;
+  }
+
   .selection-band-fc {
     background: linear-gradient(90deg, var(--nba-red), var(--nba-pink)) !important;
     color: #fff;
@@ -828,6 +832,10 @@ button:disabled {
     padding: 0.45rem;
   }
 
+  .captain-bar-scroll {
+    overflow-x: auto;
+  }
+
   .captain-bar__title {
     display: flex;
     align-items: center;
@@ -941,20 +949,31 @@ button:disabled {
     flex-wrap: wrap;
   }
 
+  .transactions-table-scroll,
+  .transactions-market-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .transactions-table,
+  .transactions-market {
+    min-width: 100%;
+  }
+
 }
 
 @media (max-width: 640px) {
   .panel-head {
-    padding: 0.65rem 0.8rem;
+    padding: 0.55rem 0.7rem;
   }
 
   .panel-body {
-    padding: 0.9rem;
+    padding: 0.75rem;
   }
 
   .ism-nav__tab {
-    padding: 0.9rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.75rem 0.88rem;
+    font-size: 0.74rem;
   }
 
   .nba-logo-mark {
@@ -962,81 +981,151 @@ button:disabled {
     width: 44px;
   }
 
+  .builder-metric {
+    padding: 0.55rem;
+  }
+
+  .builder-metric strong {
+    font-size: 1.55rem;
+  }
+
   .builder-selection-list {
     max-height: none;
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+
+  .builder-selection-table {
+    min-width: 520px;
+  }
+
+  .builder-selection-head,
+  .builder-selection-row {
+    grid-template-columns: minmax(230px, 1.7fr) 82px 58px 76px;
+    gap: 0.45rem;
   }
 
   .builder-selection-head {
-    display: none;
+    display: grid;
+    padding: 0.8rem 0.85rem;
+    font-size: 0.8rem;
   }
 
   .builder-selection-row {
-    grid-template-columns: 1fr;
-    gap: 0.7rem;
-    padding: 0.95rem 1rem;
+    padding: 0.75rem 0.85rem;
+    font-size: 0.82rem;
+  }
+
+  .builder-selection-band {
+    min-width: 520px;
+    padding: 0.7rem 0.85rem !important;
+    font-size: 0.9rem !important;
   }
 
   .court-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.7rem;
-    padding: 0.85rem 0.55rem;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding: 0.7rem 0.45rem;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
   }
 
   .court-bench {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
+    grid-auto-columns: minmax(104px, 1fr);
+    grid-auto-flow: column;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
   }
 
   .court-slot {
-    width: 100%;
-    padding: 0;
+    flex: 0 0 auto;
+    padding: 0.15rem;
+    scroll-snap-align: start;
   }
 
-  .court-card,
+  .court-card {
+    width: 124px;
+  }
+
   .court-card--compact {
-    width: 100%;
-    max-width: none;
+    width: 108px;
   }
 
   .court-card__team {
-    font-size: 1.45rem;
+    font-size: 1.2rem;
   }
 
   .court-card__photo {
-    height: 96px;
+    height: 86px;
   }
 
   .court-card__photo--portrait {
-    height: 132px;
+    height: 116px;
   }
 
   .court-card__headshot,
   .court-card__fallback-logo {
-    width: 82px;
+    width: 72px;
   }
 
   .court-card__headshot--portrait {
-    width: 108px;
+    width: 92px;
   }
 
   .court-card__name {
-    font-size: 1rem;
-    min-height: 42px;
+    font-size: 0.86rem;
+    min-height: 36px;
+    padding: 0.45rem 0.35rem 0.35rem;
+  }
+
+  .court-card__logo {
+    height: 26px;
+    width: 26px;
+  }
+
+  .court-card__schedule-row {
+    gap: 0.35rem;
+    padding: 0.38rem 0.2rem;
+    font-size: 0.68rem;
   }
 
   .court-card__points-only strong {
-    font-size: 1.8rem;
+    font-size: 1.45rem;
   }
 
   .captain-bar__title {
-    justify-content: center;
-    text-align: center;
+    justify-content: flex-start;
+    min-width: 170px;
+    padding: 0 0.55rem;
+    font-size: 0.84rem;
   }
 
   .captain-bar {
-    grid-template-columns: 1fr;
+    width: max-content;
+    min-width: 100%;
+    grid-template-columns: 170px 160px 120px;
+    gap: 0.35rem;
+    padding: 0.3rem;
+  }
+
+  .captain-bar__button {
+    min-height: 42px;
+    padding: 0 0.65rem;
+    font-size: 0.86rem;
+  }
+
+  .transactions-table {
+    min-width: 620px;
+  }
+
+  .transactions-market {
+    min-width: 430px;
   }
 
   .lineup-modal-overlay {
@@ -1069,5 +1158,9 @@ button:disabled {
   .builder-selection-row {
     grid-template-columns: minmax(220px, 1.6fr) 90px 70px 82px;
     gap: 0.55rem;
+  }
+
+  .transactions-table {
+    min-width: 620px;
   }
 }

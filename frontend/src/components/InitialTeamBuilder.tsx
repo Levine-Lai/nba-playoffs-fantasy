@@ -157,7 +157,7 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
             <div className="sidebar-card__head">Selected Squad</div>
             <div className="divide-y divide-slate-200">
               {rosterSlots.map((player, index) => (
-                <div key={player?.id ?? `slot-${index}`} className="grid min-h-[58px] grid-cols-[34px_1fr] gap-2 px-3 py-2 text-sm sm:grid-cols-[34px_1fr_auto] sm:items-center">
+                <div key={player?.id ?? `slot-${index}`} className="grid min-h-[58px] grid-cols-[34px_1fr_auto] items-center gap-2 px-3 py-2 text-sm">
                   <span className="grid h-7 w-7 place-items-center rounded-sm bg-[#eef1f3] text-xs font-bold text-slate-700">{index + 1}</span>
                   {player ? (
                     <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
                     <button
                       type="button"
                       onClick={() => removePlayer(player.id)}
-                      className="rounded-sm border border-slate-300 px-2 py-2 text-xs font-semibold hover:bg-slate-50 sm:py-1"
+                      className="rounded-sm border border-slate-300 px-2 py-1 text-xs font-semibold hover:bg-slate-50"
                     >
                       Remove
                     </button>
@@ -271,81 +271,77 @@ export default function InitialTeamBuilder({ initialBudget, onCreated }: Initial
             </div>
 
             <div className="builder-selection-list">
-              <div className="builder-selection-head">
-                <div>Player</div>
-                <div>Team</div>
-                <div>Cost</div>
-                <div />
-              </div>
+              <div className="builder-selection-table">
+                <div className="builder-selection-head">
+                  <div>Player</div>
+                  <div>Team</div>
+                  <div>Cost</div>
+                  <div />
+                </div>
 
-              {groupedPlayers.length ? (
-                groupedPlayers.map((group) => (
-                  <div key={group.label}>
-                    <div className={group.tone === "FC" ? "selection-band-fc px-4 py-4 text-[1rem]" : "selection-band-bc px-4 py-4 text-[1rem]"}>
-                      {group.label}
-                    </div>
-                    {group.players.map((player) => {
-                      const picked = selectedIds.has(player.id);
-                      const limitReached =
-                        selected.length >= 10 ||
-                        (player.position === "BC" && bcCount >= 5) ||
-                        (player.position === "FC" && fcCount >= 5) ||
-                        budgetLeft - Number(player.salary) < 0;
-                      const addDisabled = picked || limitReached;
-                      return (
-                        <div key={player.id} className="builder-selection-row">
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-sm bg-[#eef1f3]">
-                              {player.headshotUrl || player.headshotFallbackUrl ? (
-                                <img
-                                  src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
-                                  alt=""
-                                  className="h-full w-full object-cover object-top"
-                                  onError={(event) => onImageError(event, player.headshotFallbackUrl)}
-                                />
-                              ) : null}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold uppercase text-brand-darkBlue">{player.name}</span>
-                                <span
-                                  className={`rounded-sm px-1.5 py-0.5 text-[0.7rem] font-bold ${
-                                    player.position === "FC"
-                                      ? "bg-[rgba(200,16,46,0.12)] text-brand-pink"
-                                      : "bg-[rgba(42,99,210,0.12)] text-brand-blue"
-                                  }`}
-                                >
-                                  {player.position}
-                                </span>
+                {groupedPlayers.length ? (
+                  groupedPlayers.map((group) => (
+                    <div key={group.label}>
+                      <div className={`builder-selection-band ${group.tone === "FC" ? "selection-band-fc" : "selection-band-bc"} px-4 py-4 text-[1rem]`}>
+                        {group.label}
+                      </div>
+                      {group.players.map((player) => {
+                        const picked = selectedIds.has(player.id);
+                        const limitReached =
+                          selected.length >= 10 ||
+                          (player.position === "BC" && bcCount >= 5) ||
+                          (player.position === "FC" && fcCount >= 5) ||
+                          budgetLeft - Number(player.salary) < 0;
+                        const addDisabled = picked || limitReached;
+                        return (
+                          <div key={player.id} className="builder-selection-row">
+                            <div className="flex items-center gap-3">
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-sm bg-[#eef1f3]">
+                                {player.headshotUrl || player.headshotFallbackUrl ? (
+                                  <img
+                                    src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
+                                    alt=""
+                                    className="h-full w-full object-cover object-top"
+                                    onError={(event) => onImageError(event, player.headshotFallbackUrl)}
+                                  />
+                                ) : null}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold uppercase text-brand-darkBlue">{player.name}</span>
+                                  <span
+                                    className={`rounded-sm px-1.5 py-0.5 text-[0.7rem] font-bold ${
+                                      player.position === "FC"
+                                        ? "bg-[rgba(200,16,46,0.12)] text-brand-pink"
+                                        : "bg-[rgba(42,99,210,0.12)] text-brand-blue"
+                                    }`}
+                                  >
+                                    {player.position}
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                            <div>{player.team}</div>
+                            <div className="font-semibold">{player.salary.toFixed(1)}</div>
+                            <div className="text-right">
+                              <button
+                                type="button"
+                                onClick={() => addPlayer(player)}
+                                disabled={addDisabled}
+                                className="nba-button-yellow min-h-0 px-4 py-2 text-sm disabled:opacity-40"
+                              >
+                                {picked ? "Picked" : "Add"}
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between gap-3 text-sm sm:block">
-                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Team</span>
-                            <span>{player.team}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 text-sm sm:block sm:font-semibold">
-                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Cost</span>
-                            <span>{player.salary.toFixed(1)}</span>
-                          </div>
-                          <div className="text-right sm:text-right">
-                            <button
-                              type="button"
-                              onClick={() => addPlayer(player)}
-                              disabled={addDisabled}
-                              className="nba-button-yellow min-h-0 w-full px-4 py-3 text-sm disabled:opacity-40 sm:w-auto sm:py-2"
-                            >
-                              {picked ? "Picked" : "Add"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))
-              ) : (
-                <div className="px-4 py-6 text-center text-sm text-slate-500">No players found.</div>
-              )}
+                        );
+                      })}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-6 text-center text-sm text-slate-500">No players found.</div>
+                )}
+              </div>
             </div>
           </section>
         </div>

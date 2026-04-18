@@ -554,13 +554,14 @@ export default function TransactionsPage() {
 
         <form onSubmit={onTransfer} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
           <section className="panel overflow-hidden">
-            <div className="bg-white">
+            <div className="transactions-table-scroll bg-white">
+              <div className="transactions-table">
               {groupedRoster.map((group) => (
                 <div key={group.key}>
-                  <div className={`${group.colorClass} grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 text-sm sm:grid-cols-[1.8fr_90px_1fr] sm:px-5`}>
+                  <div className={`${group.colorClass} grid grid-cols-[1.8fr_90px_1fr] items-center gap-3 px-5 py-3 text-sm`}>
                     <div className="text-[1rem]">{group.label}</div>
-                    <div className="hidden text-center sm:block">$S</div>
-                    <div className="text-right sm:text-center">Schedule</div>
+                    <div className="text-center">$S</div>
+                    <div className="text-center">Schedule</div>
                   </div>
 
                   {group.players.map((player) => {
@@ -577,7 +578,7 @@ export default function TransactionsPage() {
                           setPlayerModalId(player.id);
                           setFeedback(null);
                         }}
-                        className={`grid w-full grid-cols-1 gap-3 border-b border-slate-200 px-4 py-3 text-left transition hover:bg-[#f8fafc] sm:grid-cols-[1.8fr_90px_1fr] sm:px-5 ${
+                        className={`grid w-full grid-cols-[1.8fr_90px_1fr] items-center gap-3 border-b border-slate-200 px-5 py-3 text-left transition hover:bg-[#f8fafc] ${
                           isRemoved ? "opacity-35" : isReplaced ? "bg-[rgba(255,219,77,0.18)]" : "bg-white"
                         }`}
                       >
@@ -602,12 +603,8 @@ export default function TransactionsPage() {
                             {isReplaced ? <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-brand-darkBlue">Replacing {player.name}</p> : null}
                           </div>
                         </div>
-                        <div className="flex items-center justify-between rounded-sm bg-slate-50 px-3 py-2 text-[1.05rem] sm:block sm:bg-transparent sm:px-0 sm:py-0 sm:text-center">
-                          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Salary</span>
-                          <span>{rowPlayer.salary.toFixed(1)}</span>
-                        </div>
+                        <div className="text-center text-[1.05rem]">{rowPlayer.salary.toFixed(1)}</div>
                         <div>
-                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Schedule</div>
                           <div className="grid grid-cols-5 justify-items-center gap-1">
                             {getScheduleCells(rowPlayer).map((cell) => (
                               <div key={cell.dateKey} className="grid h-9 w-9 place-items-center rounded-full bg-[#f4f6f8]">
@@ -621,6 +618,7 @@ export default function TransactionsPage() {
                   })}
                 </div>
               ))}
+              </div>
             </div>
 
             <div className="bg-white px-5 py-5 text-center">
@@ -702,64 +700,60 @@ export default function TransactionsPage() {
               {focusedOutPlayer ? <p className="text-center text-sm text-slate-600">Showing {focusedOutPlayer.position} replacements for {focusedOutPlayer.name}</p> : null}
             </div>
 
-            <div className="max-h-[980px] overflow-y-auto bg-white">
-              {groupedSelection.map((group) => (
-                <div key={group.key}>
-                  <div className={`${group.colorClass} grid grid-cols-[1fr_62px] items-center px-4 py-3 text-sm sm:grid-cols-[1fr_62px_62px]`}>
-                    <div>{group.label}</div>
-                    <div className="text-center">$</div>
-                    <div className="hidden text-center sm:block">**</div>
-                  </div>
-                  {group.players.map((player) => {
-                    const isSelected = pendingDrafts.some((draft) => draft.inPlayer?.id === player.id);
-                    const selectable = !focusedOutPlayer || player.position === focusedOutPlayer.position;
-                    return (
-                      <div
-                        key={player.id}
-                        className={`grid grid-cols-1 gap-3 border-b border-slate-200 px-4 py-3 sm:grid-cols-[1fr_62px_62px] sm:items-center sm:py-2 ${
-                          isSelected ? "bg-[rgba(255,219,77,0.18)]" : "bg-white"
-                        } ${selectable ? "" : "opacity-45"}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${player.position === "FC" ? "border-brand-pink text-brand-pink" : "border-brand-blue text-brand-blue"}`}>
-                            i
-                          </span>
-                          <button
-                            type="button"
-                            disabled={!selectable}
-                            onClick={() => setCandidateModalId(player.id)}
-                            className="h-11 w-11 shrink-0 overflow-hidden rounded-sm bg-[#eef1f3] disabled:cursor-not-allowed"
-                          >
-                            {player.headshotUrl || player.headshotFallbackUrl ? (
-                              <img
-                                src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
-                                alt={player.name}
-                                className="h-full w-full object-cover object-top"
-                                onError={(event) => onImageError(event, player.headshotFallbackUrl)}
-                              />
-                            ) : null}
-                          </button>
-                          <div>
-                            <p className="text-[1rem] leading-tight text-black">{formatPlayerName(player.name)}</p>
-                            <p className="mt-1 text-[1rem] font-bold">
-                              <span className="text-brand-darkBlue">{player.team}</span>{" "}
-                              <span className={player.position === "FC" ? "text-brand-pink" : "text-brand-blue"}>{player.position}</span>
-                            </p>
+            <div className="transactions-market-scroll max-h-[980px] overflow-y-auto bg-white">
+              <div className="transactions-market">
+                {groupedSelection.map((group) => (
+                  <div key={group.key}>
+                    <div className={`${group.colorClass} grid grid-cols-[1fr_62px_62px] items-center px-4 py-3 text-sm`}>
+                      <div>{group.label}</div>
+                      <div className="text-center">$</div>
+                      <div className="text-center">**</div>
+                    </div>
+                    {group.players.map((player) => {
+                      const isSelected = pendingDrafts.some((draft) => draft.inPlayer?.id === player.id);
+                      const selectable = !focusedOutPlayer || player.position === focusedOutPlayer.position;
+                      return (
+                        <div
+                          key={player.id}
+                          className={`grid grid-cols-[1fr_62px_62px] items-center border-b border-slate-200 px-4 py-2 ${
+                            isSelected ? "bg-[rgba(255,219,77,0.18)]" : "bg-white"
+                          } ${selectable ? "" : "opacity-45"}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border ${player.position === "FC" ? "border-brand-pink text-brand-pink" : "border-brand-blue text-brand-blue"}`}>
+                              i
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!selectable}
+                              onClick={() => setCandidateModalId(player.id)}
+                              className="h-11 w-11 shrink-0 overflow-hidden rounded-sm bg-[#eef1f3] disabled:cursor-not-allowed"
+                            >
+                              {player.headshotUrl || player.headshotFallbackUrl ? (
+                                <img
+                                  src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
+                                  alt={player.name}
+                                  className="h-full w-full object-cover object-top"
+                                  onError={(event) => onImageError(event, player.headshotFallbackUrl)}
+                                />
+                              ) : null}
+                            </button>
+                            <div>
+                              <p className="text-[1rem] leading-tight text-black">{formatPlayerName(player.name)}</p>
+                              <p className="mt-1 text-[1rem] font-bold">
+                                <span className="text-brand-darkBlue">{player.team}</span>{" "}
+                                <span className={player.position === "FC" ? "text-brand-pink" : "text-brand-blue"}>{player.position}</span>
+                              </p>
+                            </div>
                           </div>
+                          <div className="text-center text-[1rem]">{player.salary.toFixed(1)}</div>
+                          <div className="text-center text-[1rem]">{(player.recentAverage ?? 0).toFixed(1)}</div>
                         </div>
-                        <div className="flex items-center justify-between rounded-sm bg-slate-50 px-3 py-2 text-[1rem] sm:block sm:bg-transparent sm:px-0 sm:py-0 sm:text-center">
-                          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Salary</span>
-                          <span>{player.salary.toFixed(1)}</span>
-                        </div>
-                        <div className="flex items-center justify-between rounded-sm bg-slate-50 px-3 py-2 text-[1rem] sm:block sm:bg-transparent sm:px-0 sm:py-0 sm:text-center">
-                          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400 sm:hidden">Avg</span>
-                          <span>{(player.recentAverage ?? 0).toFixed(1)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
             </div>
           </aside>
         </form>

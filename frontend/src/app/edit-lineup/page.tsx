@@ -323,48 +323,50 @@ export default function EditLineupPage() {
         </div>
       </section>
 
-      <div className="captain-bar">
-        <div className="captain-bar__title">
-          <span>Gameday Captain</span>
-          <span className="court-card__info">i</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            clearSwitchFlow();
-            if (captainMode) {
-              setCaptainMode(false);
-              setFeedback("Captain mode cancelled.");
-              return;
-            }
+      <div className="captain-bar-scroll">
+        <div className="captain-bar">
+          <div className="captain-bar__title">
+            <span>Gameday Captain</span>
+            <span className="court-card__info">i</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              clearSwitchFlow();
+              if (captainMode) {
+                setCaptainMode(false);
+                setFeedback("Captain mode cancelled.");
+                return;
+              }
 
-            if (data.lineup.captainId) {
-              setData((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      lineup: {
-                        ...prev.lineup,
-                        captainId: ""
+              if (data.lineup.captainId) {
+                setData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        lineup: {
+                          ...prev.lineup,
+                          captainId: ""
+                        }
                       }
-                    }
-                  : prev
-              );
-              setDirty(true);
-              setFeedback("Captain removed. Click Save to keep the no-captain state.");
-              return;
-            }
+                    : prev
+                );
+                setDirty(true);
+                setFeedback("Captain removed. Click Save to keep the no-captain state.");
+                return;
+              }
 
-            setCaptainMode(true);
-            setFeedback("Captain mode active. Open any starter card and choose Make Captain.");
-          }}
-          className={`captain-bar__button ${captainMode ? "captain-bar__button--active" : ""}`}
-        >
-          {captainMode || data.lineup.captainId ? "Cancel" : "Select Captain"}
-        </button>
-        <button className="captain-bar__button captain-bar__button--save" type="button" onClick={onSave} disabled={!dirty || saving}>
-          {saving ? "Saving..." : dirty ? "Save" : "Saved"}
-        </button>
+              setCaptainMode(true);
+              setFeedback("Captain mode active. Open any starter card and choose Make Captain.");
+            }}
+            className={`captain-bar__button ${captainMode ? "captain-bar__button--active" : ""}`}
+          >
+            {captainMode || data.lineup.captainId ? "Cancel" : "Select Captain"}
+          </button>
+          <button className="captain-bar__button captain-bar__button--save" type="button" onClick={onSave} disabled={!dirty || saving}>
+            {saving ? "Saving..." : dirty ? "Save" : "Saved"}
+          </button>
+        </div>
       </div>
 
       <section className="panel overflow-hidden">
