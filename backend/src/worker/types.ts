@@ -112,6 +112,24 @@ export interface StoredLineupSnapshot {
   bank: number;
 }
 
+export interface LockedLineupEntry {
+  snapshot: StoredLineupSnapshot;
+  capturedAt: string;
+  source: "deadline-lock" | "manual-correction";
+  note?: string;
+}
+
+export interface LineupCorrectionOverride {
+  starters: string[];
+  bench: string[];
+  matchBy?: "id" | "name";
+  capturedAt?: string;
+  note?: string;
+}
+
+export type LineupLockRegistry = Record<string, Record<string, LockedLineupEntry>>;
+export type LineupCorrectionRegistry = Record<string, Record<string, LineupCorrectionOverride>>;
+
 export interface TransferWindowSnapshot {
   periodKey: string;
   lineup: StoredLineupSnapshot;

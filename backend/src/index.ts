@@ -47,6 +47,10 @@ import type {
   AuthUser,
   EditablePeriodContext,
   Env,
+  LineupCorrectionOverride,
+  LineupCorrectionRegistry,
+  LineupLockRegistry,
+  LockedLineupEntry,
   Player,
   StandingMemberEntry,
   StoredLineupSnapshot,
@@ -58,6 +62,20 @@ import type {
 } from "./worker/types";
 
 const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
+const LINEUP_LOCKS_KEY = "lineup_locks_v1";
+const LINEUP_CORRECTIONS_KEY = "lineup_corrections_v1";
+
+const DEFAULT_LINEUP_CORRECTIONS: LineupCorrectionRegistry = {
+  kusuri: {
+    "day:2026-04-18": {
+      matchBy: "name",
+      starters: ["S.Castle", "J.Brunson", "A.Mitchell", "D.Avdija", "N.Queta"],
+      bench: ["L.James", "J.Tyson", "N.Alexander-Walker", "J.Randle", "B.Brown"],
+      capturedAt: "2026-04-19T05:20:00.000Z",
+      note: "Day 1 lineup restored from the 2026-04-19 13:20 standing capture."
+    }
+  }
+};
 
 type ScoringPeriodContext = {
   key: string;
@@ -383,6 +401,240 @@ function buildStoredPointsSnapshot(state: UserState, scoringPeriod: { key: strin
   };
 }
 
+function cloneStoredLineupSnapshot(snapshot: StoredLineupSnapshot): StoredLineupSnapshot {
+  return {
+    starters: snapshot.starters.map(clonePlayer),
+    bench: snapshot.bench.map(clonePlayer),
+    captainId: snapshot.captainId ?? "",
+    rosterValue: Number(snapshot.rosterValue ?? 0),
+    bank: Number(snapshot.bank ?? 0)
+  };
+}
+
+function cloneLockedLineupEntry(entry: LockedLineupEntry): LockedLineupEntry {
+  return {
+    snapshot: cloneStoredLineupSnapshot(entry.snapshot),
+    capturedAt: entry.capturedAt,
+    source: entry.source,
+    note: entry.note
+  };
+}
+
+function cloneLineupCorrectionOverride(override: LineupCorrectionOverride): LineupCorrectionOverride {
+  return {
+    starters: [...override.starters],
+    bench: [...override.bench],
+    matchBy: override.matchBy,
+    capturedAt: override.capturedAt,
+    note: override.note
+  };
+}
+
+function cloneLineupCorrectionRegistry(registry: LineupCorrectionRegistry): LineupCorrectionRegistry {
+  return Object.fromEntries(
+    Object.entries(registry).map(([userKey, periods]) => [
+      userKey,
+      Object.fromEntries(
+        Object.entries(periods).map(([periodKey, override]) => [periodKey, cloneLineupCorrectionOverride(override)])
+      )
+    ])
+  );
+}
+
+function mergeLineupCorrectionRegistry(
+  base: LineupCorrectionRegistry,
+  override: LineupCorrectionRegistry
+): LineupCorrectionRegistry {
+  const merged = cloneLineupCorrectionRegistry(base);
+  for (const [userKey, periodOverrides] of Object.entries(override)) {
+    const normalizedUserKey = String(userKey).trim().toLowerCase();
+    merged[normalizedUserKey] = {
+      ...(merged[normalizedUserKey] ?? {}),
+      ...Object.fromEntries(
+        Object.entries(periodOverrides ?? {}).map(([periodKey, correction]) => [periodKey, cloneLineupCorrectionOverride(correction)])
+      )
+    };
+  }
+
+  return merged;
+}
+
+async function readLineupLockRegistry(env: Env) {
+  return readAppState<LineupLockRegistry>(env, LINEUP_LOCKS_KEY, {});
+}
+
+async function writeLineupLockRegistry(env: Env, registry: LineupLockRegistry) {
+  await writeAppState(env, LINEUP_LOCKS_KEY, registry);
+}
+
+async function readLineupCorrectionRegistry(env: Env) {
+  const stored = await readAppState<LineupCorrectionRegistry>(env, LINEUP_CORRECTIONS_KEY, {});
+  return mergeLineupCorrectionRegistry(DEFAULT_LINEUP_CORRECTIONS, stored);
+}
+
+function getStoredLineupLock(
+  registry: LineupLockRegistry,
+  userId: string | number,
+  periodKey: string
+) {
+  const entry = registry[String(userId)]?.[periodKey];
+  return entry ? cloneLockedLineupEntry(entry) : null;
+}
+
+function setStoredLineupLock(
+  registry: LineupLockRegistry,
+  userId: string | number,
+  periodKey: string,
+  entry: LockedLineupEntry
+) {
+  const userKey = String(userId);
+  registry[userKey] = {
+    ...(registry[userKey] ?? {}),
+    [periodKey]: cloneLockedLineupEntry(entry)
+  };
+}
+
+function buildCorrectionLookupKeys(userId: string | number, gameId: string) {
+  return [String(userId), String(gameId ?? "").trim().toLowerCase()].filter(Boolean);
+}
+
+function getLineupCorrectionOverride(
+  registry: LineupCorrectionRegistry,
+  userId: string | number,
+  gameId: string,
+  periodKey: string
+) {
+  for (const lookupKey of buildCorrectionLookupKeys(userId, gameId)) {
+    const override = registry[lookupKey]?.[periodKey];
+    if (override) {
+      return cloneLineupCorrectionOverride(override);
+    }
+  }
+
+  return null;
+}
+
+function getLineupCorrectionPeriodKeys(
+  registry: LineupCorrectionRegistry,
+  userId: string | number,
+  gameId: string
+) {
+  const keys = new Set<string>();
+  for (const lookupKey of buildCorrectionLookupKeys(userId, gameId)) {
+    for (const periodKey of Object.keys(registry[lookupKey] ?? {})) {
+      keys.add(periodKey);
+    }
+  }
+
+  return [...keys];
+}
+
+function shouldBackfillHistoricalCorrections(
+  registry: LineupCorrectionRegistry,
+  userId: string | number,
+  gameId: string,
+  currentPeriodKey: string | null | undefined
+) {
+  return getLineupCorrectionPeriodKeys(registry, userId, gameId).some((periodKey) => periodKey !== currentPeriodKey);
+}
+
+function buildSnapshotFromCorrectionOverride(
+  state: UserState,
+  override: LineupCorrectionOverride
+): StoredLineupSnapshot | null {
+  const roster = getRosterPlayers(state);
+  const matchByName = override.matchBy === "name";
+  const rosterById = new Map(roster.map((player) => [String(player.id), player]));
+  const rosterByName = new Map(roster.map((player) => [String(player.name ?? "").trim().toLowerCase(), player]));
+  const resolvePlayer = (token: string) => {
+    if (matchByName) {
+      return rosterByName.get(String(token ?? "").trim().toLowerCase()) ?? null;
+    }
+
+    return rosterById.get(String(token ?? "").trim()) ?? null;
+  };
+
+  const starters = override.starters.map(resolvePlayer);
+  const bench = override.bench.map(resolvePlayer);
+  if (starters.some((player) => !player) || bench.some((player) => !player)) {
+    return null;
+  }
+
+  const orderedPlayers = [...starters, ...bench] as Player[];
+  const currentRosterIds = roster.map((player) => String(player.id)).sort();
+  const orderedIds = orderedPlayers.map((player) => String(player.id)).sort();
+  const hasSameRoster =
+    orderedPlayers.length === roster.length &&
+    currentRosterIds.length === orderedIds.length &&
+    currentRosterIds.every((playerId, index) => playerId === orderedIds[index]);
+
+  if (!hasSameRoster || !isValidStarterMix(starters as Player[])) {
+    return null;
+  }
+
+  return {
+    starters: (starters as Player[]).map(clonePlayer),
+    bench: (bench as Player[]).map(clonePlayer),
+    captainId: state.captainId ?? "",
+    rosterValue: Number(state.rosterValue ?? 0),
+    bank: Number(state.bank ?? 0)
+  };
+}
+
+function resolveLineupStateForPeriod(params: {
+  registry: LineupLockRegistry;
+  corrections: LineupCorrectionRegistry;
+  userId: string | number;
+  gameId: string;
+  periodKey: string;
+  sourceState: UserState;
+  createIfMissing: boolean;
+}) {
+  const { registry, corrections, userId, gameId, periodKey, sourceState, createIfMissing } = params;
+  const existingEntry = getStoredLineupLock(registry, userId, periodKey);
+  if (existingEntry) {
+    return {
+      state: buildStateFromSnapshot(sourceState, existingEntry.snapshot),
+      registryChanged: false
+    };
+  }
+
+  const override = getLineupCorrectionOverride(corrections, userId, gameId, periodKey);
+  if (override) {
+    const correctedSnapshot = buildSnapshotFromCorrectionOverride(sourceState, override);
+    if (correctedSnapshot) {
+      setStoredLineupLock(registry, userId, periodKey, {
+        snapshot: correctedSnapshot,
+        capturedAt: override.capturedAt ?? new Date().toISOString(),
+        source: "manual-correction",
+        note: override.note
+      });
+      return {
+        state: buildStateFromSnapshot(sourceState, correctedSnapshot),
+        registryChanged: true
+      };
+    }
+  }
+
+  if (!createIfMissing) {
+    return {
+      state: cloneState(sourceState),
+      registryChanged: false
+    };
+  }
+
+  const snapshot = buildStoredLineupSnapshot(sourceState);
+  setStoredLineupLock(registry, userId, periodKey, {
+    snapshot,
+    capturedAt: new Date().toISOString(),
+    source: "deadline-lock"
+  });
+  return {
+    state: buildStateFromSnapshot(sourceState, snapshot),
+    registryChanged: true
+  };
+}
+
 async function readLeaguePointsLedger(env: Env) {
   return readAppState<LeaguePointsLedger>(env, LEAGUE_POINTS_LEDGER_KEY, {});
 }
@@ -647,6 +899,10 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
     const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
 
     if (currentScoringPeriod) {
+      const lineupLocks = await readLineupLockRegistry(env);
+      const lineupCorrections = await readLineupCorrectionRegistry(env);
+      let shouldPersistLineupLocks = false;
+
       for (const member of members) {
         const state = await safeLoadState(env, member.userId, { hydrateAssets: false });
         if (!state || !hasCreatedTeam(state)) {
@@ -654,18 +910,38 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
         }
 
         const chips = await getUserChipsState(env, member.userId);
-        const scoringState = getScoringState(state, chips, currentScoringPeriod);
+        const resolvedScoringState = resolveLineupStateForPeriod({
+          registry: lineupLocks,
+          corrections: lineupCorrections,
+          userId: member.userId,
+          gameId: member.gameId,
+          periodKey: currentScoringPeriod.key,
+          sourceState: getScoringState(state, chips, currentScoringPeriod),
+          createIfMissing: true
+        });
+        shouldPersistLineupLocks = shouldPersistLineupLocks || resolvedScoringState.registryChanged;
+        const scoringState = resolvedScoringState.state;
         const livePreview = await buildOfficialLivePointsPreview(env, scoringState, false).catch(() => null);
-        const nextGamedayPoints = Number(
+        let nextGamedayPoints = Number(
           (livePreview?.finalPoints ?? buildStoredPointsSnapshot(scoringState, currentScoringPeriod).summary.final ?? 0).toFixed(1)
         );
-        const nextOverallPoints = Number((await syncLeaguePointsLedger(env, member.userId, currentScoringPeriod, nextGamedayPoints)).toFixed(1));
+        let nextOverallPoints = Number((await syncLeaguePointsLedger(env, member.userId, currentScoringPeriod, nextGamedayPoints)).toFixed(1));
+
+        if (shouldBackfillHistoricalCorrections(lineupCorrections, member.userId, member.gameId, currentScoringPeriod.key)) {
+          const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips);
+          nextGamedayPoints = Number(recalculated.gamedayPoints ?? nextGamedayPoints);
+          nextOverallPoints = Number(recalculated.overallPoints ?? nextOverallPoints);
+        }
 
         if (Number(state.gamedayPoints ?? 0) !== nextGamedayPoints || Number(state.overallPoints ?? 0) !== nextOverallPoints) {
           state.gamedayPoints = nextGamedayPoints;
           state.overallPoints = nextOverallPoints;
           await saveStateForUser(env, member.userId, state);
         }
+      }
+
+      if (shouldPersistLineupLocks) {
+        await writeLineupLockRegistry(env, lineupLocks);
       }
 
       members = await listStandingMembers(env);
@@ -700,6 +976,9 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
   const periods = await getOfficialPlayoffPeriods(env)
     .then((items) => items.filter((period) => new Date(period.deadline).getTime() <= Date.now()))
     .catch(() => []);
+  const targetUser = await getPublicUserById(env, userId);
+  const lineupLocks = await readLineupLockRegistry(env);
+  const lineupCorrections = await readLineupCorrectionRegistry(env);
   const allowedPeriodKeys = new Set(periods.map((period) => period.key));
 
   await pruneLeaguePointsLedgerForUser(env, userId, allowedPeriodKeys);
@@ -717,7 +996,16 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
   let overallPoints = 0;
 
   for (const period of periods) {
-    const periodState = await buildRosterStateForPeriod(env, state, chips, period);
+    const periodState = await buildRosterStateForPeriod(
+      env,
+      userId,
+      targetUser?.gameId ?? String(userId),
+      state,
+      chips,
+      period,
+      lineupLocks,
+      lineupCorrections
+    );
     const preview = await buildOfficialPointsPreviewForPeriod(env, periodState, period.key, false).catch(() => null);
     if (!preview) {
       continue;
@@ -795,12 +1083,24 @@ function replaceRosterPlayerByIdentity(state: UserState, currentPlayerId: string
 
 async function buildRosterStateForPeriod(
   env: Env,
+  userId: string | number,
+  gameId: string,
   state: UserState,
   chips: UserChipsState,
-  targetPeriod: { key: string; dayNumber: number; gamedayKey: string }
+  targetPeriod: { key: string; dayNumber: number; gamedayKey: string },
+  lineupLocks: LineupLockRegistry,
+  lineupCorrections: LineupCorrectionRegistry
 ) {
   if (isChipActiveForPeriod(chips.allStar.activePeriodKey, targetPeriod.key) && chips.allStar.activeLineup) {
-    return buildStateFromSnapshot(state, chips.allStar.activeLineup);
+    return resolveLineupStateForPeriod({
+      registry: lineupLocks,
+      corrections: lineupCorrections,
+      userId,
+      gameId,
+      periodKey: targetPeriod.key,
+      sourceState: buildStateFromSnapshot(state, chips.allStar.activeLineup),
+      createIfMissing: false
+    }).state;
   }
 
   const reconstructed = cloneState(state);
@@ -815,7 +1115,15 @@ async function buildRosterStateForPeriod(
     .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
 
   if (!rewoundHistory.length) {
-    return reconstructed;
+    return resolveLineupStateForPeriod({
+      registry: lineupLocks,
+      corrections: lineupCorrections,
+      userId,
+      gameId,
+      periodKey: targetPeriod.key,
+      sourceState: reconstructed,
+      createIfMissing: false
+    }).state;
   }
 
   const nextMatchupByTeam = await getNextMatchupByTeam(env);
@@ -846,7 +1154,15 @@ async function buildRosterStateForPeriod(
 
   reconstructed.rosterValue = Number(getRosterPlayers(reconstructed).reduce((sum, player) => sum + Number(player.salary ?? 0), 0).toFixed(1));
   reconstructed.bank = Number(((await getInitialBudget(env)) - reconstructed.rosterValue).toFixed(1));
-  return reconstructed;
+  return resolveLineupStateForPeriod({
+    registry: lineupLocks,
+    corrections: lineupCorrections,
+    userId,
+    gameId,
+    periodKey: targetPeriod.key,
+    sourceState: reconstructed,
+    createIfMissing: false
+  }).state;
 }
 
 async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId: string, phaseKey?: string | null) {
@@ -917,11 +1233,23 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   const targetPhase = String(phaseKey ?? "overall");
   const ledger = await readLeaguePointsLedger(env);
   const targetEntries = Object.values(ledger[String(userId)] ?? {});
+  const lineupLocks = await readLineupLockRegistry(env);
+  const lineupCorrections = await readLineupCorrectionRegistry(env);
+  let shouldPersistLineupLocks = false;
 
   if (targetPhase !== "overall") {
     const targetPeriod = await getOfficialPlayoffPeriodByPhaseKey(env, targetPhase).catch(() => null);
     if (targetPeriod) {
-      const historicalState = await buildRosterStateForPeriod(env, state, chips, targetPeriod);
+      const historicalState = await buildRosterStateForPeriod(
+        env,
+        userId,
+        targetUser.gameId,
+        state,
+        chips,
+        targetPeriod,
+        lineupLocks,
+        lineupCorrections
+      );
       const preview = await buildOfficialPointsPreviewForPeriod(env, historicalState, targetPeriod.key, false).catch(() => null);
 
       if (preview) {
@@ -947,7 +1275,24 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   }
 
   const scoringPeriod = (await getScoringPeriodContext(env)) as ScoringPeriodContext;
-  const scoringState = getScoringState(state, chips, scoringPeriod);
+  if (shouldBackfillHistoricalCorrections(lineupCorrections, userId, targetUser.gameId, scoringPeriod?.key ?? null)) {
+    await backfillOfficialPointsLedger(env, userId, state, chips);
+  }
+  const resolvedScoringState = resolveLineupStateForPeriod({
+    registry: lineupLocks,
+    corrections: lineupCorrections,
+    userId,
+    gameId: targetUser.gameId,
+    periodKey: scoringPeriod?.key ?? "",
+    sourceState: getScoringState(state, chips, scoringPeriod),
+    createIfMissing: Boolean(scoringPeriod?.key)
+  });
+  shouldPersistLineupLocks = shouldPersistLineupLocks || resolvedScoringState.registryChanged;
+  if (shouldPersistLineupLocks) {
+    await writeLineupLockRegistry(env, lineupLocks);
+    shouldPersistLineupLocks = false;
+  }
+  const scoringState = resolvedScoringState.state;
   const preserveRosterPoints =
     Boolean(scoringPeriod) && isChipActiveForPeriod(chips.allStar.activePeriodKey, scoringPeriod?.key) && Boolean(chips.allStar.activeLineup);
   const livePreview = await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null);
@@ -1553,6 +1898,24 @@ export default {
         const proposedIds = [...proposedStarters, ...proposedBench].map((player) => player.id).sort();
         if (currentIds.join("|") !== proposedIds.join("|")) {
           return json({ message: "Line-up save can only reorder players already in your roster." }, { status: 400 }, env);
+        }
+
+        const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
+        if (currentScoringPeriod?.key) {
+          const chips = await getUserChipsState(env, auth.authUser.id);
+          const lineupLocks = await readLineupLockRegistry(env);
+          const resolvedCurrentLineup = resolveLineupStateForPeriod({
+            registry: lineupLocks,
+            corrections: await readLineupCorrectionRegistry(env),
+            userId: auth.authUser.id,
+            gameId: auth.authUser.gameId,
+            periodKey: currentScoringPeriod.key,
+            sourceState: getScoringState(state, chips, currentScoringPeriod),
+            createIfMissing: true
+          });
+          if (resolvedCurrentLineup.registryChanged) {
+            await writeLineupLockRegistry(env, lineupLocks);
+          }
         }
 
         state.starters = proposedStarters;
