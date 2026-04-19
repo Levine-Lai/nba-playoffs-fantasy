@@ -54,6 +54,40 @@ function getTeamLogo(team?: TeamAsset) {
   return team?.logoUrl ?? team?.logoFallbackUrl ?? null;
 }
 
+function getGamedayBadge(label?: string | null) {
+  const match = String(label ?? "").match(/day\s*(\d+)/i);
+  return match ? `Day${match[1]}` : "";
+}
+
+function getPlayoffRoundGameBadge(gameId?: string | null) {
+  const id = String(gameId ?? "");
+  if (!/^004\d+/.test(id) || id.length < 10) {
+    return "";
+  }
+
+  const seriesCode = Number(id.slice(5, 8));
+  const gameNumber = Number(id.slice(-1));
+
+  if (!Number.isFinite(seriesCode) || !Number.isFinite(gameNumber) || gameNumber <= 0) {
+    return "";
+  }
+
+  if (seriesCode >= 1 && seriesCode <= 8) {
+    return `R1G${gameNumber}`;
+  }
+  if (seriesCode >= 21 && seriesCode <= 24) {
+    return `R2G${gameNumber}`;
+  }
+  if (seriesCode >= 31 && seriesCode <= 32) {
+    return `R3G${gameNumber}`;
+  }
+  if (seriesCode === 41) {
+    return `R4G${gameNumber}`;
+  }
+
+  return `G${gameNumber}`;
+}
+
 function formatLocalTipoff(dateInput: string, fallback: string, withZone = false) {
   const date = new Date(dateInput ?? "");
   if (!Number.isFinite(date.getTime())) {
@@ -271,46 +305,57 @@ export default function SchedulePage() {
                     >
                       {cell.day ? (
                         <>
-                          <div className="schedule-calendar__day">{cell.day}</div>
+                          <div className="schedule-calendar__cell-head">
+                            <div className="schedule-calendar__day">{cell.day}</div>
+                            {cell.games[0]?.gamedayLabel ? (
+                              <div className="schedule-calendar__gameday">{getGamedayBadge(cell.games[0].gamedayLabel)}</div>
+                            ) : null}
+                          </div>
                           <div className="schedule-calendar__games">
                             {cell.games.map((game) => {
-                              const homeLogo = getTeamLogo(game.homeTeam);
                               const awayLogo = getTeamLogo(game.awayTeam);
+                              const homeLogo = getTeamLogo(game.homeTeam);
                               const hasScore =
                                 game.homeScore !== null &&
                                 game.homeScore !== undefined &&
                                 game.awayScore !== null &&
                                 game.awayScore !== undefined;
+                              const roundGameBadge = getPlayoffRoundGameBadge(game.id);
 
                               return (
                                 <div key={game.id} className="schedule-calendar__game">
-                                  {homeLogo ? (
-                                    <img
-                                      src={homeLogo}
-                                      alt=""
-                                      className="schedule-calendar__logo"
-                                      onError={(event) => onLogoError(event, game.homeTeam?.logoFallbackUrl)}
-                                    />
-                                  ) : (
-                                    <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
-                                      {game.homeTeam?.triCode ?? "H"}
+                                  <div className="schedule-calendar__matchup">
+                                    {awayLogo ? (
+                                      <img
+                                        src={awayLogo}
+                                        alt=""
+                                        className="schedule-calendar__logo"
+                                        onError={(event) => onLogoError(event, game.awayTeam?.logoFallbackUrl)}
+                                      />
+                                    ) : (
+                                      <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
+                                        {game.awayTeam?.triCode ?? "A"}
+                                      </div>
+                                    )}
+                                    <div className="schedule-calendar__score-wrap">
+                                      <span className="schedule-calendar__score">
+                                        {hasScore ? `${game.awayScore}-${game.homeScore}` : "vs"}
+                                      </span>
+                                      {roundGameBadge ? <span className="schedule-calendar__meta">{roundGameBadge}</span> : null}
                                     </div>
-                                  )}
-                                  <span className="schedule-calendar__score">
-                                    {hasScore ? `${game.homeScore}-${game.awayScore}` : "vs"}
-                                  </span>
-                                  {awayLogo ? (
-                                    <img
-                                      src={awayLogo}
-                                      alt=""
-                                      className="schedule-calendar__logo"
-                                      onError={(event) => onLogoError(event, game.awayTeam?.logoFallbackUrl)}
-                                    />
-                                  ) : (
-                                    <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
-                                      {game.awayTeam?.triCode ?? "A"}
-                                    </div>
-                                  )}
+                                    {homeLogo ? (
+                                      <img
+                                        src={homeLogo}
+                                        alt=""
+                                        className="schedule-calendar__logo"
+                                        onError={(event) => onLogoError(event, game.homeTeam?.logoFallbackUrl)}
+                                      />
+                                    ) : (
+                                      <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
+                                        {game.homeTeam?.triCode ?? "H"}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}

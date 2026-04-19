@@ -14,7 +14,7 @@ This file is the project's cross-conversation memory. Update it after every mean
 - Main leaderboard page is `/standing`. / 主排行榜页面是 `/standing`。
 - Legacy `/leagues` now exists only as a redirect and should not receive new feature work. / 旧的 `/leagues` 现在只保留跳转用途，不应继续承载新功能开发。
 - Team identity should be shown as `Team Name`; do not reintroduce separate `Player Name` UI unless explicitly requested. / 队伍身份展示为 `Team Name`；除非明确要求，不要重新引入单独的 `Player Name` UI。
-- The `/schedule` page is currently back on the stable version: the original grouped gameday list remains the main view, and only the simpler April calendar preview stays at the bottom for further iteration. / `/schedule` 页面当前已回到稳定版本：原来的按比赛日分组列表继续作为主视图，仅保留页面底部较简洁的 4 月日历预览，供后续继续迭代。
+- The `/schedule` page is currently back on the stable version: the original grouped gameday list remains the main view, and the April calendar preview stays at the bottom using one matchup row per game with away on the left, home on the right, a `Day1`-style badge in the date header, and an `R1G1`-style label beneath the score. / `/schedule` 页面当前已回到稳定版本：原来的按比赛日分组列表继续作为主视图，底部保留 4 月日历预览；日历里每场比赛按单独一行展示，左侧客队、右侧主队，日期头右侧显示 `Day1` 这种样式的标记，比分下方显示 `R1G1` 这种样式的标签。
 
 ## Live Gameplay Rules | 当前生效玩法规则
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是实际季后赛揭幕日，日期为 `2026-04-18`。
