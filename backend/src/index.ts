@@ -19,7 +19,7 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay } from "./worker/liveData";
+import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildScheduleGameDetailPayload, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay } from "./worker/liveData";
 import {
   buildPublicUser,
   createSession,
@@ -1823,6 +1823,25 @@ export default {
         }
 
         return json(await buildSchedulePayload(env), { status: 200 }, env);
+      }
+
+      if (pathname === "/api/schedule/game" && request.method === "GET") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        const gameId = String(url.searchParams.get("gameId") ?? "").trim();
+        if (!gameId) {
+          return json({ message: "gameId is required." }, { status: 400 }, env);
+        }
+
+        const payload = await buildScheduleGameDetailPayload(env, gameId);
+        if (!payload) {
+          return json({ message: "Game not found." }, { status: 404 }, env);
+        }
+
+        return json(payload, { status: 200 }, env);
       }
 
       if (pathname === "/api/help/rules" && request.method === "GET") {

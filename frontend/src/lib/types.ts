@@ -244,6 +244,36 @@ export interface ScheduleResponse {
   games: ScheduleGame[];
 }
 
+export interface ScheduleGamePlayerLine {
+  playerId: string;
+  name: string;
+  starter: boolean;
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  fantasy: number;
+}
+
+export interface ScheduleGameTeamDetail {
+  name: string;
+  score: number | null;
+  team: TeamAsset;
+  players: ScheduleGamePlayerLine[];
+}
+
+export interface ScheduleGameDetailResponse {
+  gameId: string;
+  title: string;
+  dateLabel: string;
+  statusText: string;
+  stageLabel?: string | null;
+  away: ScheduleGameTeamDetail;
+  home: ScheduleGameTeamDetail;
+}
+
 export interface HelpResponse {
   rosterRules: string[];
   scoringRules: Array<{

@@ -8,6 +8,7 @@ import {
   PointsResponse,
   ProfileResponse,
   RegisterResponse,
+  ScheduleGameDetailResponse,
   ScheduleResponse,
   StandingResponse,
   TransactionsResponse,
@@ -291,6 +292,16 @@ export function getStandingPreview(userId: string, phase?: string) {
 export function getSchedule() {
   return request<ScheduleResponse>("/schedule", undefined, {
     cacheTtlMs: 30000,
+    allowStaleOnError: true
+  });
+}
+
+export function getScheduleGameDetail(gameId: string) {
+  const query = new URLSearchParams();
+  query.set("gameId", gameId);
+
+  return request<ScheduleGameDetailResponse>(`/schedule/game?${query.toString()}`, undefined, {
+    cacheTtlMs: 15000,
     allowStaleOnError: true
   });
 }

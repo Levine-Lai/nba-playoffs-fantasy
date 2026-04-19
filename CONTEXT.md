@@ -13,6 +13,9 @@ This file is the project's cross-conversation memory. Keep it concise, current, 
 - Team identity should be shown as `Team Name`; do not reintroduce separate `Player Name` UI unless explicitly requested. / 队伍身份默认显示 `Team Name`，除非用户明确要求，否则不要重新引入单独的 `Player Name` UI。
 - `/schedule` now uses April, May, and June month calendars as the main view. Each game renders as one row with away on the left, home on the right, a `Day1`-style badge in the date header, and an `R1G1`-style label under the score. / `/schedule` 现在以 4 月、5 月、6 月的月历作为主视图。每场比赛按单独一行展示，左侧客队、右侧主队，日期头显示 `Day1` 样式标记，比分下方显示 `R1G1` 样式标签。
 - `/schedule` also shows a `Playoff Path` bracket under the calendars, aggregating each playoff series into a big-score elimination route view. / `/schedule` 也会在月历下方显示 `Playoff Path` 晋级路线图，把每个季后赛系列赛聚合成大比分淘汰路线视图。
+- Final games in the schedule calendars should color the winning side green and the losing side red, while keeping the center score area white. / `schedule` 月历里的已结束比赛应把赢球一侧标绿、输球一侧标红，并保持中间比分区域为白底留白。
+- Clicking a game row in the schedule calendars should open a matchup detail modal showing both teams' fantasy box score tables, including `PTS`, `REB`, `AST`, `STL`, `BLK`, `TOV`, and the fantasy total. / 点击 `schedule` 月历中的比赛行应打开对阵详情弹窗，显示双方球队的 fantasy 数据表，包含 `PTS`、`REB`、`AST`、`STL`、`BLK`、`TOV` 和 fantasy 总分。
+- Schedule month calendars should hide any full week row that contains no games, so empty leading rows like April 1-12 do not render. / `schedule` 月历应隐藏整周都没有比赛的周行，因此像 4 月 1-12 这种前置空白两行不再渲染。
 
 ## Live Gameplay Rules | 当前生效玩法规则
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是实际季后赛揭幕日，日期为 `2026-04-18`。

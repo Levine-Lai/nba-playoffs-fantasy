@@ -91,6 +91,26 @@ type OfficialScheduleGame = {
   awayTriCode: string;
 };
 
+type ScheduleGamePlayerLine = {
+  playerId: string;
+  name: string;
+  starter: boolean;
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  fantasy: number;
+};
+
+type ScheduleGameTeamDetail = {
+  name: string;
+  score: number | null;
+  team: TeamAsset;
+  players: ScheduleGamePlayerLine[];
+};
+
 function buildLiveRequestHeaders() {
   return {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
@@ -788,6 +808,67 @@ function calculateFantasyPointsFromBoxScore(statistics: Record<string, unknown> 
   return Number((points + rebounds + assists * 2 + steals * 3 + blocks * 3 - turnovers).toFixed(1));
 }
 
+function toStatNumber(value: unknown) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function buildScheduleGamePlayerLines(players: Array<Record<string, any>> = []): ScheduleGamePlayerLine[] {
+  return players
+    .filter((player) => String(player?.played ?? "0") === "1")
+    .sort((left, right) => {
+      const starterDiff = Number(right?.starter ?? 0) - Number(left?.starter ?? 0);
+      if (starterDiff !== 0) {
+        return starterDiff;
+      }
+
+      return Number(left?.order ?? 999) - Number(right?.order ?? 999);
+    })
+    .map((player) => {
+      const statistics = player?.statistics ?? {};
+      const firstName = String(player?.firstName ?? "").trim();
+      const familyName = String(player?.familyName ?? "").trim();
+      const displayName = `${firstName} ${familyName}`.trim() || String(player?.name ?? "Unknown");
+
+      return {
+        playerId: String(player?.personId ?? ""),
+        name: displayName,
+        starter: String(player?.starter ?? "0") === "1",
+        pts: toStatNumber(statistics.points),
+        reb: toStatNumber(statistics.reboundsTotal),
+        ast: toStatNumber(statistics.assists),
+        stl: toStatNumber(statistics.steals),
+        blk: toStatNumber(statistics.blocks),
+        tov: toStatNumber(statistics.turnovers),
+        fantasy: calculateFantasyPointsFromBoxScore(statistics)
+      };
+    });
+}
+
+function buildScheduleGameTeamDetail(
+  teamStats: Record<string, any> | null | undefined,
+  fallbackTeam: TeamAsset | null | undefined,
+  fallbackName: string
+): ScheduleGameTeamDetail {
+  const nameParts = [String(teamStats?.teamCity ?? "").trim(), String(teamStats?.teamName ?? "").trim()].filter(Boolean);
+  const name = nameParts.join(" ") || fallbackName;
+  const resolvedCode = String(teamStats?.teamId ?? fallbackTeam?.code ?? "").trim();
+  const resolvedTriCode = String(teamStats?.teamTricode ?? fallbackTeam?.triCode ?? "").trim();
+
+  return {
+    name,
+    score: toNullableNumber(teamStats?.score),
+    team: {
+      name,
+      code: resolvedCode || fallbackTeam?.code || null,
+      triCode: resolvedTriCode || fallbackTeam?.triCode || "",
+      logoUrl: fallbackTeam?.logoUrl ?? null,
+      logoFallbackUrl: fallbackTeam?.logoFallbackUrl ?? null
+    },
+    players: buildScheduleGamePlayerLines(teamStats?.players ?? [])
+  };
+}
+
 function buildUpcomingSlateCells(game: OfficialScheduleGame | undefined) {
   if (!game) {
     return ["-", "-", "-", "-"];
@@ -1064,6 +1145,39 @@ export async function buildOfficialPointsPreviewForPeriod(
     },
     beforeFirstDeadline
   );
+}
+
+export async function buildScheduleGameDetailPayload(env: Env, gameId: string) {
+  const officialGames = await getOfficialScheduleGames(env);
+  const scheduleGame = officialGames.find((game) => String(game.id) === String(gameId).trim()) ?? null;
+
+  if (!scheduleGame) {
+    return null;
+  }
+
+  const officialBox = await getOfficialBoxScore(scheduleGame.id).catch(() => null);
+  const officialGame = officialBox?.game ?? null;
+
+  const away = buildScheduleGameTeamDetail(officialGame?.awayTeam, scheduleGame.awayTeam, scheduleGame.away);
+  const home = buildScheduleGameTeamDetail(officialGame?.homeTeam, scheduleGame.homeTeam, scheduleGame.home);
+  const dateLabel = formatDateTimeLabel(scheduleGame.date);
+  const scoreLabel =
+    scheduleGame.awayScore !== null &&
+    scheduleGame.awayScore !== undefined &&
+    scheduleGame.homeScore !== null &&
+    scheduleGame.homeScore !== undefined
+      ? `${scheduleGame.awayScore} - ${scheduleGame.homeScore}`
+      : "";
+
+  return {
+    gameId: scheduleGame.id,
+    title: `${away.name} @ ${home.name}`,
+    dateLabel,
+    statusText: [dateLabel, scheduleGame.statusText || scheduleGame.status, scoreLabel].filter(Boolean).join("    "),
+    stageLabel: scheduleGame.stageLabel ?? null,
+    away,
+    home
+  };
 }
 
 export async function buildOfficialStartedPeriodSummaries(

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { SyntheticEvent, useMemo, useState } from "react";
-import { getSchedule } from "@/lib/api";
+import { getSchedule, getScheduleGameDetail } from "@/lib/api";
+import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
-import { ScheduleGame, ScheduleResponse, TeamAsset } from "@/lib/types";
+import { ScheduleGame, ScheduleGameDetailResponse, ScheduleResponse, TeamAsset } from "@/lib/types";
 
 interface PlayoffSeriesTeam {
   key: string;
@@ -180,11 +181,18 @@ function buildMonthCalendar(games: ScheduleGame[], year: number, monthIndex: num
     cells.push({ key: `blank-end-${cells.length}`, games: [] });
   }
 
+  const weeks: Array<Array<{ key: string; day?: number; games: ScheduleGame[] }>> = [];
+  for (let index = 0; index < cells.length; index += 7) {
+    weeks.push(cells.slice(index, index + 7));
+  }
+
+  const trimmedWeeks = weeks.filter((week) => week.some((cell) => cell.games.length > 0));
+
   return {
     label: monthStart.toLocaleString("en-US", { month: "long" }),
     year,
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    cells
+    cells: trimmedWeeks.flat()
   };
 }
 
@@ -262,9 +270,22 @@ function buildPlayoffBracket(games: ScheduleGame[]) {
   }));
 }
 
+function formatStatValue(value: number | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return "0";
+  }
+
+  return String(Math.round(numeric));
+}
+
 export default function SchedulePage() {
   const [data, setData] = useState<ScheduleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [selectedGameDetail, setSelectedGameDetail] = useState<ScheduleGameDetailResponse | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useVisibilityPolling(async () => {
     try {
@@ -287,6 +308,30 @@ export default function SchedulePage() {
   }, [data]);
 
   const playoffBracket = useMemo(() => buildPlayoffBracket(data?.games ?? []), [data]);
+  const isGameDetailOpen = Boolean(selectedGameId);
+
+  async function openGameDetail(gameId: string) {
+    setSelectedGameId(gameId);
+    setSelectedGameDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+
+    try {
+      const payload = await getScheduleGameDetail(gameId);
+      setSelectedGameDetail(payload);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "Failed to load game details.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeGameDetail() {
+    setSelectedGameId(null);
+    setSelectedGameDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading schedule...</div>;
@@ -357,41 +402,67 @@ export default function SchedulePage() {
                                 game.awayScore !== null &&
                                 game.awayScore !== undefined;
                               const roundGameBadge = getPlayoffRoundGameBadge(game.id);
+                              const awayResultClass =
+                                hasScore && game.status === "final"
+                                  ? game.awayScore! > game.homeScore!
+                                    ? "schedule-calendar__side--win"
+                                    : game.awayScore! < game.homeScore!
+                                      ? "schedule-calendar__side--loss"
+                                      : ""
+                                  : "";
+                              const homeResultClass =
+                                hasScore && game.status === "final"
+                                  ? game.homeScore! > game.awayScore!
+                                    ? "schedule-calendar__side--win"
+                                    : game.homeScore! < game.awayScore!
+                                      ? "schedule-calendar__side--loss"
+                                      : ""
+                                  : "";
 
                               return (
                                 <div key={game.id} className="schedule-calendar__game">
-                                  <div className="schedule-calendar__matchup">
-                                    {awayLogo ? (
-                                      <img
-                                        src={awayLogo}
-                                        alt=""
-                                        className="schedule-calendar__logo"
-                                        onError={(event) => onLogoError(event, game.awayTeam?.logoFallbackUrl)}
-                                      />
-                                    ) : (
-                                      <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
-                                        {game.awayTeam?.triCode ?? "A"}
+                                  <button
+                                    type="button"
+                                    className="schedule-calendar__game-trigger"
+                                    onClick={() => void openGameDetail(game.id)}
+                                  >
+                                    <div className="schedule-calendar__matchup">
+                                      <div className={`schedule-calendar__side ${awayResultClass}`.trim()}>
+                                        {awayLogo ? (
+                                          <img
+                                            src={awayLogo}
+                                            alt=""
+                                            className="schedule-calendar__logo"
+                                            onError={(event) => onLogoError(event, game.awayTeam?.logoFallbackUrl)}
+                                          />
+                                        ) : (
+                                          <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
+                                            {game.awayTeam?.triCode ?? "A"}
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                    <div className="schedule-calendar__score-wrap">
-                                      <span className="schedule-calendar__score">
-                                        {hasScore ? `${game.awayScore}-${game.homeScore}` : "vs"}
-                                      </span>
-                                      {roundGameBadge ? <span className="schedule-calendar__meta">{roundGameBadge}</span> : null}
+                                      <div className="schedule-calendar__score-wrap">
+                                        <span className="schedule-calendar__score">
+                                          {hasScore ? `${game.awayScore}-${game.homeScore}` : "vs"}
+                                        </span>
+                                        {roundGameBadge ? <span className="schedule-calendar__meta">{roundGameBadge}</span> : null}
+                                      </div>
+                                      <div className={`schedule-calendar__side ${homeResultClass}`.trim()}>
+                                        {homeLogo ? (
+                                          <img
+                                            src={homeLogo}
+                                            alt=""
+                                            className="schedule-calendar__logo"
+                                            onError={(event) => onLogoError(event, game.homeTeam?.logoFallbackUrl)}
+                                          />
+                                        ) : (
+                                          <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
+                                            {game.homeTeam?.triCode ?? "H"}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    {homeLogo ? (
-                                      <img
-                                        src={homeLogo}
-                                        alt=""
-                                        className="schedule-calendar__logo"
-                                        onError={(event) => onLogoError(event, game.homeTeam?.logoFallbackUrl)}
-                                      />
-                                    ) : (
-                                      <div className="schedule-calendar__logo schedule-calendar__logo--placeholder">
-                                        {game.homeTeam?.triCode ?? "H"}
-                                      </div>
-                                    )}
-                                  </div>
+                                  </button>
                                 </div>
                               );
                             })}
@@ -479,6 +550,104 @@ export default function SchedulePage() {
           </div>
         </section>
       </div>
+
+      {isGameDetailOpen ? (
+        <div className="schedule-game-modal-overlay">
+          <div className="schedule-game-modal">
+            <div className="schedule-game-modal__head">
+              <div>
+                <h2 className="schedule-game-modal__title">{selectedGameDetail?.title ?? "Loading game..."}</h2>
+                {selectedGameDetail ? (
+                  <p className="schedule-game-modal__meta">
+                    {selectedGameDetail.statusText}
+                    {selectedGameDetail.stageLabel ? `  ${selectedGameDetail.stageLabel}` : ""}
+                  </p>
+                ) : null}
+              </div>
+              <button type="button" className="schedule-game-modal__close" onClick={closeGameDetail}>
+                X
+              </button>
+            </div>
+
+            <div className="schedule-game-modal__body">
+              {detailLoading ? <div className="panel-body text-sm text-slate-600">Loading game details...</div> : null}
+              {detailError ? <div className="panel-body text-sm text-slate-600">{detailError}</div> : null}
+
+              {selectedGameDetail ? (
+                <div className="schedule-game-modal__tables">
+                  {[selectedGameDetail.away, selectedGameDetail.home].map((teamDetail) => {
+                    const logo = getTeamLogo(teamDetail.team);
+
+                    return (
+                      <section key={teamDetail.team.triCode ?? teamDetail.name} className="schedule-game-modal__team">
+                        <div className="schedule-game-modal__team-head">
+                          <div className="schedule-game-modal__team-title">
+                            {logo ? (
+                              <img
+                                src={logo}
+                                alt=""
+                                className="schedule-game-modal__team-logo"
+                                onError={(event) => onLogoError(event, teamDetail.team.logoFallbackUrl)}
+                              />
+                            ) : (
+                              <div className="schedule-game-modal__team-logo schedule-game-modal__team-logo--placeholder">
+                                {teamDetail.team.triCode ?? "TBD"}
+                              </div>
+                            )}
+                            <span>{teamDetail.name}</span>
+                          </div>
+                          <span className="schedule-game-modal__team-score">
+                            {teamDetail.score !== null && teamDetail.score !== undefined ? formatStatValue(teamDetail.score) : "-"}
+                          </span>
+                        </div>
+
+                        <div className="schedule-game-modal__team-table">
+                          <table className="table-shell">
+                            <thead>
+                              <tr>
+                                <th>Player</th>
+                                <th>PTS</th>
+                                <th>REB</th>
+                                <th>AST</th>
+                                <th>STL</th>
+                                <th>BLK</th>
+                                <th>TOV</th>
+                                <th>Fantasy</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {teamDetail.players.length ? (
+                                teamDetail.players.map((player) => (
+                                  <tr key={player.playerId || player.name}>
+                                    <td>{player.name}</td>
+                                    <td>{formatStatValue(player.pts)}</td>
+                                    <td>{formatStatValue(player.reb)}</td>
+                                    <td>{formatStatValue(player.ast)}</td>
+                                    <td>{formatStatValue(player.stl)}</td>
+                                    <td>{formatStatValue(player.blk)}</td>
+                                    <td>{formatStatValue(player.tov)}</td>
+                                    <td className="schedule-game-modal__fantasy">{formatFantasyPoints(player.fantasy)}</td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={8} className="schedule-game-modal__empty">
+                                    -
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
