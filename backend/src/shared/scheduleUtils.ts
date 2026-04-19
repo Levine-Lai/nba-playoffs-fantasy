@@ -86,17 +86,17 @@ export function getPlayoffGameweekNumber(gameId: string | number | null | undefi
     return null;
   }
 
-  const seriesCode = Number(id.slice(5, 8));
-  if (seriesCode >= 1 && seriesCode <= 8) {
+  const seriesCode = Number(id.slice(7, 9));
+  if (seriesCode >= 10 && seriesCode <= 17) {
     return 1;
   }
-  if (seriesCode >= 21 && seriesCode <= 24) {
+  if (seriesCode >= 20 && seriesCode <= 23) {
     return 2;
   }
-  if (seriesCode >= 31 && seriesCode <= 32) {
+  if (seriesCode >= 30 && seriesCode <= 31) {
     return 3;
   }
-  if (seriesCode === 41) {
+  if (seriesCode === 40) {
     return 4;
   }
 

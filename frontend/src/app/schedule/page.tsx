@@ -25,10 +25,10 @@ interface PlayoffSeriesEntry {
 }
 
 const PLAYOFF_BRACKET_LAYOUT = [
-  { round: 1, title: "Round 1", seriesCodes: [1, 2, 3, 4, 5, 6, 7, 8] },
-  { round: 2, title: "Round 2", seriesCodes: [21, 22, 23, 24] },
-  { round: 3, title: "Round 3", seriesCodes: [31, 32] },
-  { round: 4, title: "Finals", seriesCodes: [41] }
+  { round: 1, title: "Round 1", seriesCodes: [10, 11, 12, 13, 14, 15, 16, 17] },
+  { round: 2, title: "Round 2", seriesCodes: [20, 21, 22, 23] },
+  { round: 3, title: "Round 3", seriesCodes: [30, 31] },
+  { round: 4, title: "Finals", seriesCodes: [40] }
 ] as const;
 
 function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
@@ -62,23 +62,23 @@ function getPlayoffSeriesMeta(gameId?: string | null) {
     return null;
   }
 
-  const seriesCode = Number(id.slice(5, 8));
+  const seriesCode = Number(id.slice(7, 9));
   const gameNumber = Number(id.slice(-1));
 
   if (!Number.isFinite(seriesCode) || !Number.isFinite(gameNumber) || gameNumber <= 0) {
     return null;
   }
 
-  if (seriesCode >= 1 && seriesCode <= 8) {
+  if (seriesCode >= 10 && seriesCode <= 17) {
     return { round: 1, seriesCode, gameNumber };
   }
-  if (seriesCode >= 21 && seriesCode <= 24) {
+  if (seriesCode >= 20 && seriesCode <= 23) {
     return { round: 2, seriesCode, gameNumber };
   }
-  if (seriesCode >= 31 && seriesCode <= 32) {
+  if (seriesCode >= 30 && seriesCode <= 31) {
     return { round: 3, seriesCode, gameNumber };
   }
-  if (seriesCode === 41) {
+  if (seriesCode === 40) {
     return { round: 4, seriesCode, gameNumber };
   }
 

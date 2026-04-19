@@ -16,6 +16,7 @@ This file is the project's cross-conversation memory. Keep it concise, current, 
 - Final games in the schedule calendars should color the winning side green and the losing side red, while keeping the center score area white. / `schedule` 月历里的已结束比赛应把赢球一侧标绿、输球一侧标红，并保持中间比分区域为白底留白。
 - Clicking a game row in the schedule calendars should open a matchup detail modal showing both teams' fantasy box score tables, including `PTS`, `REB`, `AST`, `STL`, `BLK`, `TOV`, and the fantasy total. / 点击 `schedule` 月历中的比赛行应打开对阵详情弹窗，显示双方球队的 fantasy 数据表，包含 `PTS`、`REB`、`AST`、`STL`、`BLK`、`TOV` 和 fantasy 总分。
 - Schedule month calendars should hide any full week row that contains no games, so empty leading rows like April 1-12 do not render. / `schedule` 月历应隐藏整周都没有比赛的周行，因此像 4 月 1-12 这种前置空白两行不再渲染。
+- Current playoff `gameId` parsing uses the two-digit series segment near the end of the id: `10-17` for Round 1, `20-23` for Round 2, `30-31` for Round 3, and `40` for the Finals. Schedule round badges, stage labels, and `Playoff Path` must stay aligned with that format. / 当前季后赛 `gameId` 的解析应使用靠近末尾的两位系列赛编号：`10-17` 表示第一轮，`20-23` 表示第二轮，`30-31` 表示分区决赛，`40` 表示总决赛。赛程轮次标签、阶段文案和 `Playoff Path` 都必须与这套格式保持一致。
 
 ## Live Gameplay Rules | 当前生效玩法规则
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是实际季后赛揭幕日，日期为 `2026-04-18`。
