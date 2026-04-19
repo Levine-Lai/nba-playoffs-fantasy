@@ -19,7 +19,7 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay } from "./worker/liveData";
+import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay } from "./worker/liveData";
 import {
   buildPublicUser,
   createSession,
@@ -1292,6 +1292,10 @@ export default {
         }
 
         return json(await getPlayerDataSummary(env), { status: 200 }, env);
+      }
+
+      if (pathname === "/api/home-leaders" && request.method === "GET") {
+        return json(await buildHomeLeadersPayload(env), { status: 200 }, env);
       }
 
       if (pathname === "/api/players" && request.method === "GET") {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getStandings } from "@/lib/api";
 import { AuthUser, StandingResponse } from "@/lib/types";
+import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { getDisplayTeamName } from "@/lib/teamName";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
@@ -148,8 +149,8 @@ export default function StandingPage() {
                       </Link>
                     )}
                   </td>
-                  <td>{data.visible === false ? "-" : Number(member.phasePoints ?? member.gamedayPoints ?? 0).toFixed(1)}</td>
-                  <td>{data.visible === false ? "-" : Number(member.totalPoints ?? 0).toFixed(1)}</td>
+                  <td>{data.visible === false ? "-" : formatFantasyPoints(member.phasePoints ?? member.gamedayPoints ?? 0)}</td>
+                  <td>{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
                 </tr>
               );
               })

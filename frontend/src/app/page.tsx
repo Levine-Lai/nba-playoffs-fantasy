@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getMe, getProfile, login, logout, register, updateTeamName } from "@/lib/api";
-import { AuthUser } from "@/lib/types";
+import { getHomeLeaders, getMe, getProfile, login, logout, register, updateTeamName } from "@/lib/api";
+import HomeDailyLeaders from "@/components/HomeDailyLeaders";
+import { AuthUser, HomeLeadersResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
+import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 type Mode = "login" | "register";
 
@@ -18,6 +20,7 @@ export default function HomePage() {
   const [teamName, setTeamName] = useState("");
   const [teamNameDraft, setTeamNameDraft] = useState("");
   const [teamNameSaving, setTeamNameSaving] = useState(false);
+  const [leaders, setLeaders] = useState<HomeLeadersResponse | null>(null);
 
   const [loginAccount, setLoginAccount] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -94,6 +97,15 @@ export default function HomePage() {
       active = false;
     };
   }, [currentUser]);
+
+  useVisibilityPolling(async () => {
+    try {
+      const payload = await getHomeLeaders();
+      setLeaders(payload);
+    } catch {
+      // Ignore transient landing-page leaderboard errors.
+    }
+  }, 60000, []);
 
   async function onLogin(event: FormEvent) {
     event.preventDefault();
@@ -173,178 +185,182 @@ export default function HomePage() {
   }
 
   return (
-    <div className="mx-auto max-w-[480px]">
-      <section className="panel">
-        <div className="panel-head">{currentUser ? "Home" : "Account"}</div>
-        <div className="panel-body">
-          {currentUser ? (
-            <div className="space-y-4">
-              <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.06em] text-emerald-800">Logged in</p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Team Name</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{getDisplayTeamName(teamName, currentUser.gameId)}</p>
-                <p className="mt-2 text-sm text-slate-600">Your team is ready to manage.</p>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Account</p>
-                <p className="mt-1 text-base font-semibold text-slate-700">{currentUser.account}</p>
-              </div>
-              <form className="space-y-3 rounded border border-slate-200 bg-white p-4" onSubmit={onTeamNameSubmit}>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Edit Team Name</p>
-                  <p className="mt-1 text-xs text-slate-500">This updates the team name shown in profile and points views.</p>
+    <div className="mx-auto max-w-[1180px] space-y-5">
+      {leaders ? <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} /> : null}
+
+      <div className="mx-auto max-w-[480px]">
+        <section className="panel">
+          <div className="panel-head">{currentUser ? "Home" : "Account"}</div>
+          <div className="panel-body">
+            {currentUser ? (
+              <div className="space-y-4">
+                <div className="rounded border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold uppercase tracking-[0.06em] text-emerald-800">Logged in</p>
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Team Name</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-900">{getDisplayTeamName(teamName, currentUser.gameId)}</p>
+                  <p className="mt-2 text-sm text-slate-600">Your team is ready to manage.</p>
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Account</p>
+                  <p className="mt-1 text-base font-semibold text-slate-700">{currentUser.account}</p>
                 </div>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-semibold text-slate-700">Team Name</span>
-                  <input
-                    className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                    value={teamNameDraft}
-                    onChange={(event) => setTeamNameDraft(event.target.value)}
-                    type="text"
-                    maxLength={30}
-                    required
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="w-full rounded bg-brand-blue px-3 py-2 text-sm font-semibold text-white hover:bg-brand-darkBlue"
-                  disabled={teamNameSaving}
-                >
-                  {teamNameSaving ? "Saving..." : "Save Team Name"}
-                </button>
-              </form>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Link className="rounded bg-brand-yellow px-3 py-3 text-center text-sm font-semibold" href="/edit-lineup">
-                  Edit Line-up
-                </Link>
-                <Link className="rounded bg-brand-blue px-3 py-3 text-center text-sm font-semibold text-white" href="/transactions">
-                  Transactions
-                </Link>
-                <Link className="rounded bg-slate-100 px-3 py-3 text-center text-sm font-semibold" href="/points">
-                  Points
-                </Link>
-                <Link className="rounded bg-slate-100 px-3 py-3 text-center text-sm font-semibold" href="/schedule">
-                  Schedule
-                </Link>
-              </div>
-              <button type="button" className="w-full rounded bg-slate-900 px-3 py-3 text-sm font-semibold text-white" onClick={onLogout}>
-                Log Out
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="mb-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMode("login")}
-                  className={`rounded px-3 py-2 text-sm font-semibold ${
-                    mode === "login" ? "bg-brand-yellow" : "bg-slate-100"
-                  }`}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("register")}
-                  className={`rounded px-3 py-2 text-sm font-semibold ${
-                    mode === "register" ? "bg-brand-yellow" : "bg-slate-100"
-                  }`}
-                >
-                  Register
-                </button>
-              </div>
-
-              {mode === "login" ? (
-                <form className="space-y-4" onSubmit={onLogin}>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Account</span>
-                    <input
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={loginAccount}
-                      onChange={(event) => setLoginAccount(event.target.value)}
-                      type="text"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Password</span>
-                    <input
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={loginPassword}
-                      onChange={(event) => setLoginPassword(event.target.value)}
-                      type="password"
-                      required
-                    />
-                  </label>
-
-                  <button
-                    type="submit"
-                    className="w-full rounded bg-brand-blue px-3 py-2 text-base font-semibold text-white hover:bg-brand-darkBlue"
-                    disabled={loading}
-                  >
-                    {loading ? "Signing in..." : "Sign In"}
-                  </button>
-                </form>
-              ) : (
-                <form className="space-y-4" onSubmit={onRegister}>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Account (for login)</span>
-                    <input
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={registerAccount}
-                      onChange={(event) => setRegisterAccount(event.target.value)}
-                      type="text"
-                      required
-                    />
-                  </label>
-
+                <form className="space-y-3 rounded border border-slate-200 bg-white p-4" onSubmit={onTeamNameSubmit}>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Edit Team Name</p>
+                    <p className="mt-1 text-xs text-slate-500">This updates the team name shown in profile and points views.</p>
+                  </div>
                   <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Team Name</span>
                     <input
                       className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={registerGameId}
-                      onChange={(event) => setRegisterGameId(event.target.value)}
+                      value={teamNameDraft}
+                      onChange={(event) => setTeamNameDraft(event.target.value)}
                       type="text"
+                      maxLength={30}
                       required
                     />
                   </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Password</span>
-                    <input
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={registerPassword}
-                      onChange={(event) => setRegisterPassword(event.target.value)}
-                      type="password"
-                      required
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Confirm Password</span>
-                    <input
-                      className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                      value={registerConfirmPassword}
-                      onChange={(event) => setRegisterConfirmPassword(event.target.value)}
-                      type="password"
-                      required
-                    />
-                  </label>
-
                   <button
                     type="submit"
-                    className="w-full rounded bg-brand-blue px-3 py-2 text-base font-semibold text-white hover:bg-brand-darkBlue"
-                    disabled={loading}
+                    className="w-full rounded bg-brand-blue px-3 py-2 text-sm font-semibold text-white hover:bg-brand-darkBlue"
+                    disabled={teamNameSaving}
                   >
-                    {loading ? "Creating..." : "Create Account"}
+                    {teamNameSaving ? "Saving..." : "Save Team Name"}
                   </button>
                 </form>
-              )}
-            </>
-          )}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Link className="rounded bg-brand-yellow px-3 py-3 text-center text-sm font-semibold" href="/edit-lineup">
+                    Edit Line-up
+                  </Link>
+                  <Link className="rounded bg-brand-blue px-3 py-3 text-center text-sm font-semibold text-white" href="/transactions">
+                    Transactions
+                  </Link>
+                  <Link className="rounded bg-slate-100 px-3 py-3 text-center text-sm font-semibold" href="/points">
+                    Points
+                  </Link>
+                  <Link className="rounded bg-slate-100 px-3 py-3 text-center text-sm font-semibold" href="/schedule">
+                    Schedule
+                  </Link>
+                </div>
+                <button type="button" className="w-full rounded bg-slate-900 px-3 py-3 text-sm font-semibold text-white" onClick={onLogout}>
+                  Log Out
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className={`rounded px-3 py-2 text-sm font-semibold ${
+                      mode === "login" ? "bg-brand-yellow" : "bg-slate-100"
+                    }`}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("register")}
+                    className={`rounded px-3 py-2 text-sm font-semibold ${
+                      mode === "register" ? "bg-brand-yellow" : "bg-slate-100"
+                    }`}
+                  >
+                    Register
+                  </button>
+                </div>
 
-          {message ? <p className="mt-3 rounded bg-slate-100 p-2 text-sm text-slate-700">{message}</p> : null}
-        </div>
-      </section>
+                {mode === "login" ? (
+                  <form className="space-y-4" onSubmit={onLogin}>
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-semibold text-slate-700">Account</span>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={loginAccount}
+                        onChange={(event) => setLoginAccount(event.target.value)}
+                        type="text"
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-semibold text-slate-700">Password</span>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={loginPassword}
+                        onChange={(event) => setLoginPassword(event.target.value)}
+                        type="password"
+                        required
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      className="w-full rounded bg-brand-blue px-3 py-2 text-base font-semibold text-white hover:bg-brand-darkBlue"
+                      disabled={loading}
+                    >
+                      {loading ? "Signing in..." : "Sign In"}
+                    </button>
+                  </form>
+                ) : (
+                  <form className="space-y-4" onSubmit={onRegister}>
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-semibold text-slate-700">Account (for login)</span>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={registerAccount}
+                        onChange={(event) => setRegisterAccount(event.target.value)}
+                        type="text"
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-semibold text-slate-700">Team Name</span>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={registerGameId}
+                        onChange={(event) => setRegisterGameId(event.target.value)}
+                        type="text"
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-semibold text-slate-700">Password</span>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={registerPassword}
+                        onChange={(event) => setRegisterPassword(event.target.value)}
+                        type="password"
+                        required
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-semibold text-slate-700">Confirm Password</span>
+                      <input
+                        className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                        value={registerConfirmPassword}
+                        onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+                        type="password"
+                        required
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      className="w-full rounded bg-brand-blue px-3 py-2 text-base font-semibold text-white hover:bg-brand-darkBlue"
+                      disabled={loading}
+                    >
+                      {loading ? "Creating..." : "Create Account"}
+                    </button>
+                  </form>
+                )}
+              </>
+            )}
+
+            {message ? <p className="mt-3 rounded bg-slate-100 p-2 text-sm text-slate-700">{message}</p> : null}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

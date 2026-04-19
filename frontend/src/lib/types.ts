@@ -108,6 +108,21 @@ export interface PointsResponse {
   lineup: Lineup;
 }
 
+export interface HomeLeaderEntry {
+  rank: number;
+  points: number;
+  player: Player;
+}
+
+export interface HomeLeadersResponse {
+  dayLabel: string;
+  dayNumber?: number | null;
+  periodKey?: string | null;
+  updatedAt: string;
+  frontCourt: HomeLeaderEntry[];
+  backCourt: HomeLeaderEntry[];
+}
+
 export interface TransferMarketPlayer {
   id: string;
   code?: string | null;

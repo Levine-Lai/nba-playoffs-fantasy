@@ -6,6 +6,30 @@ import { getSchedule } from "@/lib/api";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { ScheduleGame, ScheduleResponse, TeamAsset } from "@/lib/types";
 
+interface PlayoffSeriesTeam {
+  key: string;
+  name: string;
+  triCode: string;
+  logoUrl?: string | null;
+  logoFallbackUrl?: string | null;
+}
+
+interface PlayoffSeriesEntry {
+  round: number;
+  seriesCode: number;
+  topTeam: PlayoffSeriesTeam | null;
+  bottomTeam: PlayoffSeriesTeam | null;
+  topWins: number;
+  bottomWins: number;
+}
+
+const PLAYOFF_BRACKET_LAYOUT = [
+  { round: 1, title: "Round 1", seriesCodes: [1, 2, 3, 4, 5, 6, 7, 8] },
+  { round: 2, title: "Round 2", seriesCodes: [21, 22, 23, 24] },
+  { round: 3, title: "Round 3", seriesCodes: [31, 32] },
+  { round: 4, title: "Finals", seriesCodes: [41] }
+] as const;
+
 function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string | null) {
   const image = event.currentTarget;
   if (fallback && image.dataset.fallbackApplied !== "true") {
@@ -15,34 +39,6 @@ function onLogoError(event: SyntheticEvent<HTMLImageElement>, fallback?: string 
   }
 
   image.hidden = true;
-}
-
-function TeamLabel({ team, align = "left" }: { team?: TeamAsset; align?: "left" | "right" }) {
-  const logoUrl = team?.logoUrl ?? team?.logoFallbackUrl;
-  const baseAlignment = align === "right" ? "md:justify-end" : "md:justify-start";
-  const textAlignment = align === "right" ? "md:text-right" : "md:text-left";
-
-  return (
-    <div className={`flex items-center justify-center gap-3 ${baseAlignment}`}>
-      {align === "left" && logoUrl ? (
-        <img
-          src={logoUrl}
-          alt=""
-          className="h-9 w-9 object-contain sm:h-10 sm:w-10"
-          onError={(event) => onLogoError(event, team?.logoFallbackUrl)}
-        />
-      ) : null}
-      <p className={`text-center text-base font-semibold ${textAlignment}`}>{team?.name ?? "TBD"}</p>
-      {align === "right" && logoUrl ? (
-        <img
-          src={logoUrl}
-          alt=""
-          className="h-9 w-9 object-contain sm:h-10 sm:w-10"
-          onError={(event) => onLogoError(event, team?.logoFallbackUrl)}
-        />
-      ) : null}
-    </div>
-  );
 }
 
 function getGameLocalDate(dateInput: string) {
@@ -59,106 +55,107 @@ function getGamedayBadge(label?: string | null) {
   return match ? `Day${match[1]}` : "";
 }
 
-function getPlayoffRoundGameBadge(gameId?: string | null) {
+function getPlayoffSeriesMeta(gameId?: string | null) {
   const id = String(gameId ?? "");
   if (!/^004\d+/.test(id) || id.length < 10) {
-    return "";
+    return null;
   }
 
   const seriesCode = Number(id.slice(5, 8));
   const gameNumber = Number(id.slice(-1));
 
   if (!Number.isFinite(seriesCode) || !Number.isFinite(gameNumber) || gameNumber <= 0) {
-    return "";
+    return null;
   }
 
   if (seriesCode >= 1 && seriesCode <= 8) {
-    return `R1G${gameNumber}`;
+    return { round: 1, seriesCode, gameNumber };
   }
   if (seriesCode >= 21 && seriesCode <= 24) {
-    return `R2G${gameNumber}`;
+    return { round: 2, seriesCode, gameNumber };
   }
   if (seriesCode >= 31 && seriesCode <= 32) {
-    return `R3G${gameNumber}`;
+    return { round: 3, seriesCode, gameNumber };
   }
   if (seriesCode === 41) {
-    return `R4G${gameNumber}`;
+    return { round: 4, seriesCode, gameNumber };
   }
 
-  return `G${gameNumber}`;
+  return { round: 0, seriesCode, gameNumber };
 }
 
-function formatLocalTipoff(dateInput: string, fallback: string, withZone = false) {
-  const date = new Date(dateInput ?? "");
-  if (!Number.isFinite(date.getTime())) {
-    return fallback;
+function getPlayoffRoundGameBadge(gameId?: string | null) {
+  const seriesMeta = getPlayoffSeriesMeta(gameId);
+  if (!seriesMeta) {
+    return "";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    ...(withZone ? { timeZoneName: "short" } : {})
-  }).format(date);
+  if (seriesMeta.round > 0) {
+    return `R${seriesMeta.round}G${seriesMeta.gameNumber}`;
+  }
+
+  return `G${seriesMeta.gameNumber}`;
 }
 
-function MatchCenter({
-  date,
-  tipoff,
-  status,
-  homeScore,
-  awayScore,
-  stageLabel
-}: {
-  date: string;
-  tipoff: string;
-  status: "upcoming" | "live" | "final";
-  homeScore?: number | null;
-  awayScore?: number | null;
-  stageLabel?: string;
-}) {
-  const hasScore = homeScore !== null && homeScore !== undefined && awayScore !== null && awayScore !== undefined;
-  const localTipoff = formatLocalTipoff(date, tipoff);
-  const localTipoffWithZone = formatLocalTipoff(date, tipoff, true);
-
-  return (
-    <div className="text-center">
-      {hasScore ? (
-        <div className="inline-flex min-w-[110px] items-center justify-center rounded border border-brand-blue px-3 py-1 text-2xl font-semibold text-brand-blue">
-          {homeScore} - {awayScore}
-        </div>
-      ) : (
-        <div className="inline-block rounded border border-brand-blue px-3 py-1 text-2xl font-semibold text-brand-blue">{localTipoff}</div>
-      )}
-      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">{localTipoffWithZone}</p>
-      {stageLabel ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{stageLabel}</p> : null}
-      {status === "live" ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#d61f43]">Live</p> : null}
-      {status === "final" ? <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Final</p> : null}
-    </div>
-  );
+function getSeriesTeamKey(name?: string | null, team?: TeamAsset) {
+  return String(team?.triCode ?? team?.code ?? name ?? "").trim().toUpperCase();
 }
 
-function buildAprilCalendar(games: ScheduleGame[]) {
-  const aprilGames = games
+function createSeriesTeam(name?: string | null, team?: TeamAsset): PlayoffSeriesTeam | null {
+  const key = getSeriesTeamKey(name, team);
+  if (!key) {
+    return null;
+  }
+
+  return {
+    key,
+    name: name ?? team?.name ?? key,
+    triCode: team?.triCode ?? team?.code ?? key,
+    logoUrl: team?.logoUrl ?? null,
+    logoFallbackUrl: team?.logoFallbackUrl ?? null
+  };
+}
+
+function assignSeriesTeam(
+  series: PlayoffSeriesEntry,
+  preferredSlot: "topTeam" | "bottomTeam",
+  candidate: PlayoffSeriesTeam | null
+) {
+  if (!candidate) {
+    return;
+  }
+
+  if (series.topTeam?.key === candidate.key || series.bottomTeam?.key === candidate.key) {
+    return;
+  }
+
+  if (!series[preferredSlot]) {
+    series[preferredSlot] = candidate;
+    return;
+  }
+
+  const fallbackSlot = preferredSlot === "topTeam" ? "bottomTeam" : "topTeam";
+  if (!series[fallbackSlot]) {
+    series[fallbackSlot] = candidate;
+  }
+}
+
+function buildMonthCalendar(games: ScheduleGame[], year: number, monthIndex: number) {
+  const monthGames = games
     .map((game) => {
       const localDate = getGameLocalDate(game.date);
       return localDate ? { game, localDate } : null;
     })
     .filter((entry): entry is { game: ScheduleGame; localDate: Date } => Boolean(entry))
-    .filter(({ localDate }) => localDate.getMonth() === 3)
+    .filter(({ localDate }) => localDate.getFullYear() === year && localDate.getMonth() === monthIndex)
     .sort((left, right) => left.localDate.getTime() - right.localDate.getTime());
 
-  if (!aprilGames.length) {
-    return null;
-  }
-
-  const year = aprilGames[0].localDate.getFullYear();
-  const monthStart = new Date(year, 3, 1);
-  const daysInMonth = new Date(year, 4, 0).getDate();
+  const monthStart = new Date(year, monthIndex, 1);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
   const startOffset = (monthStart.getDay() + 6) % 7;
   const gamesByDay = new Map<number, ScheduleGame[]>();
 
-  aprilGames.forEach(({ game, localDate }) => {
+  monthGames.forEach(({ game, localDate }) => {
     const day = localDate.getDate();
     const existing = gamesByDay.get(day) ?? [];
     existing.push(game);
@@ -184,10 +181,85 @@ function buildAprilCalendar(games: ScheduleGame[]) {
   }
 
   return {
-    label: "April",
+    label: monthStart.toLocaleString("en-US", { month: "long" }),
+    year,
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     cells
   };
+}
+
+function buildPlayoffBracket(games: ScheduleGame[]) {
+  const playoffGames = [...games]
+    .filter((game) => Boolean(getPlayoffSeriesMeta(game.id)))
+    .sort((left, right) => {
+      const leftDate = getGameLocalDate(left.date)?.getTime() ?? 0;
+      const rightDate = getGameLocalDate(right.date)?.getTime() ?? 0;
+      return leftDate - rightDate;
+    });
+  const seriesMap = new Map<string, PlayoffSeriesEntry>();
+
+  playoffGames.forEach((game) => {
+    const seriesMeta = getPlayoffSeriesMeta(game.id);
+    if (!seriesMeta) {
+      return;
+    }
+
+    const seriesKey = `${seriesMeta.round}-${seriesMeta.seriesCode}`;
+    const entry =
+      seriesMap.get(seriesKey) ??
+      {
+        round: seriesMeta.round,
+        seriesCode: seriesMeta.seriesCode,
+        topTeam: null,
+        bottomTeam: null,
+        topWins: 0,
+        bottomWins: 0
+      };
+    const awayTeam = createSeriesTeam(game.away, game.awayTeam);
+    const homeTeam = createSeriesTeam(game.home, game.homeTeam);
+
+    assignSeriesTeam(entry, "topTeam", awayTeam);
+    assignSeriesTeam(entry, "bottomTeam", homeTeam);
+
+    if (
+      game.status === "final" &&
+      game.awayScore !== null &&
+      game.awayScore !== undefined &&
+      game.homeScore !== null &&
+      game.homeScore !== undefined &&
+      game.awayScore !== game.homeScore
+    ) {
+      const winningKey = game.awayScore > game.homeScore ? awayTeam?.key : homeTeam?.key;
+      if (winningKey && entry.topTeam?.key === winningKey) {
+        entry.topWins += 1;
+      } else if (winningKey && entry.bottomTeam?.key === winningKey) {
+        entry.bottomWins += 1;
+      }
+    }
+
+    seriesMap.set(seriesKey, entry);
+  });
+
+  return PLAYOFF_BRACKET_LAYOUT.map((round) => ({
+    ...round,
+    series: round.seriesCodes.map((seriesCode) => {
+      const series =
+        seriesMap.get(`${round.round}-${seriesCode}`) ??
+        {
+          round: round.round,
+          seriesCode,
+          topTeam: null,
+          bottomTeam: null,
+          topWins: 0,
+          bottomWins: 0
+        };
+
+      return {
+        ...series,
+        scoreLabel: `${series.topWins}-${series.bottomWins}`
+      };
+    })
+  }));
 }
 
 export default function SchedulePage() {
@@ -204,29 +276,17 @@ export default function SchedulePage() {
     }
   }, 60000, []);
 
-  const grouped = useMemo(() => {
-    if (!data) {
-      return [] as Array<{ key: string; label: string; dateLabel: string; games: ScheduleResponse["games"] }>;
-    }
+  const monthCalendars = useMemo(() => {
+    const games = data?.games ?? [];
+    const firstScheduledGame = games
+      .map((game) => getGameLocalDate(game.date))
+      .find((date): date is Date => Boolean(date));
+    const year = firstScheduledGame?.getFullYear() ?? new Date().getFullYear();
 
-    const map = new Map<string, { key: string; label: string; dateLabel: string; games: ScheduleResponse["games"] }>();
-    data.games.forEach((game) => {
-      const key = game.gamedayKey ?? String(game.date).slice(0, 10);
-      const existing = map.get(key) ?? {
-        key,
-        label: game.gamedayLabel ?? data.gameweek,
-        dateLabel: game.gamedayDateLabel ?? new Date(game.date).toDateString(),
-        games: []
-      };
-
-      existing.games.push(game);
-      map.set(key, existing);
-    });
-
-    return Array.from(map.values()).sort((left, right) => left.key.localeCompare(right.key));
+    return [3, 4, 5].map((monthIndex) => buildMonthCalendar(games, year, monthIndex));
   }, [data]);
 
-  const aprilCalendar = useMemo(() => buildAprilCalendar(data?.games ?? []), [data]);
+  const playoffBracket = useMemo(() => buildPlayoffBracket(data?.games ?? []), [data]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading schedule...</div>;
@@ -255,42 +315,18 @@ export default function SchedulePage() {
           <p className="text-sm text-slate-500">{data.deadline}</p>
         </div>
 
-        {grouped.map((group) => (
-          <section key={group.key} className="overflow-hidden rounded-sm border border-slate-200">
+        {monthCalendars.map((calendar) => (
+          <section key={`${calendar.year}-${calendar.label}`} className="overflow-hidden rounded-sm border border-slate-200 bg-white">
             <div className="border-b border-slate-200 bg-[#eef1f3] px-4 py-2 text-center">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.04em] text-slate-800">{group.label}</h2>
-              <p className="mt-1 text-xs text-slate-500">{group.dateLabel}</p>
-            </div>
-
-            <div className="divide-y divide-slate-200 bg-white">
-              {group.games.map((game) => (
-                <article key={game.id} className="grid items-center gap-2 px-4 py-3 md:grid-cols-[1fr_120px_1fr]">
-                  <TeamLabel team={game.homeTeam ?? { name: game.home }} />
-                  <MatchCenter
-                    date={game.date}
-                    tipoff={game.tipoff}
-                    status={game.status}
-                    homeScore={game.homeScore}
-                    awayScore={game.awayScore}
-                    stageLabel={game.stageLabel}
-                  />
-                  <TeamLabel team={game.awayTeam ?? { name: game.away }} align="right" />
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {aprilCalendar ? (
-          <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 bg-[#eef1f3] px-4 py-2 text-center">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.04em] text-slate-800">{aprilCalendar.label}</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.04em] text-slate-800">
+                {calendar.label} {calendar.year}
+              </h2>
             </div>
 
             <div className="overflow-x-auto">
               <div className="schedule-calendar min-w-[760px]">
                 <div className="schedule-calendar__weekdays">
-                  {aprilCalendar.weekdays.map((weekday) => (
+                  {calendar.weekdays.map((weekday) => (
                     <div key={weekday} className="schedule-calendar__weekday">
                       {weekday}
                     </div>
@@ -298,7 +334,7 @@ export default function SchedulePage() {
                 </div>
 
                 <div className="schedule-calendar__grid">
-                  {aprilCalendar.cells.map((cell) => (
+                  {calendar.cells.map((cell) => (
                     <div
                       key={cell.key}
                       className={`schedule-calendar__cell ${cell.day ? "" : "schedule-calendar__cell--empty"}`.trim()}
@@ -368,7 +404,80 @@ export default function SchedulePage() {
               </div>
             </div>
           </section>
-        ) : null}
+        ))}
+
+        <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 bg-[#eef1f3] px-4 py-2 text-center">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.04em] text-slate-800">Playoff Path</h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="playoff-bracket min-w-[1080px] p-4">
+              {playoffBracket.map((round, roundIndex) => (
+                <div key={round.title} className="playoff-bracket__round">
+                  <div className="playoff-bracket__round-head">{round.title}</div>
+                  <div className={`playoff-bracket__round-body playoff-bracket__round-body--r${round.round}`}>
+                    {round.series.map((series) => {
+                      const topLogo = getTeamLogo(series.topTeam ?? undefined);
+                      const bottomLogo = getTeamLogo(series.bottomTeam ?? undefined);
+                      const topIsLeading = series.topWins > series.bottomWins;
+                      const bottomIsLeading = series.bottomWins > series.topWins;
+
+                      return (
+                        <div
+                          key={`${series.round}-${series.seriesCode}`}
+                          className={`playoff-bracket__slot ${roundIndex < playoffBracket.length - 1 ? "playoff-bracket__slot--linked" : ""}`.trim()}
+                        >
+                          <div className="playoff-bracket__series">
+                            <div className={`playoff-bracket__team-row ${topIsLeading ? "playoff-bracket__team-row--leading" : ""}`.trim()}>
+                              <div className="playoff-bracket__team-main">
+                                {topLogo ? (
+                                  <img
+                                    src={topLogo}
+                                    alt=""
+                                    className="playoff-bracket__logo"
+                                    onError={(event) => onLogoError(event, series.topTeam?.logoFallbackUrl)}
+                                  />
+                                ) : (
+                                  <div className="playoff-bracket__logo playoff-bracket__logo--placeholder">
+                                    {series.topTeam?.triCode ?? "TBD"}
+                                  </div>
+                                )}
+                                <span className="playoff-bracket__team-code">{series.topTeam?.triCode ?? "TBD"}</span>
+                              </div>
+                              <span className="playoff-bracket__team-wins">{series.topWins}</span>
+                            </div>
+
+                            <div className="playoff-bracket__series-score">{series.scoreLabel}</div>
+
+                            <div className={`playoff-bracket__team-row ${bottomIsLeading ? "playoff-bracket__team-row--leading" : ""}`.trim()}>
+                              <div className="playoff-bracket__team-main">
+                                {bottomLogo ? (
+                                  <img
+                                    src={bottomLogo}
+                                    alt=""
+                                    className="playoff-bracket__logo"
+                                    onError={(event) => onLogoError(event, series.bottomTeam?.logoFallbackUrl)}
+                                  />
+                                ) : (
+                                  <div className="playoff-bracket__logo playoff-bracket__logo--placeholder">
+                                    {series.bottomTeam?.triCode ?? "TBD"}
+                                  </div>
+                                )}
+                                <span className="playoff-bracket__team-code">{series.bottomTeam?.triCode ?? "TBD"}</span>
+                              </div>
+                              <span className="playoff-bracket__team-wins">{series.bottomWins}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

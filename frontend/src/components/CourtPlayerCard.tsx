@@ -2,6 +2,7 @@
 
 import { SyntheticEvent } from "react";
 import { Player } from "@/lib/types";
+import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 
 interface CourtPlayerCardProps {
   player: Player;
@@ -71,7 +72,7 @@ export default function CourtPlayerCard({
   ) : (
     <span>-</span>
   );
-  const pointsValue = player.pointsWindowKey ? Number(player.points ?? 0).toFixed(1) : "-";
+  const pointsValue = player.pointsWindowKey ? formatFantasyPoints(player.points ?? 0) : "-";
 
   const body = (
     <>

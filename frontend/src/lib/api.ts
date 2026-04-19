@@ -1,5 +1,6 @@
 import {
   AuthUser,
+  HomeLeadersResponse,
   HelpResponse,
   LineupResponse,
   LoginResponse,
@@ -157,6 +158,13 @@ export function getMe() {
 export function getProfile() {
   return request<ProfileResponse>("/profile", undefined, {
     cacheTtlMs: 10000,
+    allowStaleOnError: true
+  });
+}
+
+export function getHomeLeaders() {
+  return request<HomeLeadersResponse>("/home-leaders", undefined, {
+    cacheTtlMs: 15000,
     allowStaleOnError: true
   });
 }

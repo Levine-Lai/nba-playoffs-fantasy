@@ -7,6 +7,7 @@ import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
 import RightSidebar from "@/components/RightSidebar";
 import { getPointsToday, getStandingPreview } from "@/lib/api";
+import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { Player, PointsResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
@@ -82,7 +83,7 @@ function PointsPageContent() {
               <div className="mt-4 grid gap-3 sm:grid-cols-1">
                 <article className="nba-stat-card">
                   <p className="text-sm">Gameday Points</p>
-                  <p className="text-5xl font-semibold">{data.summary.final}</p>
+                  <p className="text-5xl font-semibold">{formatFantasyPoints(data.summary.final)}</p>
                 </article>
               </div>
             </>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getProfile } from "@/lib/api";
+import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { ProfileResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
@@ -50,7 +51,7 @@ export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse 
           <dl>
             <div className="sidebar-row">
               <dt>Overall Points</dt>
-              <dd className="font-semibold">{display.profile.overallPoints}</dd>
+              <dd className="font-semibold">{formatFantasyPoints(display.profile.overallPoints)}</dd>
             </div>
             <div className="sidebar-row">
               <dt>Overall Rank</dt>
@@ -58,7 +59,7 @@ export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse 
             </div>
             <div className="sidebar-row">
               <dt>Gameday Fantasy Points</dt>
-              <dd className="font-semibold">{display.profile.gamedayPoints}</dd>
+              <dd className="font-semibold">{formatFantasyPoints(display.profile.gamedayPoints)}</dd>
             </div>
           </dl>
         </div>

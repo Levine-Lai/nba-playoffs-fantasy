@@ -9,11 +9,13 @@ import {
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
 import { calcFinalPoints, getEffectiveScoringPlayerIds } from "./gameplay";
-import { buildNextMatchupByTeamFromCache, getRuleValue, getStoredScheduleCache, toTeamAsset } from "./store";
+import { buildNextMatchupByTeamFromCache, getPlayersByCodes, getRuleValue, getStoredScheduleCache, toTeamAsset } from "./store";
 import type {
   EditablePeriodContext,
   Env,
   GameweekPayload,
+  HomeLeaderEntry,
+  HomeLeadersResponse,
   NextMatchup,
   Player,
   PlayerScheduleCell,
@@ -927,6 +929,89 @@ export async function buildOfficialLivePointsPreview(
   }
 
   return buildFantasyPointsPreviewForSlate(state, slate, beforeFirstDeadline);
+}
+
+export async function buildHomeLeadersPayload(env: Env): Promise<HomeLeadersResponse> {
+  const slate = await getOfficialSlateContext(env).catch(() => null);
+  if (!slate) {
+    return {
+      dayLabel: "Day 1",
+      dayNumber: 1,
+      periodKey: null,
+      updatedAt: new Date().toISOString(),
+      frontCourt: [],
+      backCourt: []
+    };
+  }
+
+  const startedGames = slate.games.filter((game) => game.status !== "upcoming");
+  if (!startedGames.length) {
+    return {
+      dayLabel: slate.gamedayLabel,
+      dayNumber: Number(slate.dayNumber ?? 0) || null,
+      periodKey: slate.periodKey,
+      updatedAt: new Date().toISOString(),
+      frontCourt: [],
+      backCourt: []
+    };
+  }
+
+  const boxScores = await Promise.all(
+    [...new Set(startedGames.map((game) => String(game.id)))]
+      .map((gameId) => getOfficialBoxScore(gameId).catch(() => null))
+  );
+
+  const fantasyPointsByCode = new Map<string, number>();
+  boxScores.forEach((boxScore) => {
+    const officialGame = boxScore?.game;
+    const officialPlayers = [...(officialGame?.homeTeam?.players ?? []), ...(officialGame?.awayTeam?.players ?? [])];
+    officialPlayers.forEach((officialPlayer) => {
+      const code = String(officialPlayer?.personId ?? "").trim();
+      if (!code) {
+        return;
+      }
+
+      const nextPoints =
+        Number((fantasyPointsByCode.get(code) ?? 0)) + calculateFantasyPointsFromBoxScore(officialPlayer.statistics ?? {});
+      fantasyPointsByCode.set(code, Number(nextPoints.toFixed(1)));
+    });
+  });
+
+  const players = await getPlayersByCodes(env, [...fantasyPointsByCode.keys()]);
+  const rankedPlayers = players
+    .map((player) => ({
+      ...player,
+      points: Number(fantasyPointsByCode.get(String(player.code ?? "")) ?? 0),
+      pointsWindowKey: slate.periodKey
+    }))
+    .filter((player) => Number.isFinite(Number(player.points ?? 0)) && Number(player.points ?? 0) > 0);
+
+  const buildLeaders = (position: "FC" | "BC"): HomeLeaderEntry[] =>
+    rankedPlayers
+      .filter((player) => player.position === position)
+      .sort((left, right) => {
+        const pointsDiff = Number(right.points ?? 0) - Number(left.points ?? 0);
+        if (pointsDiff !== 0) {
+          return pointsDiff;
+        }
+
+        return String(left.name ?? "").localeCompare(String(right.name ?? ""), undefined, { sensitivity: "base" });
+      })
+      .slice(0, 5)
+      .map((player, index) => ({
+        rank: index + 1,
+        points: Number(Number(player.points ?? 0).toFixed(1)),
+        player
+      }));
+
+  return {
+    dayLabel: slate.gamedayLabel,
+    dayNumber: Number(slate.dayNumber ?? 0) || null,
+    periodKey: slate.periodKey,
+    updatedAt: new Date().toISOString(),
+    frontCourt: buildLeaders("FC"),
+    backCourt: buildLeaders("BC")
+  };
 }
 
 export async function getOfficialPlayoffPeriods(env: Env) {

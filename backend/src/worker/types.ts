@@ -55,6 +55,21 @@ export interface Player {
   countsForGameday?: boolean;
 }
 
+export interface HomeLeaderEntry {
+  rank: number;
+  points: number;
+  player: Player;
+}
+
+export interface HomeLeadersResponse {
+  dayLabel: string;
+  dayNumber?: number | null;
+  periodKey?: string | null;
+  updatedAt: string;
+  frontCourt: HomeLeaderEntry[];
+  backCourt: HomeLeaderEntry[];
+}
+
 export interface TransferHistoryItem {
   id: string;
   timestamp: string;

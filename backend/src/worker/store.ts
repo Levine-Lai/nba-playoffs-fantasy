@@ -526,6 +526,42 @@ export async function getPlayersByNames(env: Env, playerNames: string[], nextMat
   return rows.map((row) => normalizePlayerRow(row, nextMatchupByTeam));
 }
 
+export async function getPlayersByCodes(env: Env, playerCodes: string[], nextMatchupByTeam = new Map<string, NextMatchup>()) {
+  const codes = [...new Set(playerCodes.map((code) => Number(code)).filter((value) => Number.isFinite(value) && value > 0))];
+  if (!codes.length) {
+    return [];
+  }
+
+  const placeholders = codes.map(() => "?").join(",");
+  const rows = await all<PlayerRow>(
+    env,
+    `
+      SELECT
+        p.id AS id,
+        p.code AS code,
+        p.web_name AS name,
+        p.team_id AS teamId,
+        t.code AS teamCode,
+        p.team_short_name AS team,
+        p.position_short AS position,
+        p.salary AS salary,
+        p.total_points AS totalPoints,
+        p.event_points AS points,
+        p.points_per_game AS recentAverage,
+        p.selected_by_percent AS selectedByPercent,
+        p.status AS status,
+        p.can_select AS canSelect,
+        p.can_transact AS canTransact
+      FROM players p
+      LEFT JOIN teams t ON t.id = p.team_id
+      WHERE p.code IN (${placeholders})
+    `,
+    ...codes
+  );
+
+  return rows.map((row) => normalizePlayerRow(row, nextMatchupByTeam));
+}
+
 export async function searchPlayerPool(
   env: Env,
   filters: {
