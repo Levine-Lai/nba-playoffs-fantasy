@@ -32,6 +32,9 @@ const LIVE_BOX_SCORE_URL = "https://nba-prod-us-east-1-mediaops-stats.s3.amazona
 const LIVE_REQUEST_TIMEOUT_MS = 8000;
 const LIVE_SCHEDULE_TTL_MS = 60 * 1000;
 const LIVE_BOX_TTL_MS = 20 * 1000;
+const APPEARANCE_SETTLEMENT_TIME_ZONE = "Asia/Shanghai";
+const APPEARANCE_SETTLEMENT_HOUR = 16;
+const APPEARANCE_SETTLEMENT_EFFECTIVE_GAMEDAY_KEY = "2026-04-20";
 
 const TEAM_CODES_BY_NAME: Record<string, string> = {
   "Atlanta Hawks": "1610612737",
@@ -283,6 +286,59 @@ function getPlayoffPeriodsFromGames(games: OfficialScheduleGame[]) {
   );
 }
 
+function getDateKeyInTimeZone(dateInput: string | null | undefined, timeZone: string) {
+  const date = new Date(dateInput ?? "");
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
+function getAppearanceSettlementTimestamp(gamedayDateKey: string) {
+  const match = String(gamedayDateKey ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day] = match;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day), APPEARANCE_SETTLEMENT_HOUR - 8, 0, 0, 0);
+}
+
+function hasAppearanceSettlementPassed(
+  slate: { gamedayKey?: string | null; games: Array<{ date: string }> },
+  now = Date.now()
+) {
+  const earliestGameDate = slate.games
+    .map((game) => game.date)
+    .filter(Boolean)
+    .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0] ?? null;
+  const settlementDateKey =
+    getDateKeyInTimeZone(earliestGameDate, APPEARANCE_SETTLEMENT_TIME_ZONE) || String(slate.gamedayKey ?? "").trim();
+
+  if (!settlementDateKey || settlementDateKey < APPEARANCE_SETTLEMENT_EFFECTIVE_GAMEDAY_KEY) {
+    return false;
+  }
+
+  const settlementTimestamp = getAppearanceSettlementTimestamp(settlementDateKey);
+  if (settlementTimestamp === null) {
+    return false;
+  }
+
+  return now >= settlementTimestamp;
+}
+
 function formatDeadlineLabel(deadline: string, timeZone: string) {
   return formatDateInTimeZone(
     deadline,
@@ -483,6 +539,7 @@ async function getOfficialSlateContext(env: Env) {
     periodKey: scoringPeriod.key,
     gamedayLabel: scoringPeriod.label,
     gamedayIndex: scoringPeriod.gamedayIndex,
+    gamedayKey: scoringPeriod.gamedayKey,
     deadlineLabel: formatDeadlineLabel(scoringPeriod.deadline, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
     roundNumber: scoringPeriod.roundNumber,
     dayNumber: scoringPeriod.dayNumber,
@@ -883,6 +940,7 @@ async function buildFantasyPointsPreviewForSlate(
     periodKey: string;
     gamedayLabel: string;
     gamedayIndex: number;
+    gamedayKey?: string;
     deadlineLabel: string;
     roundNumber?: number;
     dayNumber?: number;
@@ -925,29 +983,42 @@ async function buildFantasyPointsPreviewForSlate(
     (value): value is [string, Record<string, any>] => Array.isArray(value) && value.length === 2
   );
   const boxScoreByGameId = new Map(boxScoreEntries);
+  const appearanceSettlementPassed = hasAppearanceSettlementPassed({
+    gamedayKey: slate.gamedayKey ?? null,
+    games: slate.games.map((game) => ({ date: game.date }))
+  });
 
   const hydratePlayer = (player: Player) => {
     const game = gamesByTeam.get(player.team);
     const opponent = game?.homeTriCode === player.team ? game?.awayTriCode || "TBD" : game?.homeTriCode || "TBD";
+    const boxScore = game ? boxScoreByGameId.get(String(game.id)) : null;
+    const officialPlayerId = Number(player.code ?? 0);
+    const canResolveOfficialAppearance = Boolean(boxScore) && Number.isFinite(officialPlayerId) && officialPlayerId > 0;
+    const officialPlayers = canResolveOfficialAppearance
+      ? [...(boxScore?.homeTeam?.players ?? []), ...(boxScore?.awayTeam?.players ?? [])]
+      : [];
+    const officialPlayer = canResolveOfficialAppearance
+      ? officialPlayers.find((candidate) => Number(candidate.personId) === officialPlayerId)
+      : null;
 
     let livePoints = 0;
-    if (game && game.status !== "upcoming") {
-      const boxScore = boxScoreByGameId.get(String(game.id));
-      const officialPlayerId = Number(player.code ?? 0);
-
-      if (boxScore && Number.isFinite(officialPlayerId) && officialPlayerId > 0) {
-        const candidates = [...(boxScore.homeTeam?.players ?? []), ...(boxScore.awayTeam?.players ?? [])];
-        const officialPlayer = candidates.find((candidate) => Number(candidate.personId) === officialPlayerId);
-        if (officialPlayer) {
-          livePoints = calculateFantasyPointsFromBoxScore(officialPlayer.statistics ?? {});
-        }
-      }
+    if (officialPlayer && game && game.status !== "upcoming") {
+      livePoints = calculateFantasyPointsFromBoxScore(officialPlayer.statistics ?? {});
     }
+
+    const hasResolvedAppearance = canResolveOfficialAppearance && Boolean(officialPlayer);
+    const hasAppeared = String(officialPlayer?.played ?? "0") === "1";
+    const pointsWindowKey =
+      appearanceSettlementPassed && hasResolvedAppearance && !hasAppeared
+        ? null
+        : game
+          ? slate.periodKey
+          : null;
 
     return {
       ...player,
       points: livePoints,
-      pointsWindowKey: game ? slate.periodKey : null,
+      pointsWindowKey,
       nextOpponent: opponent,
       upcoming: buildUpcomingSlateCells(game)
     };
@@ -1138,6 +1209,7 @@ export async function buildOfficialPointsPreviewForPeriod(
       periodKey: targetPeriod.key,
       gamedayLabel: targetPeriod.label,
       gamedayIndex: targetPeriod.gamedayIndex,
+      gamedayKey: targetPeriod.gamedayKey,
       deadlineLabel: formatDeadlineLabel(targetPeriod.deadline, env.LIVE_TIME_ZONE || "Asia/Shanghai"),
       roundNumber: targetPeriod.roundNumber,
       dayNumber: targetPeriod.dayNumber,
@@ -1206,6 +1278,7 @@ export async function buildOfficialStartedPeriodSummaries(
         periodKey: period.key,
         gamedayLabel: period.label,
         gamedayIndex: period.gamedayIndex,
+        gamedayKey: period.gamedayKey,
         deadlineLabel: formatDeadlineLabel(period.deadline, timeZone),
         roundNumber: period.roundNumber,
         dayNumber: period.dayNumber,

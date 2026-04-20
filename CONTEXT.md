@@ -24,6 +24,7 @@ This file is the cross-conversation memory for the repo. Keep it concise, curren
 - There is no captain gameplay; stored `captain_id` is backward-compatibility only. / 当前没有 captain 玩法；存储中的 `captain_id` 仅用于兼容旧数据。
 - Fantasy scoring is `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`. / Fantasy 计分规则是 `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`。
 - Effective scoring counts up to 5 active players and must end in a valid `3BC + 2FC` or `2BC + 3FC` shape, using starters first and then bench order to fill gaps. / 有效得分最多统计 5 名有比赛的球员，且最终必须满足 `3BC + 2FC` 或 `2BC + 3FC` 的合法阵型，优先使用首发，再按替补顺序补位。
+- For gamedays on or after `2026-04-20`, a player who still has not actually appeared by Beijing `16:00` is treated as a non-participant for that gameday, so later bench players may replace them. Earlier historical gamedays keep the previous behavior and are not backfilled. / 对于 `2026-04-20` 及之后的 gameday，如果球员到北京时间 `16:00` 仍未实际出场，则该球员在该 gameday 视为未上场，允许后续替补递补。更早的历史 gameday 保持旧行为，不做回刷。
 
 ## UI Notes | UI 约定
 - Standing highlights the logged-in user with a deeper blue row that stays highlighted on hover. / Standing 中当前登录用户使用更深蓝色高亮，hover 时保持高亮。
