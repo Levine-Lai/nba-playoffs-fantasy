@@ -149,7 +149,7 @@ export default function StandingPage() {
                       </Link>
                     )}
                   </td>
-                  <td>{data.visible === false ? "-" : formatFantasyPoints(member.phasePoints ?? member.gamedayPoints ?? 0)}</td>
+                  <td>{data.visible === false ? "-" : formatFantasyPoints(member.gamedayPoints ?? 0)}</td>
                   <td>{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
                 </tr>
               );
