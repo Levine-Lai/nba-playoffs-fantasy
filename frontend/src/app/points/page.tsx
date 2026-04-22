@@ -38,7 +38,9 @@ function PointsPageContent() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load points.");
     }
-  }, 30000, [targetPhase, targetUserId]);
+  }, {
+    intervalMs: 30000
+  }, [targetPhase, targetUserId]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading points...</div>;

@@ -35,6 +35,9 @@ const LIVE_BOX_TTL_MS = 20 * 1000;
 const APPEARANCE_SETTLEMENT_TIME_ZONE = "Asia/Shanghai";
 const APPEARANCE_SETTLEMENT_HOUR = 16;
 const APPEARANCE_SETTLEMENT_EFFECTIVE_GAMEDAY_KEY = "2026-04-20";
+const STANDING_REFRESH_INTERVAL_MS = 15 * 1000;
+const STANDING_SETTLEMENT_WINDOW_LEAD_MS = 5 * 60 * 1000;
+const STANDING_SETTLEMENT_WINDOW_TAIL_MS = 10 * 60 * 1000;
 
 const TEAM_CODES_BY_NAME: Record<string, string> = {
   "Atlanta Hawks": "1610612737",
@@ -316,9 +319,8 @@ function getAppearanceSettlementTimestamp(gamedayDateKey: string) {
   return Date.UTC(Number(year), Number(month) - 1, Number(day), APPEARANCE_SETTLEMENT_HOUR - 8, 0, 0, 0);
 }
 
-function hasAppearanceSettlementPassed(
-  slate: { gamedayKey?: string | null; games: Array<{ date: string }> },
-  now = Date.now()
+function getAppearanceSettlementTimestampForSlate(
+  slate: { gamedayKey?: string | null; games: Array<{ date: string }> }
 ) {
   const earliestGameDate = slate.games
     .map((game) => game.date)
@@ -328,16 +330,28 @@ function hasAppearanceSettlementPassed(
     getDateKeyInTimeZone(earliestGameDate, APPEARANCE_SETTLEMENT_TIME_ZONE) || String(slate.gamedayKey ?? "").trim();
 
   if (!settlementDateKey || settlementDateKey < APPEARANCE_SETTLEMENT_EFFECTIVE_GAMEDAY_KEY) {
-    return false;
+    return null;
   }
 
-  const settlementTimestamp = getAppearanceSettlementTimestamp(settlementDateKey);
+  return getAppearanceSettlementTimestamp(settlementDateKey);
+}
+
+function hasAppearanceSettlementPassed(
+  slate: { gamedayKey?: string | null; games: Array<{ date: string }> },
+  now = Date.now()
+) {
+  const settlementTimestamp = getAppearanceSettlementTimestampForSlate(slate);
   if (settlementTimestamp === null) {
     return false;
   }
 
   return now >= settlementTimestamp;
 }
+
+export type StandingRefreshPlan = {
+  refreshIntervalMs: number | null;
+  nextRefreshAt: string | null;
+};
 
 function formatDeadlineLabel(deadline: string, timeZone: string) {
   return formatDateInTimeZone(
@@ -544,6 +558,60 @@ async function getOfficialSlateContext(env: Env) {
     roundNumber: scoringPeriod.roundNumber,
     dayNumber: scoringPeriod.dayNumber,
     games: slateGames
+  };
+}
+
+export async function getStandingRefreshPlan(env: Env, now = Date.now()): Promise<StandingRefreshPlan> {
+  const slate = await getOfficialSlateContext(env).catch(() => null);
+  if (!slate) {
+    return {
+      refreshIntervalMs: null,
+      nextRefreshAt: null
+    };
+  }
+
+  if (slate.games.some((game) => game.status === "live")) {
+    return {
+      refreshIntervalMs: STANDING_REFRESH_INTERVAL_MS,
+      nextRefreshAt: null
+    };
+  }
+
+  const nextRefreshCandidates: number[] = [];
+  const nextTipoffTimestamp =
+    slate.games
+      .filter((game) => game.status === "upcoming")
+      .map((game) => new Date(game.date).getTime())
+      .filter((timestamp) => Number.isFinite(timestamp) && timestamp > now)
+      .sort((left, right) => left - right)[0] ?? null;
+
+  if (nextTipoffTimestamp !== null) {
+    nextRefreshCandidates.push(nextTipoffTimestamp);
+  }
+
+  const settlementTimestamp = getAppearanceSettlementTimestampForSlate(slate);
+  if (settlementTimestamp !== null) {
+    const settlementWindowStart = settlementTimestamp - STANDING_SETTLEMENT_WINDOW_LEAD_MS;
+    const settlementWindowEnd = settlementTimestamp + STANDING_SETTLEMENT_WINDOW_TAIL_MS;
+
+    if (now >= settlementWindowStart && now <= settlementWindowEnd) {
+      return {
+        refreshIntervalMs: STANDING_REFRESH_INTERVAL_MS,
+        nextRefreshAt: null
+      };
+    }
+
+    if (settlementWindowStart > now) {
+      nextRefreshCandidates.push(settlementWindowStart);
+    }
+  }
+
+  const nextRefreshAt =
+    nextRefreshCandidates.sort((left, right) => left - right)[0] ?? null;
+
+  return {
+    refreshIntervalMs: null,
+    nextRefreshAt: nextRefreshAt === null ? null : new Date(nextRefreshAt).toISOString()
   };
 }
 

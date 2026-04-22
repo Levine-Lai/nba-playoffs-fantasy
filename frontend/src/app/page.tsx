@@ -105,7 +105,9 @@ export default function HomePage() {
     } catch {
       // Ignore transient landing-page leaderboard errors.
     }
-  }, 60000, []);
+  }, {
+    intervalMs: 60000
+  }, []);
 
   async function onLogin(event: FormEvent) {
     event.preventDefault();

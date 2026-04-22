@@ -25,7 +25,9 @@ export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load profile.");
     }
-  }, 120000, [snapshot]);
+  }, {
+    intervalMs: 120000
+  }, [snapshot]);
 
   if (error && !snapshot) {
     return <aside className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</aside>;

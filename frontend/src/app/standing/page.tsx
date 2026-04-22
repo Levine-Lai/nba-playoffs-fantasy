@@ -53,7 +53,14 @@ export default function StandingPage() {
     }
   }, []);
 
-  useVisibilityPolling(loadStandings, 15000, [selectedPhase]);
+  useVisibilityPolling(
+    loadStandings,
+    {
+      intervalMs: data?.refreshIntervalMs ?? null,
+      nextRefreshAt: data?.nextRefreshAt ?? null
+    },
+    [selectedPhase, data?.refreshIntervalMs ?? null, data?.nextRefreshAt ?? null]
+  );
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading standings...</div>;

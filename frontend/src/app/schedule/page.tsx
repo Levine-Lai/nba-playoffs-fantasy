@@ -295,7 +295,9 @@ export default function SchedulePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load schedule.");
     }
-  }, 60000, []);
+  }, {
+    intervalMs: 60000
+  }, []);
 
   const monthCalendars = useMemo(() => {
     const games = data?.games ?? [];

@@ -2,11 +2,21 @@
 
 import { DependencyList, useEffect } from "react";
 
-export function useVisibilityPolling(load: () => Promise<void> | void, intervalMs: number, deps: DependencyList) {
+type VisibilityPollingOptions = {
+  intervalMs?: number | null;
+  nextRefreshAt?: string | null;
+};
+
+export function useVisibilityPolling(
+  load: () => Promise<void> | void,
+  options: VisibilityPollingOptions,
+  deps: DependencyList
+) {
   useEffect(() => {
     let active = true;
     let inFlight = false;
-    let timer: number | null = null;
+    let intervalTimer: number | null = null;
+    let timeoutTimer: number | null = null;
 
     const run = async () => {
       if (!active || inFlight) {
@@ -22,25 +32,58 @@ export function useVisibilityPolling(load: () => Promise<void> | void, intervalM
       }
     };
 
-    const clearTimer = () => {
-      if (timer !== null) {
-        window.clearInterval(timer);
-        timer = null;
+    const clearTimers = () => {
+      if (intervalTimer !== null) {
+        window.clearInterval(intervalTimer);
+        intervalTimer = null;
+      }
+
+      if (timeoutTimer !== null) {
+        window.clearTimeout(timeoutTimer);
+        timeoutTimer = null;
       }
     };
 
+    const scheduleOneShotRefresh = () => {
+      if (!options.nextRefreshAt) {
+        return;
+      }
+
+      const nextRefreshTimestamp = new Date(options.nextRefreshAt).getTime();
+      if (!Number.isFinite(nextRefreshTimestamp)) {
+        return;
+      }
+
+      const delayMs = nextRefreshTimestamp - Date.now();
+      if (delayMs <= 1000) {
+        return;
+      }
+
+      timeoutTimer = window.setTimeout(() => {
+        if (document.visibilityState === "visible") {
+          void run();
+        }
+      }, delayMs);
+    };
+
     const startPolling = () => {
-      clearTimer();
+      clearTimers();
       if (document.visibilityState === "hidden") {
         return;
       }
 
       void run();
-      timer = window.setInterval(() => {
-        if (document.visibilityState === "visible") {
-          void run();
-        }
-      }, intervalMs);
+
+      if (options.intervalMs && options.intervalMs > 0) {
+        intervalTimer = window.setInterval(() => {
+          if (document.visibilityState === "visible") {
+            void run();
+          }
+        }, options.intervalMs);
+        return;
+      }
+
+      scheduleOneShotRefresh();
     };
 
     const refreshOnFocus = () => {
@@ -55,7 +98,7 @@ export function useVisibilityPolling(load: () => Promise<void> | void, intervalM
 
     return () => {
       active = false;
-      clearTimer();
+      clearTimers();
       document.removeEventListener("visibilitychange", startPolling);
       window.removeEventListener("focus", refreshOnFocus);
     };

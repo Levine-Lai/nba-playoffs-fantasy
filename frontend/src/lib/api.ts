@@ -272,6 +272,8 @@ export function getStandings(phase?: string) {
 
   const queryString = query.toString();
   return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`, undefined, {
+    timeoutMs: 20000,
+    retries: 2,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });

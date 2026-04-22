@@ -19,7 +19,7 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildScheduleGameDetailPayload, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay } from "./worker/liveData";
+import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildScheduleGameDetailPayload, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay, getStandingRefreshPlan } from "./worker/liveData";
 import {
   buildPublicUser,
   createSession,
@@ -64,6 +64,7 @@ import type {
 const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
 const LINEUP_LOCKS_KEY = "lineup_locks_v1";
 const LINEUP_CORRECTIONS_KEY = "lineup_corrections_v1";
+const STANDING_PAYLOAD_CACHE_KEY = "standing_payload_cache_v1";
 
 const DEFAULT_LINEUP_CORRECTIONS: LineupCorrectionRegistry = {
   kusuri: {
@@ -96,6 +97,19 @@ type LeaguePointsLedgerEntry = {
 };
 
 type LeaguePointsLedger = Record<string, Record<string, LeaguePointsLedgerEntry>>;
+type StandingPayloadCacheEntry = {
+  expiresAt: string;
+  payload: {
+    visible: boolean;
+    message?: string;
+    refreshIntervalMs: number | null;
+    nextRefreshAt: string | null;
+    selectedPhaseKey: string;
+    phaseOptions: Awaited<ReturnType<typeof getStandingPhaseOptions>>;
+    members: StandingMemberEntry[];
+  };
+};
+type StandingPayloadCache = Record<string, StandingPayloadCacheEntry>;
 type TransactionChipChoice = "wildcard" | "all-star";
 type TransactionChipCards = {
   wildcard: UserChipCardState;
@@ -643,6 +657,14 @@ async function writeLeaguePointsLedger(env: Env, ledger: LeaguePointsLedger) {
   await writeAppState(env, LEAGUE_POINTS_LEDGER_KEY, ledger);
 }
 
+async function readStandingPayloadCache(env: Env) {
+  return readAppState<StandingPayloadCache>(env, STANDING_PAYLOAD_CACHE_KEY, {});
+}
+
+async function writeStandingPayloadCache(env: Env, cache: StandingPayloadCache) {
+  await writeAppState(env, STANDING_PAYLOAD_CACHE_KEY, cache);
+}
+
 function isLedgerEntryAllowedForPeriods(entry: LeaguePointsLedgerEntry, allowedPeriodKeys: Set<string>) {
   const periodKey = String(entry.periodKey ?? "");
   if (allowedPeriodKeys.has(periodKey)) {
@@ -684,6 +706,115 @@ function sumLeagueLedgerPoints(entries: LeaguePointsLedgerEntry[] | undefined) {
   );
 }
 
+function syncLeaguePointsLedgerInMemory(
+  ledger: LeaguePointsLedger,
+  userId: string | number,
+  scoringPeriod: ScoringPeriodContext,
+  points: number
+) {
+  if (!scoringPeriod) {
+    return { total: 0, changed: false };
+  }
+
+  const numericPoints = Number(points ?? 0);
+  const userKey = String(userId);
+  const existingUserLedger = ledger[userKey] ?? {};
+  const nextEntry: LeaguePointsLedgerEntry = {
+    periodKey: scoringPeriod.key,
+    label: scoringPeriod.label,
+    roundNumber: Number(scoringPeriod.roundNumber ?? 0),
+    dayNumber: Number(scoringPeriod.dayNumber ?? 0),
+    points: Number(numericPoints.toFixed(1)),
+    recordedAt: new Date().toISOString()
+  };
+
+  const currentEntry = existingUserLedger[scoringPeriod.key];
+  const changed =
+    !currentEntry ||
+    Number(currentEntry.points ?? 0) !== nextEntry.points ||
+    currentEntry.label !== nextEntry.label ||
+    Number(currentEntry.roundNumber ?? 0) !== nextEntry.roundNumber ||
+    Number(currentEntry.dayNumber ?? 0) !== nextEntry.dayNumber;
+
+  if (changed) {
+    ledger[userKey] = {
+      ...existingUserLedger,
+      [scoringPeriod.key]: nextEntry
+    };
+  }
+
+  return {
+    total: sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? existingUserLedger)),
+    changed
+  };
+}
+
+function syncLeaguePointsAdjustmentInMemory(
+  ledger: LeaguePointsLedger,
+  userId: string | number,
+  adjustment: {
+    key: string;
+    label: string;
+    roundNumber: number;
+    dayNumber: number;
+    points: number;
+  }
+) {
+  const numericPoints = Number(adjustment.points ?? 0);
+  const userKey = String(userId);
+  const existingUserLedger = ledger[userKey] ?? {};
+  const entryKey = adjustment.key;
+  const baseEntries = Object.fromEntries(
+    Object.entries(existingUserLedger).filter(([key]) => {
+      if (key === entryKey || key.startsWith(`${entryKey}:`)) {
+        return false;
+      }
+
+      if (entryKey.startsWith("penalty:day:") && /^penalty:(round-|play-in-)/.test(key)) {
+        return false;
+      }
+
+      return true;
+    })
+  );
+
+  if (numericPoints === 0) {
+    const changed = Object.keys(baseEntries).length !== Object.keys(existingUserLedger).length;
+    if (changed) {
+      if (Object.keys(baseEntries).length) {
+        ledger[userKey] = baseEntries;
+      } else {
+        delete ledger[userKey];
+      }
+    }
+
+    return {
+      total: sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? baseEntries)),
+      changed
+    };
+  }
+
+  const nextUserLedger = {
+    ...baseEntries,
+    [entryKey]: {
+      periodKey: entryKey,
+      label: adjustment.label,
+      roundNumber: Number(adjustment.roundNumber ?? 0),
+      dayNumber: Number(adjustment.dayNumber ?? 0),
+      points: Number(numericPoints.toFixed(1)),
+      recordedAt: new Date().toISOString()
+    }
+  };
+  const nextSerialized = JSON.stringify(nextUserLedger);
+  const changed = JSON.stringify(existingUserLedger) !== nextSerialized;
+
+  ledger[userKey] = nextUserLedger;
+  return {
+    total: sumLeagueLedgerPoints(Object.values(nextUserLedger)),
+    changed
+  };
+}
+
 async function getStandingPhaseOptions(env: Env) {
   return getStandingPhaseOptionsByDay(env);
 }
@@ -713,40 +844,12 @@ async function syncLeaguePointsLedger(
   scoringPeriod: ScoringPeriodContext,
   points: number
 ) {
-  if (!scoringPeriod) {
-    return 0;
-  }
-
-  const numericPoints = Number(points ?? 0);
   const ledger = await readLeaguePointsLedger(env);
-  const userKey = String(userId);
-  const existingUserLedger = ledger[userKey] ?? {};
-  const nextEntry: LeaguePointsLedgerEntry = {
-    periodKey: scoringPeriod.key,
-    label: scoringPeriod.label,
-    roundNumber: Number(scoringPeriod.roundNumber ?? 0),
-    dayNumber: Number(scoringPeriod.dayNumber ?? 0),
-    points: Number(numericPoints.toFixed(1)),
-    recordedAt: new Date().toISOString()
-  };
-
-  const currentEntry = existingUserLedger[scoringPeriod.key];
-  const entryChanged =
-    !currentEntry ||
-    Number(currentEntry.points ?? 0) !== nextEntry.points ||
-    currentEntry.label !== nextEntry.label ||
-    Number(currentEntry.roundNumber ?? 0) !== nextEntry.roundNumber ||
-    Number(currentEntry.dayNumber ?? 0) !== nextEntry.dayNumber;
-
-  if (entryChanged) {
-    ledger[userKey] = {
-      ...existingUserLedger,
-      [scoringPeriod.key]: nextEntry
-    };
+  const result = syncLeaguePointsLedgerInMemory(ledger, userId, scoringPeriod, points);
+  if (result.changed) {
     await writeLeaguePointsLedger(env, ledger);
   }
-
-  return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+  return result.total;
 }
 
 async function syncLeaguePointsAdjustment(
@@ -760,47 +863,12 @@ async function syncLeaguePointsAdjustment(
     points: number;
   }
 ) {
-  const numericPoints = Number(adjustment.points ?? 0);
   const ledger = await readLeaguePointsLedger(env);
-  const userKey = String(userId);
-  const existingUserLedger = ledger[userKey] ?? {};
-  const entryKey = adjustment.key;
-  const baseEntries = Object.fromEntries(
-    Object.entries(existingUserLedger).filter(([key]) => {
-      if (key === entryKey || key.startsWith(`${entryKey}:`)) {
-        return false;
-      }
-
-      if (entryKey.startsWith("penalty:day:") && /^penalty:(round-|play-in-)/.test(key)) {
-        return false;
-      }
-
-      return true;
-    })
-  );
-
-  if (numericPoints === 0) {
-    if (Object.keys(baseEntries).length !== Object.keys(existingUserLedger).length) {
-      ledger[userKey] = baseEntries;
-      await writeLeaguePointsLedger(env, ledger);
-    }
-    return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+  const result = syncLeaguePointsAdjustmentInMemory(ledger, userId, adjustment);
+  if (result.changed) {
+    await writeLeaguePointsLedger(env, ledger);
   }
-
-  ledger[userKey] = {
-    ...baseEntries,
-    [entryKey]: {
-      periodKey: entryKey,
-      label: adjustment.label,
-      roundNumber: Number(adjustment.roundNumber ?? 0),
-      dayNumber: Number(adjustment.dayNumber ?? 0),
-      points: Number(numericPoints.toFixed(1)),
-      recordedAt: new Date().toISOString()
-    }
-  };
-
-  await writeLeaguePointsLedger(env, ledger);
-  return sumLeagueLedgerPoints(Object.values(ledger[userKey] ?? {}));
+  return result.total;
 }
 
 function countPenaltyTransfersForPeriod(history: TransferHistoryItem[], periodKey: string) {
@@ -893,7 +961,23 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
     ? String(requestedPhaseKey)
     : "overall";
   const beforeDeadline = await isBeforeFirstDeadline(env);
+  const cache = await readStandingPayloadCache(env);
+  const cachedEntry = cache[selectedPhaseKey];
+  if (cachedEntry && new Date(cachedEntry.expiresAt).getTime() > Date.now()) {
+    return cachedEntry.payload;
+  }
+  const refreshPlan = beforeDeadline
+    ? {
+        refreshIntervalMs: null,
+        nextRefreshAt: null
+      }
+    : await getStandingRefreshPlan(env).catch(() => ({
+        refreshIntervalMs: null,
+        nextRefreshAt: null
+      }));
+
   let members = await listStandingMembers(env);
+  const ledger = await readLeaguePointsLedger(env);
 
   if (!beforeDeadline) {
     const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
@@ -902,6 +986,7 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
       const lineupLocks = await readLineupLockRegistry(env);
       const lineupCorrections = await readLineupCorrectionRegistry(env);
       let shouldPersistLineupLocks = false;
+      let ledgerChanged = false;
 
       for (const member of members) {
         const state = await safeLoadState(env, member.userId, { hydrateAssets: false });
@@ -925,7 +1010,9 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
         let nextGamedayPoints = Number(
           (livePreview?.finalPoints ?? buildStoredPointsSnapshot(scoringState, currentScoringPeriod).summary.final ?? 0).toFixed(1)
         );
-        let nextOverallPoints = Number((await syncLeaguePointsLedger(env, member.userId, currentScoringPeriod, nextGamedayPoints)).toFixed(1));
+        const ledgerSync = syncLeaguePointsLedgerInMemory(ledger, member.userId, currentScoringPeriod, nextGamedayPoints);
+        ledgerChanged = ledgerChanged || ledgerSync.changed;
+        let nextOverallPoints = Number(ledgerSync.total.toFixed(1));
 
         if (shouldBackfillHistoricalCorrections(lineupCorrections, member.userId, member.gameId, currentScoringPeriod.key)) {
           const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips);
@@ -944,18 +1031,31 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
         await writeLineupLockRegistry(env, lineupLocks);
       }
 
+      if (ledgerChanged) {
+        await writeLeaguePointsLedger(env, ledger);
+      }
+
       members = await listStandingMembers(env);
     }
   }
 
-  const ledger = await readLeaguePointsLedger(env);
-  return {
+  const payload = {
     visible: !beforeDeadline,
     message: beforeDeadline ? "Points will unlock after Day 1 deadline." : undefined,
+    refreshIntervalMs: refreshPlan.refreshIntervalMs,
+    nextRefreshAt: refreshPlan.nextRefreshAt,
     selectedPhaseKey,
     phaseOptions,
     members: buildRankedMembers(members, selectedPhaseKey, ledger)
   };
+
+  cache[selectedPhaseKey] = {
+    expiresAt: new Date(Date.now() + (beforeDeadline ? 60000 : 20000)).toISOString(),
+    payload
+  };
+  await writeStandingPayloadCache(env, cache);
+
+  return payload;
 }
 
 async function safeLoadState(env: Env, userId: string | number, options: LoadStateOptions = {}) {
@@ -1850,9 +1950,12 @@ export default {
 
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
         syncTransferWindowState(state, editableContext.transferWindow);
+        const chips = await getUserChipsState(env, auth.authUser.id);
+        const lineupState = getTransactionsState(state, chips, editableContext);
+        syncTransferWindowState(lineupState, editableContext.transferWindow);
         return json(
           buildLineupPayload({
-            state,
+            state: lineupState,
             gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
             beforeFirstDeadline: editableContext.beforeCompetitionStart,
@@ -1874,13 +1977,20 @@ export default {
           return json({ message: "User state not found." }, { status: 500 }, env);
         }
 
+        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        const chips = await getUserChipsState(env, auth.authUser.id);
+        syncTransferWindowState(state, editableContext.transferWindow);
+        const lineupState = getTransactionsState(state, chips, editableContext);
+        syncTransferWindowState(lineupState, editableContext.transferWindow);
+        const allStarActiveForLineup = isChipActiveForPeriod(chips.allStar.activePeriodKey, editableContext.period.key);
+
         const body = await parseJsonBody<{
           starters?: Player[];
           bench?: Player[];
         }>(request);
 
-        const proposedStarters = Array.isArray(body.starters) ? body.starters : state.starters;
-        const proposedBench = Array.isArray(body.bench) ? body.bench : state.bench;
+        const proposedStarters = Array.isArray(body.starters) ? body.starters : lineupState.starters;
+        const proposedBench = Array.isArray(body.bench) ? body.bench : lineupState.bench;
 
         if (proposedStarters.length !== 5) {
           return json({ message: "starters must contain 5 players." }, { status: 400 }, env);
@@ -1894,7 +2004,7 @@ export default {
           return json({ message: "Starting 5 must stay in a 3BC/2FC or 3FC/2BC shape." }, { status: 400 }, env);
         }
 
-        const currentIds = [...state.starters, ...state.bench].map((player) => player.id).sort();
+        const currentIds = [...lineupState.starters, ...lineupState.bench].map((player) => player.id).sort();
         const proposedIds = [...proposedStarters, ...proposedBench].map((player) => player.id).sort();
         if (currentIds.join("|") !== proposedIds.join("|")) {
           return json({ message: "Line-up save can only reorder players already in your roster." }, { status: 400 }, env);
@@ -1918,18 +2028,27 @@ export default {
           }
         }
 
-        state.starters = proposedStarters;
-        state.bench = proposedBench;
-        state.captainId = "";
-        state.captainDecisionLocked = false;
+        lineupState.starters = proposedStarters;
+        lineupState.bench = proposedBench;
+        lineupState.captainId = "";
+        lineupState.captainDecisionLocked = false;
 
-        await saveStateForUser(env, auth.authUser.id, state);
-        const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
-        syncTransferWindowState(state, editableContext.transferWindow);
+        if (allStarActiveForLineup) {
+          chips.allStar.activeLineup = buildStoredLineupSnapshot(lineupState);
+          await saveUserChipsState(env, auth.authUser.id, chips);
+        } else {
+          state.starters = lineupState.starters;
+          state.bench = lineupState.bench;
+          state.captainId = "";
+          state.captainDecisionLocked = false;
+          await saveStateForUser(env, auth.authUser.id, state);
+        }
+
+        syncTransferWindowState(lineupState, editableContext.transferWindow);
 
         return json(
           buildLineupPayload({
-            state,
+            state: lineupState,
             gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
             beforeFirstDeadline: editableContext.beforeCompetitionStart,

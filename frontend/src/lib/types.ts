@@ -206,6 +206,8 @@ export interface StandingPhaseOption {
 export interface StandingResponse {
   visible?: boolean;
   message?: string;
+  refreshIntervalMs: number | null;
+  nextRefreshAt: string | null;
   selectedPhaseKey: string;
   phaseOptions: StandingPhaseOption[];
   members: StandingMemberEntry[];
