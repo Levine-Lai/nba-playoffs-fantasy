@@ -1215,7 +1215,7 @@ button:disabled {
     background: #fff;
   }
 
-  .court-formation--points-bg {
+  .court-formation--pixel-bg {
     position: relative;
     isolation: isolate;
     overflow: hidden;
@@ -1224,14 +1224,15 @@ button:disabled {
       #f7f9fc;
   }
 
-  .court-formation--points-bg::before {
+  .court-formation--pixel-bg::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: 0;
     background:
       linear-gradient(180deg, rgba(248, 250, 253, 0.08), rgba(248, 250, 253, 0.62)),
-      url("/backgrounds/points-pixel-court.png") center 52% / clamp(260px, 44%, 430px) auto no-repeat;
+      url("/backgrounds/points-pixel-court.png") center 52% / cover no-repeat,
+      url("/backgrounds/points-pixel-court.png") center 52% / clamp(300px, 36%, 430px) auto no-repeat;
     image-rendering: pixelated;
     opacity: 0.96;
     pointer-events: none;
@@ -1255,11 +1256,11 @@ button:disabled {
     border-top: 1px solid rgba(0, 0, 0, 0.06);
   }
 
-  .court-formation--points-bg .court-row--top {
+  .court-formation--pixel-bg .court-row--top {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
   }
 
-  .court-formation--points-bg .court-row--bottom {
+  .court-formation--pixel-bg .court-row--bottom {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.22));
     border-top-color: rgba(255, 255, 255, 0.34);
   }
@@ -1467,10 +1468,10 @@ button:disabled {
   }
 
   .court-card--compact .court-card__name {
-    min-height: 54px;
-    padding: 0.62rem 0.34rem 0.46rem;
-    font-size: 1.06rem;
-    line-height: 0.98;
+    min-height: 58px;
+    padding: 0.72rem 0.34rem 0.52rem;
+    font-size: 1.14rem;
+    line-height: 0.94;
   }
 
   .court-card__schedule {
@@ -1482,8 +1483,8 @@ button:disabled {
   }
 
   .court-card--compact .court-card__schedule {
-    min-height: 46px;
-    padding: 0.12rem 0.28rem 0.42rem;
+    min-height: 48px;
+    padding: 0.12rem 0.28rem 0.44rem;
   }
 
   .court-card__schedule-row {
@@ -1501,8 +1502,8 @@ button:disabled {
   }
 
   .court-card--compact .court-card__schedule-row {
-    padding: 0.48rem 0.18rem 0;
-    font-size: 0.72rem;
+    padding: 0.5rem 0.18rem 0;
+    font-size: 0.74rem;
   }
 
   .court-card__schedule-grid {
@@ -1541,12 +1542,12 @@ button:disabled {
   }
 
   .court-card--compact .court-card__points-only {
-    min-height: 72px;
-    padding: 0.26rem 0.28rem 0.32rem;
+    min-height: 76px;
+    padding: 0.28rem 0.28rem 0.34rem;
   }
 
   .court-card--compact .court-card__points-only strong {
-    font-size: 1.74rem;
+    font-size: 1.86rem;
   }
 
   .captain-bar {
@@ -1833,10 +1834,11 @@ button:disabled {
     width: 100%;
   }
 
-  .court-formation--points-bg::before {
+  .court-formation--pixel-bg::before {
     background:
       linear-gradient(180deg, rgba(248, 250, 253, 0.06), rgba(248, 250, 253, 0.74)),
-      url("/backgrounds/points-pixel-court.png") center 54% / clamp(180px, 54%, 280px) auto no-repeat;
+      url("/backgrounds/points-pixel-court.png") center 54% / cover no-repeat,
+      url("/backgrounds/points-pixel-court.png") center 54% / clamp(190px, 48%, 280px) auto no-repeat;
   }
 
   .court-card--has-portrait.court-card--edit {
@@ -1901,22 +1903,22 @@ button:disabled {
   }
 
   .court-card--compact .court-card__name {
-    min-height: 34px;
-    font-size: 0.68rem;
+    min-height: 38px;
+    font-size: 0.74rem;
     line-height: 1;
-    padding: 0.36rem 0.08rem 0.26rem;
+    padding: 0.42rem 0.08rem 0.3rem;
   }
 
   .court-card--compact .court-card__schedule {
-    min-height: 34px;
-    padding: 0.08rem 0.06rem 0.2rem;
+    min-height: 36px;
+    padding: 0.08rem 0.06rem 0.22rem;
   }
 
   .court-card--compact .court-card__schedule-row {
     font-size: 0.5rem;
     line-height: 1;
     gap: 0.08rem;
-    padding: 0.22rem 0.04rem 0;
+    padding: 0.24rem 0.04rem 0;
   }
 
   .court-card--compact .court-card__schedule-row img {
@@ -1925,11 +1927,11 @@ button:disabled {
   }
 
   .court-card--compact .court-card__points-only {
-    min-height: 44px;
+    min-height: 48px;
   }
 
   .court-card--compact .court-card__points-only strong {
-    font-size: 1rem;
+    font-size: 1.1rem;
   }
 
   .captain-bar__title {

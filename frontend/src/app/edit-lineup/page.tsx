@@ -322,7 +322,7 @@ export default function EditLineupPage() {
 
       <section className="panel overflow-hidden">
         <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Starting 5</div>
-        <div className="court-formation">
+        <div className="court-formation court-formation--pixel-bg">
           <div className="court-row court-row--top">
             {starterFrontCourt.map((player) => (
               <div
