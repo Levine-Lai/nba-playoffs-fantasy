@@ -1260,13 +1260,18 @@ button:disabled {
   .court-card {
     position: relative;
     width: 176px;
+    overflow: visible;
+    color: #111;
+    text-align: left;
+  }
+
+  .court-card__surface {
+    position: relative;
     overflow: hidden;
     border: 1px solid #d6ddea;
     border-radius: 18px;
     background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
     box-shadow: 0 16px 30px rgba(29, 66, 138, 0.14);
-    color: #111;
-    text-align: left;
   }
 
   .court-card--fc {
@@ -1313,6 +1318,10 @@ button:disabled {
   }
 
   .court-card--highlighted {
+    filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+  }
+
+  .court-card--highlighted .court-card__surface {
     box-shadow: 0 0 0 3px rgba(255, 219, 77, 0.9), 0 14px 28px rgba(29, 66, 138, 0.16);
   }
 
@@ -1321,7 +1330,7 @@ button:disabled {
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    height: 138px;
+    height: 118px;
     padding: 0.75rem 0.2rem 0;
     overflow: hidden;
     background:
@@ -1331,25 +1340,39 @@ button:disabled {
   }
 
   .court-card__photo--portrait {
-    height: 182px;
+    height: 132px;
     padding-top: 0.4rem;
+  }
+
+  .court-card__portrait {
+    position: absolute;
+    left: 50%;
+    z-index: 2;
+    width: 99%;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .court-card__portrait--edit {
+    top: -28px;
+  }
+
+  .court-card__portrait--points {
+    top: -36px;
   }
 
   .court-card__headshot,
   .court-card__fallback-logo {
-    position: absolute;
-    left: 50%;
-    bottom: -4px;
-    width: 148px;
+    display: block;
+    width: 99%;
     max-width: none;
-    transform: translateX(-50%);
+    margin: 0 auto;
     object-fit: contain;
     filter: drop-shadow(0 14px 18px rgba(17, 24, 39, 0.22));
   }
 
   .court-card__headshot--portrait {
-    width: 162px;
-    bottom: -6px;
+    width: 99%;
   }
 
   .court-card__headshot[hidden] {
@@ -1370,7 +1393,7 @@ button:disabled {
 
   .court-card__name {
     min-height: 62px;
-    padding: 0.85rem 0.5rem 0.6rem;
+    padding: 0.72rem 0.5rem 0.58rem;
     color: #111;
     font-family: var(--font-action);
     font-size: 1.28rem;
@@ -1713,30 +1736,31 @@ button:disabled {
 
   .court-card {
     width: 96px;
-    border-radius: 12px;
   }
 
   .court-card--compact {
     width: 100%;
   }
 
+  .court-card__surface {
+    border-radius: 12px;
+  }
+
   .court-card__photo {
-    height: 82px;
+    height: 64px;
     padding-top: 0.36rem;
   }
 
   .court-card__photo--portrait {
-    height: 94px;
+    height: 72px;
   }
 
-  .court-card__headshot,
-  .court-card__fallback-logo {
-    width: 90px;
+  .court-card__portrait--edit {
+    top: -14px;
   }
 
-  .court-card__headshot--portrait {
-    width: 96px;
-    bottom: -4px;
+  .court-card__portrait--points {
+    top: -18px;
   }
 
   .court-card__name-band::before {
@@ -1747,7 +1771,7 @@ button:disabled {
     min-height: 34px;
     font-size: 0.72rem;
     line-height: 1.02;
-    padding: 0.42rem 0.16rem 0.28rem;
+    padding: 0.38rem 0.16rem 0.26rem;
   }
 
   .court-card__schedule-row {

@@ -80,21 +80,24 @@ export default function CourtPlayerCard({
     <span>-</span>
   );
   const pointsValue = player.pointsWindowKey ? formatFantasyPoints(player.points ?? 0) : "-";
+  const portrait = player.headshotUrl || player.headshotFallbackUrl ? (
+    <div className={`court-card__portrait ${showPoints ? "court-card__portrait--points" : "court-card__portrait--edit"}`}>
+      <img
+        src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
+        alt={player.name}
+        className={`court-card__headshot ${showPoints ? "court-card__headshot--portrait" : ""}`}
+        onError={(event) => useFallbackImage(event, player.headshotFallbackUrl)}
+      />
+    </div>
+  ) : null;
 
   const body = (
-    <>
+    <div className="court-card__surface">
       <div className={`court-card__photo ${showPoints ? "court-card__photo--portrait" : ""}`}>
-        {player.headshotUrl || player.headshotFallbackUrl ? (
-          <img
-            src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
-            alt={player.name}
-            className={`court-card__headshot ${showPoints ? "court-card__headshot--portrait" : ""}`}
-            onError={(event) => useFallbackImage(event, player.headshotFallbackUrl)}
-          />
-        ) : (
-          <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />
-        )}
+        {portrait ? null : <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />}
       </div>
+
+      {portrait}
 
       <div className="court-card__name-band">
         <div className="court-card__name">{formatCardName(player.name)}</div>
@@ -112,7 +115,7 @@ export default function CourtPlayerCard({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 
   if (!onClick) {
