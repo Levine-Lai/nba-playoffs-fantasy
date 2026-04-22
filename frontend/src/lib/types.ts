@@ -58,6 +58,7 @@ export interface LineupResponse {
   budget: number;
   rosterValue: number;
   bank: number;
+  activeChip?: "wildcard" | "all-star" | null;
   captainDecisionLocked: boolean;
   lineup: Lineup;
   transactions: {

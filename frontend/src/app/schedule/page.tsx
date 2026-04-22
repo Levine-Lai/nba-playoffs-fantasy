@@ -502,7 +502,7 @@ export default function SchedulePage() {
                           className={`playoff-bracket__slot ${roundIndex < playoffBracket.length - 1 ? "playoff-bracket__slot--linked" : ""}`.trim()}
                         >
                           <div className="playoff-bracket__series">
-                            <div className={`playoff-bracket__team-row ${topIsLeading ? "playoff-bracket__team-row--leading" : ""}`.trim()}>
+                            <div className={`playoff-bracket__team ${topIsLeading ? "playoff-bracket__team--leading" : ""}`.trim()}>
                               <div className="playoff-bracket__team-main">
                                 {topLogo ? (
                                   <img
@@ -518,12 +518,11 @@ export default function SchedulePage() {
                                 )}
                                 <span className="playoff-bracket__team-code">{series.topTeam?.triCode ?? "TBD"}</span>
                               </div>
-                              <span className="playoff-bracket__team-wins">{series.topWins}</span>
                             </div>
 
                             <div className="playoff-bracket__series-score">{series.scoreLabel}</div>
 
-                            <div className={`playoff-bracket__team-row ${bottomIsLeading ? "playoff-bracket__team-row--leading" : ""}`.trim()}>
+                            <div className={`playoff-bracket__team ${bottomIsLeading ? "playoff-bracket__team--leading" : ""}`.trim()}>
                               <div className="playoff-bracket__team-main">
                                 {bottomLogo ? (
                                   <img
@@ -539,7 +538,6 @@ export default function SchedulePage() {
                                 )}
                                 <span className="playoff-bracket__team-code">{series.bottomTeam?.triCode ?? "TBD"}</span>
                               </div>
-                              <span className="playoff-bracket__team-wins">{series.bottomWins}</span>
                             </div>
                           </div>
                         </div>

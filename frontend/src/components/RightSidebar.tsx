@@ -7,7 +7,13 @@ import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { ProfileResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
 
-export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse | null }) {
+export default function RightSidebar({
+  snapshot,
+  bankDisplayOverride
+}: {
+  snapshot?: ProfileResponse | null;
+  bankDisplayOverride?: string | null;
+}) {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +44,8 @@ export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse 
   if (!display) {
     return <aside className="sidebar-card p-4 text-sm text-slate-600">Loading panel...</aside>;
   }
+
+  const bankDisplay = bankDisplayOverride ?? String(display.transactions.bank);
 
   return (
     <aside className="space-y-4 xl:sticky xl:top-4">
@@ -96,7 +104,7 @@ export default function RightSidebar({ snapshot }: { snapshot?: ProfileResponse 
           </div>
           <div className="sidebar-row">
             <dt>In the bank</dt>
-            <dd className="font-semibold">{display.transactions.bank}</dd>
+            <dd className="font-semibold">{bankDisplay}</dd>
           </div>
         </dl>
       </section>

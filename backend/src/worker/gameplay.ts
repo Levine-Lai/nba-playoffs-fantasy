@@ -208,8 +208,9 @@ export function buildLineupPayload(params: {
   budget: number;
   beforeFirstDeadline: boolean;
   transferWindow: TransferWindowContext;
+  activeChip?: "wildcard" | "all-star" | null;
 }) {
-  const { state, gameweek, budget, beforeFirstDeadline, transferWindow } = params;
+  const { state, gameweek, budget, beforeFirstDeadline, transferWindow, activeChip = null } = params;
   const usedThisWeek = countUsedSeasonFreeTransfers(state.history);
   const freeLeft = countRemainingSeasonFreeTransfers(state.history, transferWindow.limit);
 
@@ -219,6 +220,7 @@ export function buildLineupPayload(params: {
     budget,
     rosterValue: state.rosterValue,
     bank: state.bank,
+    activeChip,
     captainDecisionLocked: false,
     lineup: {
       starters: withVisiblePoints(state.starters, beforeFirstDeadline),

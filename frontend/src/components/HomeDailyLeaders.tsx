@@ -63,7 +63,10 @@ function LeadersRow({
                   ) : null}
                 </div>
                 <div className={`home-leaders__name home-leaders__name--${tone}`}>{formatLeaderName(entry.player.name)}</div>
-                <div className={`home-leaders__score home-leaders__score--${tone}`}>{formatFantasyPoints(entry.points)}</div>
+                <div className={`home-leaders__score home-leaders__score--${tone}`}>
+                  <span className="home-leaders__score-label">FP</span>
+                  <span>{formatFantasyPoints(entry.points)}</span>
+                </div>
               </div>
             </article>
           );

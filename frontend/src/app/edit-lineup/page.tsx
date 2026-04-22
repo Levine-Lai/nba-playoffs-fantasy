@@ -6,8 +6,8 @@ import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
 import InitialTeamBuilder from "@/components/InitialTeamBuilder";
 import RightSidebar from "@/components/RightSidebar";
-import { getLineup, saveLineup } from "@/lib/api";
-import { LineupResponse, Player } from "@/lib/types";
+import { getLineup, getSchedule, saveLineup } from "@/lib/api";
+import { LineupResponse, Player, ScheduleGame, TeamAsset } from "@/lib/types";
 
 type Zone = "starters" | "bench";
 
@@ -23,6 +23,82 @@ function closeIcon() {
       <path d="M18 6L6 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
     </svg>
   );
+}
+
+function getDateKeyInTimeZone(dateInput: string | number | Date, timeZone = "Asia/Shanghai") {
+  const date = new Date(dateInput);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
+function addDaysToDateKey(dateKey: string, offset: number) {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function getPlayoffSeriesMeta(gameId?: string | null) {
+  const id = String(gameId ?? "");
+  if (!/^004\d+/.test(id) || id.length < 10) {
+    return null;
+  }
+
+  const seriesCode = Number(id.slice(7, 9));
+  const gameNumber = Number(id.slice(-1));
+
+  if (!Number.isFinite(seriesCode) || !Number.isFinite(gameNumber) || gameNumber <= 0) {
+    return null;
+  }
+
+  if (seriesCode >= 10 && seriesCode <= 17) {
+    return { round: 1, gameNumber };
+  }
+  if (seriesCode >= 20 && seriesCode <= 23) {
+    return { round: 2, gameNumber };
+  }
+  if (seriesCode >= 30 && seriesCode <= 31) {
+    return { round: 3, gameNumber };
+  }
+  if (seriesCode === 40) {
+    return { round: 4, gameNumber };
+  }
+
+  return { round: 0, gameNumber };
+}
+
+function getPlayoffRoundGameBadge(gameId?: string | null) {
+  const seriesMeta = getPlayoffSeriesMeta(gameId);
+  if (!seriesMeta) {
+    return "";
+  }
+
+  if (seriesMeta.round > 0) {
+    return `R${seriesMeta.round}G${seriesMeta.gameNumber}`;
+  }
+
+  return `G${seriesMeta.gameNumber}`;
+}
+
+function getTeamLogo(team?: TeamAsset) {
+  return team?.logoUrl ?? team?.logoFallbackUrl ?? null;
 }
 
 function isValidStarterMix(starters: Player[]) {
@@ -84,12 +160,21 @@ export default function EditLineupPage() {
   const [switchSourceId, setSwitchSourceId] = useState<string | null>(null);
   const [switchConfirm, setSwitchConfirm] = useState<SwitchConfirm | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [scheduleGames, setScheduleGames] = useState<ScheduleGame[]>([]);
 
   useEffect(() => {
     getLineup()
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load lineup."))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    getSchedule()
+      .then((payload) => setScheduleGames(payload.games ?? []))
+      .catch(() => {
+        setScheduleGames([]);
+      });
   }, []);
 
   const lineupPlayers = useMemo(() => {
@@ -136,6 +221,19 @@ export default function EditLineupPage() {
       target: lineupPlayers.find((player) => player.id === switchConfirm.targetId) ?? null
     };
   }, [data, lineupPlayers, switchConfirm]);
+
+  const tomorrowGames = useMemo(() => {
+    const todayKey = getDateKeyInTimeZone(Date.now());
+    const tomorrowKey = addDaysToDateKey(todayKey, 1);
+
+    return scheduleGames
+      .filter((game) => {
+        const gameDateKey = String(game.gamedayKey ?? getDateKeyInTimeZone(game.date)).trim();
+        return gameDateKey === tomorrowKey;
+      })
+      .slice()
+      .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+  }, [scheduleGames]);
 
   function clearSwitchFlow() {
     setSwitchSourceId(null);
@@ -240,7 +338,7 @@ export default function EditLineupPage() {
   }
 
   return (
-    <ContentWithSidebar sidebar={<RightSidebar />}>
+    <ContentWithSidebar sidebar={<RightSidebar bankDisplayOverride={data.activeChip === "all-star" ? "Unlimited" : null} />}>
       <section className="panel">
         <div className="panel-body space-y-3">
           <div>
@@ -320,6 +418,66 @@ export default function EditLineupPage() {
         </div>
       </section>
 
+      <section className="panel overflow-hidden">
+        <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Tomorrow&apos;s Schedule</div>
+        <div className="panel-body">
+          {tomorrowGames.length ? (
+            <div className="grid gap-3">
+              {tomorrowGames.map((game) => {
+                const awayLogo = getTeamLogo(game.awayTeam);
+                const homeLogo = getTeamLogo(game.homeTeam);
+                const roundGameBadge = getPlayoffRoundGameBadge(game.id);
+                const hasScore =
+                  game.homeScore !== null &&
+                  game.homeScore !== undefined &&
+                  game.awayScore !== null &&
+                  game.awayScore !== undefined;
+
+                return (
+                  <article key={game.id} className="grid gap-3 rounded border border-slate-200 bg-white px-4 py-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                    <div className="flex items-center gap-3 md:justify-start">
+                      {awayLogo ? (
+                        <img src={awayLogo} alt="" className="h-10 w-10 object-contain" />
+                      ) : (
+                        <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500">
+                          {game.awayTeam?.triCode ?? "AWY"}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Away</p>
+                        <p className="text-lg font-semibold text-slate-900">{game.awayTeam?.triCode ?? game.away}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-slate-500">{game.tipoff}</p>
+                      <p className="mt-1 text-2xl font-semibold text-slate-900">{hasScore ? `${game.awayScore}-${game.homeScore}` : "vs"}</p>
+                      {roundGameBadge ? <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-brand-darkBlue">{roundGameBadge}</p> : null}
+                    </div>
+
+                    <div className="flex items-center gap-3 md:justify-end">
+                      <div className="text-right">
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Home</p>
+                        <p className="text-lg font-semibold text-slate-900">{game.homeTeam?.triCode ?? game.home}</p>
+                      </div>
+                      {homeLogo ? (
+                        <img src={homeLogo} alt="" className="h-10 w-10 object-contain" />
+                      ) : (
+                        <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500">
+                          {game.homeTeam?.triCode ?? "HME"}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">No games scheduled for tomorrow.</p>
+          )}
+        </div>
+      </section>
+
       {actionPlayer ? (
         <div
           className="lineup-modal-overlay"
@@ -339,6 +497,11 @@ export default function EditLineupPage() {
                 <button type="button" className="lineup-modal__action" onClick={() => startSwitch(actionPlayer.id)}>
                   Switch
                 </button>
+                {switchSourceId === actionPlayer.id ? (
+                  <button type="button" className="lineup-modal__action" onClick={clearSwitchFlow}>
+                    Cancel Switch
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="lineup-modal__action"

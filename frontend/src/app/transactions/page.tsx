@@ -322,6 +322,8 @@ export default function TransactionsPage() {
   const totalOutgoing = pendingDrafts.reduce((sum, draft) => sum + draft.outPlayer.salary, 0);
   const totalIncoming = pendingDrafts.reduce((sum, draft) => sum + (draft.inPlayer?.salary ?? 0), 0);
   const projectedBank = data ? Number((data.bank + totalOutgoing - totalIncoming).toFixed(1)) : 0;
+  const projectedBankUnlimited = effectiveChip === "all-star";
+  const projectedBankLabel = projectedBankUnlimited ? "Unlimited" : projectedBank.toFixed(1);
   const allDraftsFilled = pendingDrafts.length > 0 && pendingDrafts.every((draft) => draft.inPlayer);
   const displayedSelectionCount = groupedSelection.reduce((total, group) => total + group.players.length, 0);
   const freeTransfersRemaining = data?.freeTransfersLeft ?? 0;
@@ -605,9 +607,11 @@ export default function TransactionsPage() {
                 <span>Cost</span>
                 <strong>{transferCost}</strong>
               </article>
-              <article className={`flex items-center justify-between rounded-sm px-4 py-3 text-lg ${projectedBank < 0 ? "bg-[#d11f3a] text-white" : "bg-[#28c5c1] text-[#002b36]"}`}>
+              <article className={`flex items-center justify-between rounded-sm px-4 py-3 text-lg ${
+                projectedBankUnlimited ? "bg-[#0db14b] text-white" : projectedBank < 0 ? "bg-[#d11f3a] text-white" : "bg-[#28c5c1] text-[#002b36]"
+              }`}>
                 <span>Money Remaining</span>
-                <strong>{projectedBank.toFixed(1)}</strong>
+                <strong>{projectedBankLabel}</strong>
               </article>
             </div>
           </div>
@@ -992,7 +996,7 @@ export default function TransactionsPage() {
               <div className="mt-6 rounded-sm bg-brand-blue px-4 py-5 text-center text-[1rem] font-semibold leading-7 text-white sm:px-8 sm:py-7 sm:text-[1.1rem] sm:leading-8">
                 {chipOnlyActivation
                   ? `${chipDraft === "wildcard" ? "Wildcard" : "All-Star"} will be active for ${data.gameweek.label} (${formatDeadline(data.gameweek.deadline)}). Any standard-transfer cost already logged for this deadline will be cleared, and your confirmed transfers will stay in place.`
-                  : `This transaction will be active for ${data.gameweek.label} (${formatDeadline(data.gameweek.deadline)}) with Money Remaining at ${projectedBank.toFixed(1)}. Any standard-transfer cost will hit the standings only after this deadline passes.`}
+                  : `This transaction will be active for ${data.gameweek.label} (${formatDeadline(data.gameweek.deadline)}) with Money Remaining at ${projectedBankLabel}. Any standard-transfer cost will hit the standings only after this deadline passes.`}
               </div>
 
               <div className="mt-6 space-y-3">

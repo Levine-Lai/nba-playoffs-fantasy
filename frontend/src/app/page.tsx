@@ -99,6 +99,11 @@ export default function HomePage() {
   }, [currentUser]);
 
   useVisibilityPolling(async () => {
+    if (!currentUser) {
+      setLeaders(null);
+      return;
+    }
+
     try {
       const payload = await getHomeLeaders();
       setLeaders(payload);
@@ -106,8 +111,8 @@ export default function HomePage() {
       // Ignore transient landing-page leaderboard errors.
     }
   }, {
-    intervalMs: 60000
-  }, []);
+    intervalMs: currentUser ? 60000 : null
+  }, [currentUser]);
 
   async function onLogin(event: FormEvent) {
     event.preventDefault();
@@ -188,8 +193,6 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1180px] space-y-5">
-      {leaders ? <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} /> : null}
-
       <div className="mx-auto max-w-[480px]">
         <section className="panel">
           <div className="panel-head">{currentUser ? "Home" : "Account"}</div>
@@ -363,6 +366,10 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+
+      {currentUser && leaders ? (
+        <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} />
+      ) : null}
     </div>
   );
 }

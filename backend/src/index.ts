@@ -1815,6 +1815,7 @@ export default {
 
         await saveStateForUser(env, auth.authUser.id, state);
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        const chips = await getUserChipsState(env, auth.authUser.id);
         syncTransferWindowState(state, editableContext.transferWindow);
         return json(
           buildLineupPayload({
@@ -1822,7 +1823,8 @@ export default {
             gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
             beforeFirstDeadline: editableContext.beforeCompetitionStart,
-            transferWindow: editableContext.transferWindow
+            transferWindow: editableContext.transferWindow,
+            activeChip: getActiveTransactionChip(chips, editableContext)
           }),
           { status: 201 },
           env
@@ -1959,7 +1961,8 @@ export default {
             gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
             beforeFirstDeadline: editableContext.beforeCompetitionStart,
-            transferWindow: editableContext.transferWindow
+            transferWindow: editableContext.transferWindow,
+            activeChip: getActiveTransactionChip(chips, editableContext)
           }),
           { status: 200 },
           env
@@ -2052,7 +2055,8 @@ export default {
             gameweek: editableContext.gameweek,
             budget: await getInitialBudget(env),
             beforeFirstDeadline: editableContext.beforeCompetitionStart,
-            transferWindow: editableContext.transferWindow
+            transferWindow: editableContext.transferWindow,
+            activeChip: getActiveTransactionChip(chips, editableContext)
           }),
           { status: 200 },
           env
