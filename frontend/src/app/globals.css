@@ -223,54 +223,6 @@ button:disabled {
     padding: 1rem;
   }
 
-  .points-page-shell__main {
-    position: relative;
-    isolation: isolate;
-    padding: 1rem;
-    border-radius: 28px;
-    overflow: hidden;
-    background:
-      linear-gradient(180deg, rgba(248, 250, 252, 0.94), rgba(238, 240, 242, 0.9)),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.68));
-    box-shadow: 0 24px 48px rgba(29, 66, 138, 0.08);
-  }
-
-  .points-page-shell__main::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -2;
-    background:
-      linear-gradient(180deg, rgba(245, 247, 251, 0.32), rgba(245, 247, 251, 0.78)),
-      url("/backgrounds/points-pixel-court.png") center 1.2rem / min(540px, 78%) auto no-repeat;
-    image-rendering: pixelated;
-    opacity: 0.92;
-    pointer-events: none;
-  }
-
-  .points-page-shell__main::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background:
-      radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.94), transparent 30%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.68) 100%);
-    pointer-events: none;
-  }
-
-  .points-page-shell__main > .panel,
-  .points-page-shell__main .home-leaders {
-    position: relative;
-    backdrop-filter: blur(3px);
-    background: rgba(248, 249, 252, 0.82);
-  }
-
-  .points-page-shell__sidebar {
-    position: relative;
-    z-index: 1;
-  }
-
   .table-shell {
     width: 100%;
     border-collapse: collapse;
@@ -1263,7 +1215,31 @@ button:disabled {
     background: #fff;
   }
 
+  .court-formation--points-bg {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(246, 248, 252, 0.82), rgba(238, 241, 246, 0.92)),
+      #f7f9fc;
+  }
+
+  .court-formation--points-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+      linear-gradient(180deg, rgba(248, 250, 253, 0.08), rgba(248, 250, 253, 0.62)),
+      url("/backgrounds/points-pixel-court.png") center 52% / clamp(260px, 44%, 430px) auto no-repeat;
+    image-rendering: pixelated;
+    opacity: 0.96;
+    pointer-events: none;
+  }
+
   .court-row {
+    position: relative;
+    z-index: 1;
     display: flex;
     justify-content: center;
     gap: 2.4rem;
@@ -1277,6 +1253,15 @@ button:disabled {
   .court-row--bottom {
     background: #fff;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .court-formation--points-bg .court-row--top {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  }
+
+  .court-formation--points-bg .court-row--bottom {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.22));
+    border-top-color: rgba(255, 255, 255, 0.34);
   }
 
   .court-bench {
@@ -1482,9 +1467,10 @@ button:disabled {
   }
 
   .court-card--compact .court-card__name {
-    min-height: 44px;
-    padding: 0.5rem 0.3rem 0.38rem;
-    font-size: 0.9rem;
+    min-height: 54px;
+    padding: 0.62rem 0.34rem 0.46rem;
+    font-size: 1.06rem;
+    line-height: 0.98;
   }
 
   .court-card__schedule {
@@ -1493,6 +1479,11 @@ button:disabled {
     min-height: 50px;
     padding: 0.14rem 0.46rem 0.5rem;
     background: #fff;
+  }
+
+  .court-card--compact .court-card__schedule {
+    min-height: 46px;
+    padding: 0.12rem 0.28rem 0.42rem;
   }
 
   .court-card__schedule-row {
@@ -1507,6 +1498,11 @@ button:disabled {
 
   .court-card__schedule-row--label {
     justify-content: center;
+  }
+
+  .court-card--compact .court-card__schedule-row {
+    padding: 0.48rem 0.18rem 0;
+    font-size: 0.72rem;
   }
 
   .court-card__schedule-grid {
@@ -1542,6 +1538,15 @@ button:disabled {
     font-size: 2.3rem;
     font-style: italic;
     line-height: 1;
+  }
+
+  .court-card--compact .court-card__points-only {
+    min-height: 72px;
+    padding: 0.26rem 0.28rem 0.32rem;
+  }
+
+  .court-card--compact .court-card__points-only strong {
+    font-size: 1.74rem;
   }
 
   .captain-bar {
@@ -1686,17 +1691,6 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
-  .points-page-shell__main {
-    padding: 0.65rem;
-    border-radius: 18px;
-  }
-
-  .points-page-shell__main::before {
-    background:
-      linear-gradient(180deg, rgba(245, 247, 251, 0.3), rgba(245, 247, 251, 0.82)),
-      url("/backgrounds/points-pixel-court.png") center 0.8rem / min(440px, 92%) auto no-repeat;
-  }
-
   .home-leaders__cards {
     grid-template-columns: repeat(5, 132px);
     gap: 0.8rem;
@@ -1839,6 +1833,12 @@ button:disabled {
     width: 100%;
   }
 
+  .court-formation--points-bg::before {
+    background:
+      linear-gradient(180deg, rgba(248, 250, 253, 0.06), rgba(248, 250, 253, 0.74)),
+      url("/backgrounds/points-pixel-court.png") center 54% / clamp(180px, 54%, 280px) auto no-repeat;
+  }
+
   .court-card--has-portrait.court-card--edit {
     --court-card-photo-height: 52px;
     --court-card-surface-offset: 16px;
@@ -1901,22 +1901,22 @@ button:disabled {
   }
 
   .court-card--compact .court-card__name {
-    min-height: 28px;
-    font-size: 0.58rem;
-    line-height: 1.05;
-    padding: 0.28rem 0.06rem 0.2rem;
+    min-height: 34px;
+    font-size: 0.68rem;
+    line-height: 1;
+    padding: 0.36rem 0.08rem 0.26rem;
   }
 
   .court-card--compact .court-card__schedule {
-    min-height: 32px;
-    padding: 0.08rem 0.04rem 0.2rem;
+    min-height: 34px;
+    padding: 0.08rem 0.06rem 0.2rem;
   }
 
   .court-card--compact .court-card__schedule-row {
-    font-size: 0.46rem;
+    font-size: 0.5rem;
     line-height: 1;
     gap: 0.08rem;
-    padding: 0.2rem 0.03rem 0;
+    padding: 0.22rem 0.04rem 0;
   }
 
   .court-card--compact .court-card__schedule-row img {
@@ -1925,11 +1925,11 @@ button:disabled {
   }
 
   .court-card--compact .court-card__points-only {
-    min-height: 38px;
+    min-height: 44px;
   }
 
   .court-card--compact .court-card__points-only strong {
-    font-size: 0.8rem;
+    font-size: 1rem;
   }
 
   .captain-bar__title {

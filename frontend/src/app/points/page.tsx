@@ -67,12 +67,7 @@ function PointsPageContent() {
   }
 
   return (
-    <ContentWithSidebar
-      className="points-page-shell"
-      contentClassName="points-page-shell__main"
-      sidebarClassName="points-page-shell__sidebar"
-      sidebar={<RightSidebar snapshot={data.profileSnapshot} />}
-    >
+    <ContentWithSidebar sidebar={<RightSidebar snapshot={data.profileSnapshot} />}>
       <section className="panel">
         <div className="panel-body space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -108,7 +103,7 @@ function PointsPageContent() {
         <>
           <section className="panel overflow-hidden">
             <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Starting 5</div>
-            <div className="court-formation">
+            <div className="court-formation court-formation--points-bg">
               <div className="court-row court-row--top">
                 {starterFrontCourt.map((player) => (
                   <div key={player.id} className="court-slot">
