@@ -90,32 +90,41 @@ export default function CourtPlayerCard({
       />
     </div>
   ) : null;
+  const portraitShadow = portrait ? (
+    <div
+      aria-hidden="true"
+      className={`court-card__portrait-shadow ${showPoints ? "court-card__portrait-shadow--points" : "court-card__portrait-shadow--edit"}`}
+    />
+  ) : null;
 
   const body = (
-    <div className="court-card__surface">
-      <div className={`court-card__photo ${showPoints ? "court-card__photo--portrait" : ""}`}>
-        {portrait ? null : <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />}
+    <>
+      <div className="court-card__surface">
+        <div className={`court-card__photo ${showPoints ? "court-card__photo--portrait" : ""}`}>
+          {portrait ? null : <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />}
+        </div>
+
+        <div className="court-card__name-band">
+          <div className="court-card__name">{formatCardName(player.name)}</div>
+        </div>
+
+        {showPoints ? (
+          <div className="court-card__points-only">
+            <strong>{pointsValue}</strong>
+          </div>
+        ) : (
+          <div className="court-card__schedule">
+            <div className="court-card__schedule-row">
+              <span>Next</span>
+              {scheduleValue}
+            </div>
+          </div>
+        )}
       </div>
 
       {portrait}
-
-      <div className="court-card__name-band">
-        <div className="court-card__name">{formatCardName(player.name)}</div>
-      </div>
-
-      {showPoints ? (
-        <div className="court-card__points-only">
-          <strong>{pointsValue}</strong>
-        </div>
-      ) : (
-        <div className="court-card__schedule">
-          <div className="court-card__schedule-row">
-            <span>Next</span>
-            {scheduleValue}
-          </div>
-        </div>
-      )}
-    </div>
+      {portraitShadow}
+    </>
   );
 
   if (!onClick) {

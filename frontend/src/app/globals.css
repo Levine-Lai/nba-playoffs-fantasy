@@ -1330,8 +1330,8 @@ button:disabled {
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    height: 118px;
-    padding: 0.75rem 0.2rem 0;
+    height: 104px;
+    padding: 0;
     overflow: hidden;
     background:
       radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.52), transparent 44%),
@@ -1340,25 +1340,45 @@ button:disabled {
   }
 
   .court-card__photo--portrait {
-    height: 132px;
-    padding-top: 0.4rem;
+    height: 116px;
   }
 
   .court-card__portrait {
     position: absolute;
     left: 50%;
-    z-index: 2;
+    z-index: 1;
     width: 99%;
     transform: translateX(-50%);
     pointer-events: none;
   }
 
   .court-card__portrait--edit {
-    top: -28px;
+    top: -40px;
   }
 
   .court-card__portrait--points {
-    top: -36px;
+    top: -46px;
+  }
+
+  .court-card__portrait-shadow {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: 18px 18px 0 0;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0) 54%, rgba(15, 23, 42, 0.1) 100%);
+  }
+
+  .court-card__portrait-shadow--edit {
+    top: 0;
+    height: 104px;
+  }
+
+  .court-card__portrait-shadow--points {
+    top: 0;
+    height: 116px;
   }
 
   .court-card__headshot,
@@ -1381,6 +1401,7 @@ button:disabled {
 
   .court-card__name-band {
     position: relative;
+    z-index: 3;
     background: #fff;
   }
 
@@ -1411,6 +1432,8 @@ button:disabled {
   }
 
   .court-card__schedule {
+    position: relative;
+    z-index: 3;
     padding: 0.2rem 0.5rem 0.58rem;
     background: #fff;
   }
@@ -1447,6 +1470,8 @@ button:disabled {
   }
 
   .court-card__points-only {
+    position: relative;
+    z-index: 3;
     display: grid;
     min-height: 78px;
     place-items: center;
@@ -1747,20 +1772,31 @@ button:disabled {
   }
 
   .court-card__photo {
-    height: 64px;
-    padding-top: 0.36rem;
+    height: 52px;
   }
 
   .court-card__photo--portrait {
-    height: 72px;
+    height: 60px;
+  }
+
+  .court-card__portrait-shadow {
+    border-radius: 12px 12px 0 0;
   }
 
   .court-card__portrait--edit {
-    top: -14px;
+    top: -21px;
   }
 
   .court-card__portrait--points {
-    top: -18px;
+    top: -23px;
+  }
+
+  .court-card__portrait-shadow--edit {
+    height: 52px;
+  }
+
+  .court-card__portrait-shadow--points {
+    height: 60px;
   }
 
   .court-card__name-band::before {
