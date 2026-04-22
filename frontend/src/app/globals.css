@@ -1258,6 +1258,9 @@ button:disabled {
   }
 
   .court-card {
+    --court-card-photo-height: 116px;
+    --court-card-surface-offset: 0px;
+    --court-card-portrait-overhang: 0px;
     position: relative;
     width: 176px;
     overflow: visible;
@@ -1267,6 +1270,7 @@ button:disabled {
 
   .court-card__surface {
     position: relative;
+    margin-top: var(--court-card-surface-offset);
     overflow: hidden;
     border: 1px solid #d6ddea;
     border-radius: 18px;
@@ -1292,14 +1296,16 @@ button:disabled {
     width: 150px;
   }
 
-  .court-card--edit {
-    --court-card-photo-height: 124px;
-    --court-card-portrait-top: -54px;
+  .court-card--has-portrait.court-card--edit {
+    --court-card-photo-height: 108px;
+    --court-card-surface-offset: 30px;
+    --court-card-portrait-overhang: 56px;
   }
 
-  .court-card--points {
-    --court-card-photo-height: 132px;
-    --court-card-portrait-top: -60px;
+  .court-card--has-portrait.court-card--points {
+    --court-card-photo-height: 116px;
+    --court-card-surface-offset: 34px;
+    --court-card-portrait-overhang: 64px;
   }
 
   .court-card--standout {
@@ -1352,12 +1358,12 @@ button:disabled {
   .court-card__portrait {
     position: absolute;
     left: 50%;
-    top: var(--court-card-portrait-top);
+    top: calc(var(--court-card-surface-offset) - var(--court-card-portrait-overhang));
     z-index: 1;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    height: calc(var(--court-card-photo-height) - var(--court-card-portrait-top));
+    height: calc(var(--court-card-photo-height) + var(--court-card-portrait-overhang));
     width: 99%;
     transform: translateX(-50%);
     pointer-events: none;
@@ -1367,7 +1373,7 @@ button:disabled {
     position: absolute;
     left: 0;
     right: 0;
-    top: 0;
+    top: var(--court-card-surface-offset);
     z-index: 2;
     overflow: hidden;
     pointer-events: none;
@@ -1756,6 +1762,9 @@ button:disabled {
   }
 
   .court-card {
+    --court-card-photo-height: 56px;
+    --court-card-surface-offset: 0px;
+    --court-card-portrait-overhang: 0px;
     width: 96px;
   }
 
@@ -1763,14 +1772,16 @@ button:disabled {
     width: 100%;
   }
 
-  .court-card--edit {
-    --court-card-photo-height: 60px;
-    --court-card-portrait-top: -29px;
+  .court-card--has-portrait.court-card--edit {
+    --court-card-photo-height: 52px;
+    --court-card-surface-offset: 16px;
+    --court-card-portrait-overhang: 30px;
   }
 
-  .court-card--points {
-    --court-card-photo-height: 68px;
-    --court-card-portrait-top: -33px;
+  .court-card--has-portrait.court-card--points {
+    --court-card-photo-height: 58px;
+    --court-card-surface-offset: 18px;
+    --court-card-portrait-overhang: 34px;
   }
 
   .court-card__surface {

@@ -45,6 +45,7 @@ export default function CourtPlayerCard({
 }: CourtPlayerCardProps) {
   const isFrontCourt = player.position === "FC";
   const hasNextOpponent = Boolean(player.nextOpponent && player.nextOpponent !== "TBD");
+  const hasPortrait = Boolean(player.headshotUrl || player.headshotFallbackUrl);
   const nextOpponentLogoUrl = player.nextOpponentLogoUrl ?? player.nextOpponentLogoFallbackUrl;
   const numericPoints = Number(player.points ?? 0);
   const numericSalary = Number(player.salary ?? 0);
@@ -56,6 +57,7 @@ export default function CourtPlayerCard({
     isFrontCourt ? "court-card--fc" : "court-card--bc",
     compact ? "court-card--compact" : "",
     showPoints ? "court-card--points" : "court-card--edit",
+    hasPortrait ? "court-card--has-portrait" : "",
     isStandoutPointsCard ? "court-card--standout" : "",
     dimmed ? "court-card--dimmed" : "",
     highlighted ? "court-card--highlighted" : "",
@@ -80,7 +82,7 @@ export default function CourtPlayerCard({
     <span>-</span>
   );
   const pointsValue = player.pointsWindowKey ? formatFantasyPoints(player.points ?? 0) : "-";
-  const portrait = player.headshotUrl || player.headshotFallbackUrl ? (
+  const portrait = hasPortrait ? (
     <div className={`court-card__portrait ${showPoints ? "court-card__portrait--points" : "court-card__portrait--edit"}`}>
       <img
         src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
