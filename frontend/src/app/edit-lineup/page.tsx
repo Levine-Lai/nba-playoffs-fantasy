@@ -25,36 +25,6 @@ function closeIcon() {
   );
 }
 
-function getDateKeyInTimeZone(dateInput: string | number | Date, timeZone = "Asia/Shanghai") {
-  const date = new Date(dateInput);
-  if (!Number.isFinite(date.getTime())) {
-    return "";
-  }
-
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-  const parts = formatter.formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-
-  return year && month && day ? `${year}-${month}-${day}` : "";
-}
-
-function addDaysToDateKey(dateKey: string, offset: number) {
-  const date = new Date(`${dateKey}T00:00:00Z`);
-  if (!Number.isFinite(date.getTime())) {
-    return "";
-  }
-
-  date.setUTCDate(date.getUTCDate() + offset);
-  return date.toISOString().slice(0, 10);
-}
-
 function getPlayoffSeriesMeta(gameId?: string | null) {
   const id = String(gameId ?? "");
   if (!/^004\d+/.test(id) || id.length < 10) {
@@ -222,18 +192,19 @@ export default function EditLineupPage() {
     };
   }, [data, lineupPlayers, switchConfirm]);
 
-  const tomorrowGames = useMemo(() => {
-    const todayKey = getDateKeyInTimeZone(Date.now());
-    const tomorrowKey = addDaysToDateKey(todayKey, 1);
+  const editableDayGames = useMemo(() => {
+    const targetGamedayIndex = Number(data?.gameweek.id ?? 0);
+    if (!targetGamedayIndex) {
+      return [] as ScheduleGame[];
+    }
 
     return scheduleGames
       .filter((game) => {
-        const gameDateKey = String(game.gamedayKey ?? getDateKeyInTimeZone(game.date)).trim();
-        return gameDateKey === tomorrowKey;
+        return Number(game.gamedayIndex ?? 0) === targetGamedayIndex;
       })
       .slice()
       .sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
-  }, [scheduleGames]);
+  }, [data?.gameweek.id, scheduleGames]);
 
   function clearSwitchFlow() {
     setSwitchSourceId(null);
@@ -419,11 +390,11 @@ export default function EditLineupPage() {
       </section>
 
       <section className="panel overflow-hidden">
-        <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">Tomorrow&apos;s Schedule</div>
+        <div className="bg-[#d7dde3] px-3 py-2 text-sm font-bold uppercase tracking-[0.04em] text-[#111]">{data.gameweek.label} Schedule</div>
         <div className="panel-body">
-          {tomorrowGames.length ? (
+          {editableDayGames.length ? (
             <div className="grid gap-3">
-              {tomorrowGames.map((game) => {
+              {editableDayGames.map((game) => {
                 const awayLogo = getTeamLogo(game.awayTeam);
                 const homeLogo = getTeamLogo(game.homeTeam);
                 const roundGameBadge = getPlayoffRoundGameBadge(game.id);
@@ -473,7 +444,7 @@ export default function EditLineupPage() {
               })}
             </div>
           ) : (
-            <p className="text-sm text-slate-600">No games scheduled for tomorrow.</p>
+            <p className="text-sm text-slate-600">No games scheduled for {data.gameweek.label.toLowerCase()}.</p>
           )}
         </div>
       </section>

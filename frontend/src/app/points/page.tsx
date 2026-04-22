@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
+import HomeDailyLeaders from "@/components/HomeDailyLeaders";
 import RightSidebar from "@/components/RightSidebar";
-import { getPointsToday, getStandingPreview } from "@/lib/api";
+import { getHomeLeaders, getPointsToday, getStandingPreview } from "@/lib/api";
 import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
-import { Player, PointsResponse } from "@/lib/types";
+import { HomeLeadersResponse, Player, PointsResponse } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
 
 export default function PointsPage() {
@@ -22,6 +23,7 @@ export default function PointsPage() {
 
 function PointsPageContent() {
   const [data, setData] = useState<PointsResponse | null>(null);
+  const [leaders, setLeaders] = useState<HomeLeadersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const targetUserId = searchParams.get("userId")?.trim() ?? "";
@@ -32,8 +34,12 @@ function PointsPageContent() {
 
   useVisibilityPolling(async () => {
     try {
-      const payload = targetUserId ? await getStandingPreview(targetUserId, targetPhase || undefined) : await getPointsToday();
-      setData(payload);
+      const [pointsPayload, leadersPayload] = await Promise.all([
+        targetUserId ? getStandingPreview(targetUserId, targetPhase || undefined) : getPointsToday(),
+        getHomeLeaders().catch(() => null)
+      ]);
+      setData(pointsPayload);
+      setLeaders(leadersPayload);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load points.");
@@ -88,6 +94,10 @@ function PointsPageContent() {
                   <p className="text-5xl font-semibold">{formatFantasyPoints(data.summary.final)}</p>
                 </article>
               </div>
+
+              {leaders ? (
+                <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} />
+              ) : null}
             </>
           )}
         </div>

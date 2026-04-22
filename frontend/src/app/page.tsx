@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getHomeLeaders, getMe, getProfile, login, logout, register, updateTeamName } from "@/lib/api";
-import HomeDailyLeaders from "@/components/HomeDailyLeaders";
-import { AuthUser, HomeLeadersResponse } from "@/lib/types";
+import { getMe, getProfile, login, logout, register, updateTeamName } from "@/lib/api";
+import { AuthUser } from "@/lib/types";
 import { getDisplayTeamName } from "@/lib/teamName";
-import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 type Mode = "login" | "register";
 
@@ -20,7 +18,6 @@ export default function HomePage() {
   const [teamName, setTeamName] = useState("");
   const [teamNameDraft, setTeamNameDraft] = useState("");
   const [teamNameSaving, setTeamNameSaving] = useState(false);
-  const [leaders, setLeaders] = useState<HomeLeadersResponse | null>(null);
 
   const [loginAccount, setLoginAccount] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -96,22 +93,6 @@ export default function HomePage() {
     return () => {
       active = false;
     };
-  }, [currentUser]);
-
-  useVisibilityPolling(async () => {
-    if (!currentUser) {
-      setLeaders(null);
-      return;
-    }
-
-    try {
-      const payload = await getHomeLeaders();
-      setLeaders(payload);
-    } catch {
-      // Ignore transient landing-page leaderboard errors.
-    }
-  }, {
-    intervalMs: currentUser ? 60000 : null
   }, [currentUser]);
 
   async function onLogin(event: FormEvent) {
@@ -367,9 +348,6 @@ export default function HomePage() {
         </section>
       </div>
 
-      {currentUser && leaders ? (
-        <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} />
-      ) : null}
     </div>
   );
 }

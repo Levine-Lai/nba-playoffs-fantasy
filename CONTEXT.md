@@ -48,3 +48,4 @@ This file is the cross-conversation memory for the repo. Keep it concise, curren
 - Any change that could affect live data or player progress must be surfaced before implementation and requires explicit approval. Pure UI changes are exempt. / 任何可能影响线上数据或玩家进度的改动，都必须先明确告知并获得批准；纯 UI 改动除外。
 - Do not push or deploy by default. Only run `git push` or deployment commands when the user explicitly asks. / 默认不要执行 `git push` 或部署命令；只有用户明确要求时才执行。
 - Final responses for deployable changes must still end with the exact command block the user should run next. / 只要改动涉及可部署代码，最终回复仍必须以用户下一步应执行的精确命令块结尾。
+- Latest UI update: `Daily Fantasy Leaders` now renders on the `Points` page directly under the gameday points summary, and `Edit Line-up` schedule cards now follow the editable `gameweek.id` day instead of a hardcoded `today + 1` calculation. / 最新 UI 更新：`Daily Fantasy Leaders` 现在显示在 `Points` 页面里的当日积分摘要下方；`Edit Line-up` 下方赛程现在跟随可编辑的 `gameweek.id` 对应日，而不是写死用 `今天 + 1` 计算。
