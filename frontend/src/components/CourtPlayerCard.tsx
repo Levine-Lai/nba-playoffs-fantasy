@@ -46,10 +46,17 @@ export default function CourtPlayerCard({
   const isFrontCourt = player.position === "FC";
   const hasNextOpponent = Boolean(player.nextOpponent && player.nextOpponent !== "TBD");
   const nextOpponentLogoUrl = player.nextOpponentLogoUrl ?? player.nextOpponentLogoFallbackUrl;
+  const numericPoints = Number(player.points ?? 0);
+  const numericSalary = Number(player.salary ?? 0);
+  const valueRatio = numericSalary > 0 ? numericPoints / numericSalary : 0;
+  const hasResolvedPoints = Boolean(showPoints && player.pointsWindowKey);
+  const isStandoutPointsCard = Boolean(hasResolvedPoints && (numericPoints > 50 || valueRatio > 5));
   const cardClassName = [
     "court-card",
     isFrontCourt ? "court-card--fc" : "court-card--bc",
     compact ? "court-card--compact" : "",
+    showPoints ? "court-card--points" : "court-card--edit",
+    isStandoutPointsCard ? "court-card--standout" : "",
     dimmed ? "court-card--dimmed" : "",
     highlighted ? "court-card--highlighted" : "",
     onClick ? "court-card--interactive" : ""
@@ -76,39 +83,22 @@ export default function CourtPlayerCard({
 
   const body = (
     <>
-      <div className="court-card__top">
-        <span className="court-card__info">i</span>
-      </div>
-
-      <div className="court-card__header">
-        {player.teamLogoUrl || player.teamLogoFallbackUrl ? (
+      <div className={`court-card__photo ${showPoints ? "court-card__photo--portrait" : ""}`}>
+        {player.headshotUrl || player.headshotFallbackUrl ? (
           <img
-            src={player.teamLogoUrl ?? player.teamLogoFallbackUrl ?? ""}
-            alt=""
-            aria-hidden="true"
-            className="court-card__logo"
-            onError={(event) => useFallbackImage(event, player.teamLogoFallbackUrl)}
+            src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
+            alt={player.name}
+            className={`court-card__headshot ${showPoints ? "court-card__headshot--portrait" : ""}`}
+            onError={(event) => useFallbackImage(event, player.headshotFallbackUrl)}
           />
-        ) : null}
-        <span className="court-card__team">{player.team}</span>
+        ) : (
+          <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />
+        )}
       </div>
 
-      {!compact ? (
-        <div className={`court-card__photo ${showPoints ? "court-card__photo--portrait" : ""}`}>
-          {player.headshotUrl || player.headshotFallbackUrl ? (
-            <img
-              src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
-              alt={player.name}
-              className={`court-card__headshot ${showPoints ? "court-card__headshot--portrait" : ""}`}
-              onError={(event) => useFallbackImage(event, player.headshotFallbackUrl)}
-            />
-          ) : (
-            <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />
-          )}
-        </div>
-      ) : null}
-
-      <div className="court-card__name">{formatCardName(player.name)}</div>
+      <div className="court-card__name-band">
+        <div className="court-card__name">{formatCardName(player.name)}</div>
+      </div>
 
       {showPoints ? (
         <div className="court-card__points-only">

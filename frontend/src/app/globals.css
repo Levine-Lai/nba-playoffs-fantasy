@@ -1096,10 +1096,9 @@ button:disabled {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
     padding: 0.42rem 0.4rem 0.5rem;
     text-align: center;
-    color: #fff;
+    color: #111;
     font-family: var(--font-action);
     font-size: 1.5rem;
     font-style: italic;
@@ -1262,25 +1261,37 @@ button:disabled {
     position: relative;
     width: 176px;
     overflow: hidden;
-    border: 1px solid #d7dde5;
-    border-bottom: 5px solid var(--nba-blue-dark);
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 10px 22px rgba(29, 66, 138, 0.12);
+    border: 1px solid #d6ddea;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+    box-shadow: 0 16px 30px rgba(29, 66, 138, 0.14);
     color: #111;
     text-align: left;
   }
 
   .court-card--fc {
-    border-bottom-color: var(--nba-pink);
+    --court-card-accent: #ef3f9a;
+    --court-card-accent-soft: rgba(239, 63, 154, 0.18);
+    --court-card-panel: linear-gradient(135deg, rgba(255, 119, 191, 0.88) 0%, rgba(255, 190, 230, 0.72) 100%);
+    --court-card-score: linear-gradient(135deg, #ef3f9a 0%, #db2b82 100%);
   }
 
   .court-card--bc {
-    border-bottom-color: var(--nba-blue-dark);
+    --court-card-accent: #2a53a5;
+    --court-card-accent-soft: rgba(42, 83, 165, 0.18);
+    --court-card-panel: linear-gradient(135deg, rgba(70, 113, 211, 0.88) 0%, rgba(193, 215, 255, 0.78) 100%);
+    --court-card-score: linear-gradient(135deg, #2a53a5 0%, #1f418a 100%);
   }
 
   .court-card--compact {
     width: 150px;
+  }
+
+  .court-card--standout {
+    --court-card-accent: #b160ff;
+    --court-card-accent-soft: rgba(177, 96, 255, 0.22);
+    --court-card-panel: linear-gradient(135deg, #f251a8 0%, #8f63ff 100%);
+    --court-card-score: linear-gradient(135deg, #f251a8 0%, #8f63ff 100%);
   }
 
   .court-card--interactive {
@@ -1305,134 +1316,90 @@ button:disabled {
     box-shadow: 0 0 0 3px rgba(255, 219, 77, 0.9), 0 14px 28px rgba(29, 66, 138, 0.16);
   }
 
-  .court-card__top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.35rem 0.4rem 0;
-  }
-
-  .court-card__info {
-    display: grid;
-    height: 20px;
-    width: 20px;
-    place-items: center;
-    border: 1px solid #111;
-    border-radius: 999px;
-    background: #fff;
-    color: #111;
-    font-family: Georgia, serif;
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-
-  .court-card__captain {
-    display: grid;
-    height: 30px;
-    width: 30px;
-    place-items: center;
-    border-radius: 999px;
-    background: var(--nba-yellow);
-    color: #111;
-    font-family: var(--font-action);
-    font-size: 1rem;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-
-  .court-card__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.2rem 0.55rem 0;
-  }
-
-  .court-card__logo {
-    height: 34px;
-    width: 34px;
-    object-fit: contain;
-  }
-
-  .court-card__logo[hidden] {
-    display: none;
-  }
-
-  .court-card__team {
-    margin-left: auto;
-    color: var(--nba-blue-dark);
-    font-family: var(--font-action);
-    font-size: 2rem;
-    font-style: italic;
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  .court-card--fc .court-card__team {
-    color: var(--nba-pink);
-  }
-
   .court-card__photo {
     position: relative;
-    height: 106px;
-    margin-top: 0.1rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: 138px;
+    padding: 0.75rem 0.2rem 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.52), transparent 44%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+      var(--court-card-panel);
   }
 
   .court-card__photo--portrait {
-    height: 170px;
-    margin-top: 0;
+    height: 182px;
+    padding-top: 0.4rem;
   }
 
   .court-card__headshot,
   .court-card__fallback-logo {
     position: absolute;
     left: 50%;
-    top: 50%;
-    width: 92px;
-    transform: translate(-50%, -50%);
+    bottom: -4px;
+    width: 148px;
+    max-width: none;
+    transform: translateX(-50%);
     object-fit: contain;
+    filter: drop-shadow(0 14px 18px rgba(17, 24, 39, 0.22));
   }
 
   .court-card__headshot--portrait {
-    width: 136px;
-    top: calc(50% + 6px);
+    width: 162px;
+    bottom: -6px;
   }
 
   .court-card__headshot[hidden] {
     display: none;
   }
 
-  .court-card__name {
-    border-top: 4px solid var(--nba-blue-dark);
-    padding: 0.55rem 0.5rem 0.4rem;
-    color: #111;
-    font-family: var(--font-action);
-    font-size: 1.2rem;
-    font-style: italic;
-    font-weight: 700;
-    line-height: 1;
-    text-align: center;
+  .court-card__name-band {
+    position: relative;
+    background: #fff;
   }
 
-  .court-card--fc .court-card__name {
-    border-top-color: var(--nba-pink);
+  .court-card__name-band::before {
+    content: "";
+    display: block;
+    height: 6px;
+    background: var(--court-card-accent);
+  }
+
+  .court-card__name {
+    min-height: 62px;
+    padding: 0.85rem 0.5rem 0.6rem;
+    color: #111;
+    font-family: var(--font-action);
+    font-size: 1.28rem;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 0.98;
+    text-align: center;
+    text-wrap: balance;
   }
 
   .court-card--compact .court-card__name {
-    min-height: 46px;
+    min-height: 48px;
+    padding: 0.62rem 0.34rem 0.48rem;
+    font-size: 0.96rem;
   }
 
   .court-card__schedule {
-    padding: 0 0.35rem 0.4rem;
+    padding: 0.2rem 0.5rem 0.58rem;
+    background: #fff;
   }
 
   .court-card__schedule-row {
     display: flex;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.36rem;
     border-top: 1px solid var(--nba-line);
-    padding: 0.45rem 0.35rem;
-    font-size: 0.82rem;
+    padding: 0.6rem 0.3rem 0;
+    color: #697381;
+    font-size: 0.8rem;
   }
 
   .court-card__schedule-row--label {
@@ -1458,22 +1425,18 @@ button:disabled {
 
   .court-card__points-only {
     display: grid;
-    min-height: 72px;
+    min-height: 78px;
     place-items: center;
-    margin-top: 0.2rem;
-    background: var(--nba-blue-dark);
+    padding: 0.3rem 0.4rem 0.4rem;
+    background: var(--court-card-score);
     color: #fff;
   }
 
   .court-card__points-only strong {
     font-family: var(--font-action);
-    font-size: 2.35rem;
+    font-size: 2.45rem;
     font-style: italic;
     line-height: 1;
-  }
-
-  .court-card--fc .court-card__points-only {
-    background: linear-gradient(90deg, #ef476f, #d81b60);
   }
 
   .captain-bar {
@@ -1750,49 +1713,47 @@ button:disabled {
 
   .court-card {
     width: 96px;
+    border-radius: 12px;
   }
 
   .court-card--compact {
     width: 100%;
   }
 
-  .court-card__team {
-    font-size: 0.92rem;
-  }
-
   .court-card__photo {
-    height: 66px;
+    height: 82px;
+    padding-top: 0.36rem;
   }
 
   .court-card__photo--portrait {
-    height: 76px;
+    height: 94px;
   }
 
   .court-card__headshot,
   .court-card__fallback-logo {
-    width: 68px;
+    width: 90px;
   }
 
   .court-card__headshot--portrait {
-    width: 76px;
-    top: calc(50% + 2px);
+    width: 96px;
+    bottom: -4px;
+  }
+
+  .court-card__name-band::before {
+    height: 4px;
   }
 
   .court-card__name {
-    font-size: 0.68rem;
-    min-height: 24px;
-    padding: 0.28rem 0.14rem 0.2rem;
-  }
-
-  .court-card__logo {
-    height: 18px;
-    width: 18px;
+    min-height: 34px;
+    font-size: 0.72rem;
+    line-height: 1.02;
+    padding: 0.42rem 0.16rem 0.28rem;
   }
 
   .court-card__schedule-row {
-    gap: 0.2rem;
-    padding: 0.22rem 0.08rem;
-    font-size: 0.52rem;
+    gap: 0.16rem;
+    padding: 0.32rem 0.08rem 0;
+    font-size: 0.5rem;
   }
 
   .court-card__schedule-row img {
@@ -1800,55 +1761,31 @@ button:disabled {
     width: 0.7rem;
   }
 
+  .court-card__points-only {
+    min-height: 46px;
+    padding: 0.22rem 0.2rem 0.28rem;
+  }
+
   .court-card__points-only strong {
-    font-size: 1.05rem;
-  }
-
-  .court-card__top {
-    padding: 0.16rem 0.18rem 0;
-  }
-
-  .court-card__info {
-    height: 14px;
-    width: 14px;
-    font-size: 0.54rem;
-  }
-
-  .court-card__captain {
-    height: 18px;
-    width: 18px;
-    font-size: 0.56rem;
-  }
-
-  .court-card__header {
-    gap: 0.16rem;
-    padding: 0.1rem 0.22rem 0;
-  }
-
-  .court-card--compact .court-card__top {
-    padding-top: 0.14rem;
-  }
-
-  .court-card--compact .court-card__team {
-    font-size: 0.74rem;
+    font-size: 1.18rem;
   }
 
   .court-card--compact .court-card__name {
-    min-height: 22px;
-    font-size: 0.58rem;
+    min-height: 30px;
+    font-size: 0.62rem;
     line-height: 1.05;
-    padding: 0.22rem 0.06rem 0.18rem;
+    padding: 0.34rem 0.08rem 0.24rem;
   }
 
   .court-card--compact .court-card__schedule {
-    padding: 0 0.04rem 0.14rem;
+    padding: 0.12rem 0.06rem 0.24rem;
   }
 
   .court-card--compact .court-card__schedule-row {
     font-size: 0.46rem;
     line-height: 1;
     gap: 0.08rem;
-    padding: 0.18rem 0.04rem;
+    padding: 0.24rem 0.04rem 0;
   }
 
   .court-card--compact .court-card__schedule-row img {
@@ -1861,7 +1798,7 @@ button:disabled {
   }
 
   .court-card--compact .court-card__points-only strong {
-    font-size: 0.78rem;
+    font-size: 0.86rem;
   }
 
   .captain-bar__title {

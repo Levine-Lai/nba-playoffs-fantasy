@@ -65,7 +65,6 @@ function LeadersRow({
             <article key={entry.player.id} className={`home-leaders__card home-leaders__card--${tone}`}>
               <div className="home-leaders__rank">{entry.rank}</div>
               <div className="home-leaders__card-inner">
-                <div className={`home-leaders__team home-leaders__team--${tone}`}>{entry.player.team}</div>
                 <div className="home-leaders__photo-wrap">
                   {headshotUrl ? (
                     <img
@@ -78,7 +77,6 @@ function LeadersRow({
                 </div>
                 <div className={`home-leaders__name home-leaders__name--${tone}`}>{formatLeaderName(entry.player.name)}</div>
                 <div className={`home-leaders__score home-leaders__score--${tone}`}>
-                  <span className="home-leaders__score-label">FP</span>
                   <span className="home-leaders__score-value">
                     {resolvedPoints === null ? "-" : formatFantasyPoints(resolvedPoints)}
                   </span>
