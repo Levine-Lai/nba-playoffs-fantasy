@@ -45,7 +45,8 @@ export default function CourtPlayerCard({
 }: CourtPlayerCardProps) {
   const isFrontCourt = player.position === "FC";
   const hasNextOpponent = Boolean(player.nextOpponent && player.nextOpponent !== "TBD");
-  const hasPortrait = Boolean(player.headshotUrl || player.headshotFallbackUrl);
+  const hasPortraitAsset = Boolean(player.headshotUrl || player.headshotFallbackUrl);
+  const shouldRenderPortrait = Boolean(hasPortraitAsset && !compact);
   const nextOpponentLogoUrl = player.nextOpponentLogoUrl ?? player.nextOpponentLogoFallbackUrl;
   const numericPoints = Number(player.points ?? 0);
   const numericSalary = Number(player.salary ?? 0);
@@ -57,7 +58,7 @@ export default function CourtPlayerCard({
     isFrontCourt ? "court-card--fc" : "court-card--bc",
     compact ? "court-card--compact" : "",
     showPoints ? "court-card--points" : "court-card--edit",
-    hasPortrait ? "court-card--has-portrait" : "",
+    shouldRenderPortrait ? "court-card--has-portrait" : "",
     isStandoutPointsCard ? "court-card--standout" : "",
     dimmed ? "court-card--dimmed" : "",
     highlighted ? "court-card--highlighted" : "",
@@ -82,7 +83,7 @@ export default function CourtPlayerCard({
     <span>-</span>
   );
   const pointsValue = player.pointsWindowKey ? formatFantasyPoints(player.points ?? 0) : "-";
-  const portrait = hasPortrait ? (
+  const portrait = shouldRenderPortrait ? (
     <div className={`court-card__portrait ${showPoints ? "court-card__portrait--points" : "court-card__portrait--edit"}`}>
       <img
         src={player.headshotUrl ?? player.headshotFallbackUrl ?? ""}
@@ -103,7 +104,7 @@ export default function CourtPlayerCard({
     <>
       <div className="court-card__surface">
         <div className={`court-card__photo ${showPoints ? "court-card__photo--portrait" : ""}`}>
-          {portrait ? null : <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />}
+          {portrait || compact ? null : <img src="/LOGO.png" alt="" aria-hidden="true" className="court-card__fallback-logo" />}
         </div>
 
         <div className="court-card__name-band">
