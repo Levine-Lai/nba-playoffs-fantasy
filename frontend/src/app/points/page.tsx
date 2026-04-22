@@ -67,7 +67,12 @@ function PointsPageContent() {
   }
 
   return (
-    <ContentWithSidebar sidebar={<RightSidebar snapshot={data.profileSnapshot} />}>
+    <ContentWithSidebar
+      className="points-page-shell"
+      contentClassName="points-page-shell__main"
+      sidebarClassName="points-page-shell__sidebar"
+      sidebar={<RightSidebar snapshot={data.profileSnapshot} />}
+    >
       <section className="panel">
         <div className="panel-body space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
