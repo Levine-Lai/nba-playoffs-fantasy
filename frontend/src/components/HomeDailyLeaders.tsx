@@ -28,6 +28,19 @@ function onImageError(event: SyntheticEvent<HTMLImageElement>, fallback?: string
   image.hidden = true;
 }
 
+function resolveLeaderPoints(entry: HomeLeaderEntry) {
+  const candidates = [entry.points, entry.player.points];
+
+  for (const candidate of candidates) {
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+
+  return null;
+}
+
 function LeadersRow({
   title,
   tone,
@@ -47,6 +60,7 @@ function LeadersRow({
       <div className="home-leaders__cards">
         {entries.map((entry) => {
           const headshotUrl = entry.player.headshotUrl ?? entry.player.headshotFallbackUrl;
+          const resolvedPoints = resolveLeaderPoints(entry);
           return (
             <article key={entry.player.id} className={`home-leaders__card home-leaders__card--${tone}`}>
               <div className="home-leaders__rank">{entry.rank}</div>
@@ -65,7 +79,9 @@ function LeadersRow({
                 <div className={`home-leaders__name home-leaders__name--${tone}`}>{formatLeaderName(entry.player.name)}</div>
                 <div className={`home-leaders__score home-leaders__score--${tone}`}>
                   <span className="home-leaders__score-label">FP</span>
-                  <span>{formatFantasyPoints(entry.points)}</span>
+                  <span className="home-leaders__score-value">
+                    {resolvedPoints === null ? "-" : formatFantasyPoints(resolvedPoints)}
+                  </span>
                 </div>
               </div>
             </article>

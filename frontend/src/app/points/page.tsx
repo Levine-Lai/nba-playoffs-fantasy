@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
 import HomeDailyLeaders from "@/components/HomeDailyLeaders";
@@ -94,10 +94,6 @@ function PointsPageContent() {
                   <p className="text-5xl font-semibold">{formatFantasyPoints(data.summary.final)}</p>
                 </article>
               </div>
-
-              {leaders ? (
-                <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} />
-              ) : null}
             </>
           )}
         </div>
@@ -137,6 +133,10 @@ function PointsPageContent() {
               </div>
             </div>
           </section>
+
+          {leaders ? (
+            <HomeDailyLeaders dayLabel={leaders.dayLabel} frontCourt={leaders.frontCourt} backCourt={leaders.backCourt} />
+          ) : null}
         </>
       )}
     </ContentWithSidebar>

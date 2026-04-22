@@ -1,51 +1,48 @@
 # Project Context | 项目上下文
-This file is the cross-conversation memory for the repo. Keep it concise, current, and bilingual. / 这是仓库的跨会话记忆文件，需保持精炼、最新，并且中英文双语。
+This file is the cross-conversation memory for the repo. Keep it concise, current, and bilingual. / 这是仓库的跨会话记忆文件，需要保持精炼、最新，并且中英双语。
 
 ## Product Shape | 产品形态
 - Frontend lives in `frontend/` and deploys on Vercel. / 前端位于 `frontend/`，部署到 Vercel。
 - Backend lives in `backend/` and runs on Cloudflare Workers + D1. / 后端位于 `backend/`，运行在 Cloudflare Workers + D1。
-- The game is an NBA playoff-only fantasy product with 10-player rosters. / 这是一个只覆盖 NBA 季后赛的 fantasy 产品，每队 10 人阵容。
+- Shared business rules should stay reusable instead of leaking runtime-specific logic across apps. / 共享业务规则要保持可复用，不要把运行时专属逻辑混到另一侧。
+- The product is an NBA playoff-only fantasy game with 10-player rosters. / 这是一个仅覆盖 NBA 季后赛的 fantasy 产品，每队 10 人阵容。
 
 ## Core Routes | 核心路由
-- User-facing leaderboard language is `Standing`, not `League`. / 面向用户的排行榜文案使用 `Standing`，不是 `League`。
-- Main leaderboard page is `/standing`; legacy `/leagues` is redirect-only. / 主排行榜页面是 `/standing`；旧的 `/leagues` 仅保留跳转。
-- `/schedule` uses April, May, and June month calendars as the main view. / `/schedule` 以 4 月、5 月、6 月月历作为主视图。
-- Each schedule game renders as one row, with away on the left, home on the right, `Day1` in the date header, and `R1G1` under the score. / 赛程中的每场比赛按单行展示，左客右主，日期头显示 `Day1`，比分下方显示 `R1G1`。
-- `/schedule` also shows `Playoff Path` under the calendars and supports a matchup detail modal with both teams' fantasy box scores including `TOV`. / `/schedule` 还会在月历下方显示 `Playoff Path`，并支持打开双方 fantasy 数据弹窗，包含 `TOV`。
+- User-facing leaderboard language is `Standing`, not `League`. / 面向用户的排行榜文案使用 `Standing`，不用 `League`。
+- Main leaderboard page is `/standing`; legacy `/leagues` is redirect-only. / 主排行榜页面是 `/standing`；旧的 `/leagues` 只保留跳转。
+- `/points` is the per-manager daily scoring page with the roster view and right sidebar snapshot. / `/points` 是单个经理的每日得分页，包含阵容展示和右侧资料快照。
+- `/schedule` uses April, May, and June month calendars as the main view, plus `Playoff Path` and a matchup detail modal. / `/schedule` 以 4、5、6 月月历为主视图，同时展示 `Playoff Path` 和比赛详情弹窗。
 
 ## Live Rules | 当前玩法规则
 - `Day 1` is the real playoff opener on `2026-04-18`. / `Day 1` 是真实季后赛揭幕日 `2026-04-18`。
-- `Points` stay hidden until the `Day 1` deadline passes. / `Points` 在 `Day 1` 截止前保持隐藏。
+- `Points` stay hidden until the `Day 1` deadline passes. / `Points` 会在 `Day 1` 截止前保持隐藏。
 - Before the `Day 1` deadline, transfers are unlimited setup moves and do not consume playoff FT or `Total transactions`. / `Day 1` 截止前的转会属于无限次建队调整，不消耗季后赛 FT，也不计入 `Total transactions`。
-- After the `Day 1` deadline, each team gets `6` total playoff FT; each extra normal transfer costs `-50`. / `Day 1` 截止后，每支队伍整个季后赛共有 `6` 次 FT；额外普通转会每次扣 `-50`。
-- `Wildcard` and `All-Star` unlock only after the `Day 1` deadline. Each manager has one of each for the whole playoff run. / `Wildcard` 和 `All-Star` 只在 `Day 1` 截止后解锁；每位玩家整个季后赛各有一张。
-- There is no per-team player cap during the playoffs. / 季后赛阶段没有单支球队选人上限。
+- After the `Day 1` deadline, each team gets `6` total playoff FT and every extra normal transfer costs `-50`. / `Day 1` 截止后，每队整个季后赛共有 `6` 次 FT，额外普通转会每次扣 `-50`。
+- `Wildcard` and `All-Star` unlock only after the `Day 1` deadline, with one of each per manager for the full playoff run. / `Wildcard` 和 `All-Star` 只会在 `Day 1` 截止后解锁；每位经理整个季后赛各有一张。
 - Play-in games (`005...`) are excluded from schedule, scoring, and standings. / 附加赛（`005...`）不计入赛程、得分和排行榜。
-- There is no captain gameplay; stored `captain_id` is backward-compatibility only. / 当前没有 captain 玩法；存储中的 `captain_id` 仅用于兼容旧数据。
 - Fantasy scoring is `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`. / Fantasy 计分规则是 `PTS x1 + REB x1 + AST x2 + STL x3 + BLK x3 - TOV x1`。
-- Effective scoring counts up to 5 active players and must end in a valid `3BC + 2FC` or `2BC + 3FC` shape, using starters first and then bench order to fill gaps. / 有效得分最多统计 5 名有比赛的球员，且最终必须满足 `3BC + 2FC` 或 `2BC + 3FC` 的合法阵型，优先使用首发，再按替补顺序补位。
-- For gamedays on or after `2026-04-20`, a player who still has not actually appeared by Beijing `16:00` is treated as a non-participant for that gameday, so later bench players may replace them. Earlier historical gamedays keep the previous behavior and are not backfilled. / 对于 `2026-04-20` 及之后的 gameday，如果球员到北京时间 `16:00` 仍未实际出场，则该球员在该 gameday 视为未上场，允许后续替补递补。更早的历史 gameday 保持旧行为，不做回刷。
+- Effective scoring counts up to 5 active players and must end in a valid `3BC + 2FC` or `2BC + 3FC` shape, using starters first and then bench order to fill gaps. / 有效计分最多统计 5 名有比赛的球员，并且最终必须满足 `3BC + 2FC` 或 `2BC + 3FC` 的合法阵型，优先使用首发，再按替补顺序补位。
+- For gamedays on or after `2026-04-20`, a player who still has not appeared by Beijing `16:00` is treated as a non-participant for that gameday, so later bench players may replace them. / 对于 `2026-04-20` 及之后的 gameday，如果球员到北京时间 `16:00` 仍未实际出场，则该球员在该日视为未上场，后续替补可以递补。
 
 ## UI Notes | UI 约定
-- Standing highlights the logged-in user with a deeper blue row that stays highlighted on hover. / Standing 中当前登录用户使用更深蓝色高亮，hover 时保持高亮。
-- The right sidebar on another manager's `Points` page must show the viewed manager's snapshot, not the current viewer's own profile. / 查看其他经理的 `Points` 页面时，右侧信息栏必须显示被查看经理的资料，而不是当前登录者自己的资料。
-- Effective scoring players on the `Points` page are highlighted in yellow, and that highlight must stay aligned with the real scoring logic. / `Points` 页面中的有效计分球员会用黄色高亮，并且必须和真实计分逻辑一致。
+- Standing highlights the logged-in user with a deeper blue row that stays highlighted on hover. / Standing 会用更深的蓝色高亮当前登录用户，并在 hover 时保持高亮。
+- On another manager's `/points` page, the right sidebar must show the viewed manager's snapshot, not the current viewer's own profile. / 查看其他经理的 `/points` 页面时，右侧栏必须显示被查看经理的快照，而不是当前登录者自己的资料。
+- Effective scoring players on `/points` are highlighted in yellow, and that highlight must stay aligned with the real scoring logic. / `/points` 里的有效计分球员会用黄色高亮，并且必须和真实计分逻辑一致。
 - Fantasy scores render as whole numbers with no decimals across Standing, Points, sidebars, and Home leaders. / Standing、Points、侧栏和 Home leaders 中的 fantasy 分数都显示为整数，不显示小数。
-- On `Standing`, `PTS` always shows the current gameday score, and `TOT` always shows cumulative playoff points. Phase selection can change ranking and preview context, but not those column meanings. / 在 `Standing` 页面里，`PTS` 始终显示当前 gameday 分数，`TOT` 始终显示整个季后赛累计分。phase 选择可以影响排名和预览上下文，但不能改变这两列的含义。
+- `Daily Fantasy Leaders` belongs at the bottom of `/points`, after the roster sections, not directly under the gameday summary card. / `Daily Fantasy Leaders` 应该放在 `/points` 页最底部、阵容区块之后，而不是直接放在当日总分卡下面。
+- Home leaders score rendering should fall back to `entry.player.points` when `entry.points` is missing so the UI does not show an empty score band. / Home leaders 的分数渲染在 `entry.points` 缺失时要回退到 `entry.player.points`，避免分数条出现空白。
 
 ## Data And Sync Notes | 数据与同步说明
-- `/api/standings` refreshes current-period points before ranking, but the Standing page should only keep polling during live games or the Beijing `16:00` settlement window; outside those windows it should load once and wait for the next scheduled refresh point. / `/api/standings` 会在排名前刷新当前计分日分数，但 `Standing` 页面只应在比赛进行中或北京时间 `16:00` 结算窗口持续轮询；其他时间只做一次加载，然后等待下一个应刷新时间点。
-- `/api/standings` now keeps a short server-side cache and batches league ledger writes per refresh cycle; avoid reintroducing per-member read/write loops there, or standings can time out and surface `Network error` on the frontend. / `/api/standings` 现在带有短时服务端缓存，并且每轮刷新会批量写入 league ledger；不要再把它改回按成员逐个读写的循环，否则排行榜很容易超时，并在前端显示 `Network error`。
-- `Standing` polling cadence now comes from the backend response itself via `refreshIntervalMs` and `nextRefreshAt`; do not re-hardcode a fixed frontend interval for this page. / `Standing` 的刷新节奏现在由后端响应里的 `refreshIntervalMs` 和 `nextRefreshAt` 决定；不要再在这个页面里写死固定的前端轮询间隔。
-- Current scoring-day lineup must lock at the deadline. Any post-deadline lineup reorder should only affect the next editable day, not the current scoring day. / 当前计分日的阵容必须在截止时间锁定；截止后的阵容调整只能影响下一个可编辑比赛日，不能反写当前计分日。
-- Backend lineup locks are stored in `app_state` under `lineup_locks_v1`. Optional manual historical corrections can be provided via `lineup_corrections_v1`. / 后端锁阵容快照存放在 `app_state` 的 `lineup_locks_v1` 中；历史人工修正可通过 `lineup_corrections_v1` 提供。
-- `GET/PUT /api/lineup` must use the active `All-Star` lineup snapshot when the chip is live for the current editable period, so `Edit Lineup` stays aligned with the post-chip roster instead of the base roster. / 当当前可编辑周期存在生效中的 `All-Star` 时，`GET/PUT /api/lineup` 必须读写该激活阵容快照，这样 `Edit Lineup` 才会和开卡后的临时阵容保持一致，而不是回退到基础阵容。
-- `/api/lineup` now also exposes `activeChip` so the frontend can keep post-chip UI state aligned; current behavior should show `Unlimited` for bank-style budget displays when `All-Star` is active, while `Wildcard` still uses the persisted base squad path and does not need a separate active-lineup snapshot. / `/api/lineup` 现在还会返回 `activeChip`，用于让前端在开卡后保持 UI 状态一致；当前行为应在 `All-Star` 生效时把余额类预算显示为 `Unlimited`，而 `Wildcard` 仍然走持久化后的基础阵容路径，不需要单独的激活阵容快照。
-- A built-in Day 1 correction currently restores `kusuri` to `169` using the captured `2026-04-19 13:20` evidence, because the original Day 1 bench order was not preserved in the old system. / 当前内置了一条 Day 1 修正，用 `2026-04-19 13:20` 的截图证据把 `kusuri` 还原到 `169`，因为旧系统没有保存原始 Day 1 的替补顺序。
-- Historical cases that were already polluted before lineup locks existed cannot always be reconstructed from current DB state alone; confirmed evidence is needed before adding more manual corrections. / 在线上锁阵容机制上线前已经被污染的历史 case，无法总是仅靠当前 DB 状态自动反推；继续补更多人工修正时，需要有已确认的证据。
+- `/api/standings` refreshes current-period points before ranking, but the Standing page should only keep polling during live games or the Beijing `16:00` settlement window. / `/api/standings` 会在排名前刷新当前计分日分数，但 Standing 页面只应在比赛进行中或北京时间 `16:00` 结算窗口持续轮询。
+- Standing polling cadence comes from backend response fields `refreshIntervalMs` and `nextRefreshAt`; do not hardcode a fixed frontend interval there. / Standing 的轮询节奏来自后端返回的 `refreshIntervalMs` 和 `nextRefreshAt`；不要在前端重新写死固定间隔。
+- Current scoring-day lineups must lock at the deadline; post-deadline reorders should affect only the next editable day. / 当前计分日的阵容必须在截止时锁定；截止后的调序只能影响下一可编辑日。
+- Backend lineup locks are stored in `app_state` under `lineup_locks_v1`, with optional manual overrides in `lineup_corrections_v1`. / 后端阵容锁存放在 `app_state` 的 `lineup_locks_v1` 中，可选人工修正放在 `lineup_corrections_v1`。
+- `GET/PUT /api/lineup` must use the active `All-Star` lineup snapshot when that chip is live for the current editable period. / 当当前可编辑周期存在生效中的 `All-Star` 时，`GET/PUT /api/lineup` 必须读写对应的激活阵容快照。
 
 ## Risks And Workflow | 风险与流程
-- Any change that could affect live data or player progress must be surfaced before implementation and requires explicit approval. Pure UI changes are exempt. / 任何可能影响线上数据或玩家进度的改动，都必须先明确告知并获得批准；纯 UI 改动除外。
+- Any change that could affect live data or player progress must be surfaced before implementation and requires explicit approval; pure UI changes are exempt. / 任何可能影响线上数据或玩家进度的修改，都必须先说明影响并获得明确批准；纯 UI 修改除外。
 - Do not push or deploy by default. Only run `git push` or deployment commands when the user explicitly asks. / 默认不要执行 `git push` 或部署命令；只有用户明确要求时才执行。
 - Final responses for deployable changes must still end with the exact command block the user should run next. / 只要改动涉及可部署代码，最终回复仍必须以用户下一步应执行的精确命令块结尾。
-- Latest UI update: `Daily Fantasy Leaders` now renders on the `Points` page directly under the gameday points summary, and `Edit Line-up` schedule cards now follow the editable `gameweek.id` day instead of a hardcoded `today + 1` calculation. / 最新 UI 更新：`Daily Fantasy Leaders` 现在显示在 `Points` 页面里的当日积分摘要下方；`Edit Line-up` 下方赛程现在跟随可编辑的 `gameweek.id` 对应日，而不是写死用 `今天 + 1` 计算。
+
+## Latest Change | 最新变更
+- The latest UI change moves `Daily Fantasy Leaders` to the bottom of `/points` and hardens leader score rendering with a fallback path so scores keep showing even when one payload field is missing. / 最新 UI 变更把 `Daily Fantasy Leaders` 移到了 `/points` 页底部，并为 leaders 分数渲染增加了兜底路径，这样即使某个返回字段缺失，分数仍能显示。
