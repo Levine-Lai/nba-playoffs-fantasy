@@ -66,21 +66,18 @@ export default function CourtPlayerCard({
   ]
     .filter(Boolean)
     .join(" ");
-  const scheduleValue = hasNextOpponent ? (
-    <span className="inline-flex items-center gap-2">
-      {nextOpponentLogoUrl ? (
-        <img
-          src={nextOpponentLogoUrl}
-          alt=""
-          aria-hidden="true"
-          className="h-4 w-4 object-contain"
-          onError={(event) => useFallbackImage(event, player.nextOpponentLogoFallbackUrl)}
-        />
-      ) : null}
-      <span>{player.nextOpponent}</span>
+  const scheduleValue = hasNextOpponent && nextOpponentLogoUrl ? (
+    <span className="court-card__schedule-value" title={player.nextOpponent ?? ""}>
+      <img
+        src={nextOpponentLogoUrl}
+        alt=""
+        aria-hidden="true"
+        className="h-4 w-4 object-contain"
+        onError={(event) => useFallbackImage(event, player.nextOpponentLogoFallbackUrl)}
+      />
     </span>
   ) : (
-    <span>-</span>
+    <span className="court-card__schedule-value">-</span>
   );
   const pointsValue = player.pointsWindowKey ? formatFantasyPoints(player.points ?? 0) : "-";
   const portrait = shouldRenderPortrait ? (
@@ -118,7 +115,7 @@ export default function CourtPlayerCard({
         ) : (
           <div className="court-card__schedule">
             <div className="court-card__schedule-row">
-              <span>Next</span>
+              <span className="court-card__schedule-label">Next</span>
               {scheduleValue}
             </div>
           </div>
