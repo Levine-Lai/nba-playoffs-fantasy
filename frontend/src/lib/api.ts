@@ -101,10 +101,11 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
       const data = (await response.json()) as T;
 
       if (cacheKey && options.cacheTtlMs) {
+        const cachedAt = Date.now();
         responseCache.set(cacheKey, {
           data,
-          expiresAt: now + options.cacheTtlMs,
-          staleUntil: now + Math.max(options.cacheTtlMs * 6, 60000)
+          expiresAt: cachedAt + options.cacheTtlMs,
+          staleUntil: cachedAt + Math.max(options.cacheTtlMs * 6, 60000)
         });
       }
 
@@ -274,7 +275,7 @@ export function getStandings(phase?: string) {
   return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`, undefined, {
     timeoutMs: 20000,
     retries: 2,
-    cacheTtlMs: 15000,
+    cacheTtlMs: 5000,
     allowStaleOnError: true
   });
 }

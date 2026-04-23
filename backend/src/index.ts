@@ -65,6 +65,9 @@ const LEAGUE_POINTS_LEDGER_KEY = "league_points_ledger_v1";
 const LINEUP_LOCKS_KEY = "lineup_locks_v1";
 const LINEUP_CORRECTIONS_KEY = "lineup_corrections_v1";
 const STANDING_PAYLOAD_CACHE_KEY = "standing_payload_cache_v1";
+const STANDING_REFRESH_RETRY_MS = 5000;
+const STANDING_CACHE_TTL_MS = 20000;
+const STANDING_BEFORE_DEADLINE_CACHE_TTL_MS = 60000;
 
 const DEFAULT_LINEUP_CORRECTIONS: LineupCorrectionRegistry = {
   kusuri: {
@@ -109,6 +112,7 @@ type StandingPayloadCacheEntry = {
     members: StandingMemberEntry[];
   };
 };
+type StandingPayload = StandingPayloadCacheEntry["payload"];
 type StandingPayloadCache = Record<string, StandingPayloadCacheEntry>;
 type TransactionChipChoice = "wildcard" | "all-star";
 type TransactionChipCards = {
@@ -122,6 +126,8 @@ type ConfirmTransferDraft = {
 type LoadStateOptions = {
   hydrateAssets?: boolean;
 };
+
+let standingPayloadRefreshPromise: Promise<void> | null = null;
 
 function extractBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -955,27 +961,106 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
     }));
 }
 
-async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) {
-  const phaseOptions = await getStandingPhaseOptions(env);
-  const selectedPhaseKey = phaseOptions.some((option) => option.key === requestedPhaseKey)
-    ? String(requestedPhaseKey)
-    : "overall";
-  const beforeDeadline = await isBeforeFirstDeadline(env);
-  const cache = await readStandingPayloadCache(env);
-  const cachedEntry = cache[selectedPhaseKey];
-  if (cachedEntry && new Date(cachedEntry.expiresAt).getTime() > Date.now()) {
-    return cachedEntry.payload;
-  }
-  const refreshPlan = beforeDeadline
-    ? {
-        refreshIntervalMs: null,
-        nextRefreshAt: null
-      }
-    : await getStandingRefreshPlan(env).catch(() => ({
-        refreshIntervalMs: null,
-        nextRefreshAt: null
-      }));
+function getRequestedStandingPhaseKey(requestedPhaseKey: string | null) {
+  return String(requestedPhaseKey || "overall");
+}
 
+function getSelectedStandingPhaseKey(phaseOptions: Awaited<ReturnType<typeof getStandingPhaseOptions>>, requestedPhaseKey: string | null) {
+  const requestedKey = getRequestedStandingPhaseKey(requestedPhaseKey);
+  return phaseOptions.some((option) => option.key === requestedKey) ? requestedKey : "overall";
+}
+
+function isFreshStandingCacheEntry(entry: StandingPayloadCacheEntry | undefined) {
+  return Boolean(entry && new Date(entry.expiresAt).getTime() > Date.now());
+}
+
+function withStandingRefreshRetry(payload: StandingPayload) {
+  if (payload.refreshIntervalMs && payload.refreshIntervalMs > 0) {
+    return payload;
+  }
+
+  const now = Date.now();
+  const retryAt = now + STANDING_REFRESH_RETRY_MS;
+  const currentNextRefreshAt = payload.nextRefreshAt ? new Date(payload.nextRefreshAt).getTime() : null;
+  if (
+    currentNextRefreshAt !== null &&
+    Number.isFinite(currentNextRefreshAt) &&
+    currentNextRefreshAt > now &&
+    currentNextRefreshAt <= retryAt
+  ) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    nextRefreshAt: new Date(retryAt).toISOString()
+  };
+}
+
+function createStandingPayload({
+  beforeDeadline,
+  refreshPlan,
+  selectedPhaseKey,
+  phaseOptions,
+  members,
+  ledger
+}: {
+  beforeDeadline: boolean;
+  refreshPlan: { refreshIntervalMs: number | null; nextRefreshAt: string | null };
+  selectedPhaseKey: string;
+  phaseOptions: Awaited<ReturnType<typeof getStandingPhaseOptions>>;
+  members: StandingMemberEntry[];
+  ledger: LeaguePointsLedger;
+}): StandingPayload {
+  return {
+    visible: !beforeDeadline,
+    message: beforeDeadline ? "Points will unlock after Day 1 deadline." : undefined,
+    refreshIntervalMs: refreshPlan.refreshIntervalMs,
+    nextRefreshAt: refreshPlan.nextRefreshAt,
+    selectedPhaseKey,
+    phaseOptions,
+    members: buildRankedMembers(members, selectedPhaseKey, ledger)
+  };
+}
+
+async function getStandingRefreshPlanSafe(env: Env, beforeDeadline: boolean) {
+  if (beforeDeadline) {
+    return {
+      refreshIntervalMs: null,
+      nextRefreshAt: null
+    };
+  }
+
+  return getStandingRefreshPlan(env).catch(() => ({
+    refreshIntervalMs: null,
+    nextRefreshAt: null
+  }));
+}
+
+async function buildStoredStandingPayload(env: Env, requestedPhaseKey: string | null) {
+  const phaseOptions = await getStandingPhaseOptions(env);
+  const selectedPhaseKey = getSelectedStandingPhaseKey(phaseOptions, requestedPhaseKey);
+  const beforeDeadline = await isBeforeFirstDeadline(env);
+  const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline);
+  const [members, ledger] = await Promise.all([
+    listStandingMembers(env),
+    readLeaguePointsLedger(env)
+  ]);
+
+  return createStandingPayload({
+    beforeDeadline,
+    refreshPlan,
+    selectedPhaseKey,
+    phaseOptions,
+    members,
+    ledger
+  });
+}
+
+async function rebuildStandingPayloadCache(env: Env) {
+  const phaseOptions = await getStandingPhaseOptions(env);
+  const beforeDeadline = await isBeforeFirstDeadline(env);
+  const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline);
   let members = await listStandingMembers(env);
   const ledger = await readLeaguePointsLedger(env);
 
@@ -1039,23 +1124,75 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null) 
     }
   }
 
-  const payload = {
-    visible: !beforeDeadline,
-    message: beforeDeadline ? "Points will unlock after Day 1 deadline." : undefined,
-    refreshIntervalMs: refreshPlan.refreshIntervalMs,
-    nextRefreshAt: refreshPlan.nextRefreshAt,
-    selectedPhaseKey,
-    phaseOptions,
-    members: buildRankedMembers(members, selectedPhaseKey, ledger)
-  };
+  const expiresAt = new Date(
+    Date.now() + (beforeDeadline ? STANDING_BEFORE_DEADLINE_CACHE_TTL_MS : STANDING_CACHE_TTL_MS)
+  ).toISOString();
+  const cache = await readStandingPayloadCache(env);
+  const phaseKeys = [...new Set(["overall", ...phaseOptions.map((option) => option.key)])];
 
-  cache[selectedPhaseKey] = {
-    expiresAt: new Date(Date.now() + (beforeDeadline ? 60000 : 20000)).toISOString(),
-    payload
-  };
+  for (const phaseKey of phaseKeys) {
+    cache[phaseKey] = {
+      expiresAt,
+      payload: createStandingPayload({
+        beforeDeadline,
+        refreshPlan,
+        selectedPhaseKey: phaseKey,
+        phaseOptions,
+        members,
+        ledger
+      })
+    };
+  }
+
   await writeStandingPayloadCache(env, cache);
+  return cache;
+}
 
-  return payload;
+function queueStandingPayloadRefresh(env: Env, ctx?: ExecutionContext) {
+  if (standingPayloadRefreshPromise) {
+    return;
+  }
+
+  const refreshPromise = rebuildStandingPayloadCache(env)
+    .then(() => undefined)
+    .catch((error) => {
+      console.error("Failed to refresh standing payload cache", error);
+    })
+    .finally(() => {
+      if (standingPayloadRefreshPromise === refreshPromise) {
+        standingPayloadRefreshPromise = null;
+      }
+    });
+
+  standingPayloadRefreshPromise = refreshPromise;
+
+  if (ctx) {
+    ctx.waitUntil(refreshPromise);
+  }
+}
+
+async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, ctx?: ExecutionContext) {
+  const cache = await readStandingPayloadCache(env);
+  const requestedKey = getRequestedStandingPhaseKey(requestedPhaseKey);
+  const requestedCacheEntry = cache[requestedKey];
+  if (isFreshStandingCacheEntry(requestedCacheEntry)) {
+    return requestedCacheEntry.payload;
+  }
+
+  const phaseOptions = await getStandingPhaseOptions(env);
+  const selectedPhaseKey = getSelectedStandingPhaseKey(phaseOptions, requestedPhaseKey);
+  const selectedCacheEntry = cache[selectedPhaseKey];
+  if (isFreshStandingCacheEntry(selectedCacheEntry)) {
+    return selectedCacheEntry.payload;
+  }
+
+  queueStandingPayloadRefresh(env, ctx);
+
+  if (selectedCacheEntry) {
+    return withStandingRefreshRetry(selectedCacheEntry.payload);
+  }
+
+  return withStandingRefreshRetry(await buildStoredStandingPayload(env, selectedPhaseKey));
 }
 
 async function safeLoadState(env: Env, userId: string | number, options: LoadStateOptions = {}) {
@@ -1624,7 +1761,7 @@ function normalizePath(pathname: string) {
 }
 
 export default {
-  async fetch(request: Request, env: Env) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const corsResponse = handleCorsPreflight(request, env);
     if (corsResponse) {
       return corsResponse;
@@ -2079,7 +2216,7 @@ export default {
           return auth.response;
         }
 
-        return json(await buildStandingPayload(env, url.searchParams.get("phase")), { status: 200 }, env);
+        return json(await buildStandingPayload(env, url.searchParams.get("phase"), ctx), { status: 200 }, env);
       }
 
       if (pathname === "/api/standings/preview" && request.method === "GET") {

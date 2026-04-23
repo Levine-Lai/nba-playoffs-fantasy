@@ -1,5 +1,8 @@
 node_modules/
+.npm-cache/
+.tools/
 frontend/node_modules/
+frontend/.npm-cache/
 backend/node_modules/
 frontend/.next/
 backend/.cache/
@@ -12,3 +15,5 @@ backend/data/*.db-wal
 *.tsbuildinfo
 .env
 .env.local
+npmw.cmd
+npxw.cmd
