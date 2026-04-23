@@ -2437,6 +2437,7 @@ export default {
                 homeScore: game.homeScore,
                 awayScore: game.awayScore,
                 statusText: game.statusText,
+                ifNecessary: game.ifNecessary,
                 stageLabel: game.stageLabel
               }))
             },

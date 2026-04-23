@@ -744,8 +744,31 @@ export async function getStoredScheduleCache(env: Env) {
   return readAppState<StoredScheduleCache | null>(env, "live_schedule_cache", null);
 }
 
+function isIfNecessary(value: unknown) {
+  return value === true || String(value).toLowerCase() === "true";
+}
+
+function hasKnownScheduleTeam(team: TeamAsset | null | undefined) {
+  const name = String(team?.name ?? "").trim().toUpperCase();
+  return Boolean(team?.code || team?.id || (name && name !== "TBD"));
+}
+
 export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | null) {
-  const games = (Array.isArray(cache?.games) ? cache.games : []).filter((game) => isPostseasonGameId(game.id));
+  const games = (Array.isArray(cache?.games) ? cache.games : []).filter((game) => {
+    if (!isPostseasonGameId(game.id)) {
+      return false;
+    }
+
+    if (game.status === "live" || game.status === "final") {
+      return true;
+    }
+
+    if (isIfNecessary(game.ifNecessary)) {
+      return false;
+    }
+
+    return hasKnownScheduleTeam(game.homeTeam) && hasKnownScheduleTeam(game.awayTeam);
+  });
   const lookup = new Map<string, NextMatchup>();
   const editablePeriod = findEditablePlayoffPeriod(
     buildPlayoffPeriods(

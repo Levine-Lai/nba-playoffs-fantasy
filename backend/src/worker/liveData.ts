@@ -83,6 +83,7 @@ type OfficialScheduleGame = {
   away: string;
   status: "upcoming" | "live" | "final";
   statusText: string;
+  ifNecessary?: boolean;
   homeScore: number | null;
   awayScore: number | null;
   stageLabel: string;
@@ -238,8 +239,52 @@ function buildTeamAsset(name: string): TeamAsset {
   };
 }
 
-function filterStoredPlayoffGames<T extends { id?: string | number | null }>(games: T[]) {
-  return games.filter((game) => isPostseasonGameId(game.id));
+function isIfNecessary(value: unknown) {
+  return value === true || String(value).toLowerCase() === "true";
+}
+
+function hasKnownTeam(team: { id?: unknown; code?: unknown; name?: unknown } | null | undefined) {
+  const name = String(team?.name ?? "").trim().toUpperCase();
+  return Boolean(team?.id || team?.code || (name && name !== "TBD"));
+}
+
+function hasBothTeams(game: { homeTeam?: { id?: unknown; code?: unknown; name?: unknown } | null; awayTeam?: { id?: unknown; code?: unknown; name?: unknown } | null }) {
+  return hasKnownTeam(game.homeTeam) && hasKnownTeam(game.awayTeam);
+}
+
+function isConfirmedOfficialPlayoffGame(game: Record<string, any>) {
+  if (!isPostseasonGameId(String(game.gameId ?? ""))) {
+    return false;
+  }
+
+  const status = Number(game.gameStatus ?? 0);
+  if (status >= 2) {
+    return true;
+  }
+
+  if (isIfNecessary(game.ifNecessary)) {
+    return false;
+  }
+
+  return Boolean(game.homeTeam?.teamId && game.awayTeam?.teamId);
+}
+
+function filterStoredPlayoffGames<T extends { id?: string | number | null; status?: string; ifNecessary?: boolean | string; homeTeam?: TeamAsset | null; awayTeam?: TeamAsset | null }>(games: T[]) {
+  return games.filter((game) => {
+    if (!isPostseasonGameId(game.id)) {
+      return false;
+    }
+
+    if (game.status === "live" || game.status === "final") {
+      return true;
+    }
+
+    if (isIfNecessary(game.ifNecessary)) {
+      return false;
+    }
+
+    return hasBothTeams(game);
+  });
 }
 
 async function getOfficialScheduleGames(env: Env) {
@@ -247,7 +292,7 @@ async function getOfficialScheduleGames(env: Env) {
     leagueSchedule?: { gameDates?: Array<{ games?: Array<Record<string, any>> }> };
   }>(LIVE_SCHEDULE_URL, LIVE_SCHEDULE_TTL_MS);
   const rawGames = payload?.leagueSchedule?.gameDates?.flatMap((gameDate) => gameDate.games ?? []) ?? [];
-  const postseasonGames = rawGames.filter((game) => isPostseasonGameId(String(game.gameId ?? "")));
+  const postseasonGames = rawGames.filter(isConfirmedOfficialPlayoffGame);
 
   return annotateGamesWithPlayoffPeriods(
     postseasonGames
@@ -266,6 +311,7 @@ async function getOfficialScheduleGames(env: Env) {
           away: awayTeam.name ?? "TBD",
           status: normalizeLiveGameStatus(game.gameStatus),
           statusText: String(game.gameStatusText ?? ""),
+          ifNecessary: isIfNecessary(game.ifNecessary),
           homeScore: toNullableNumber(game.homeTeam?.score ?? game.homeTeam?.points),
           awayScore: toNullableNumber(game.awayTeam?.score ?? game.awayTeam?.points),
           stageLabel: getPostseasonStageLabel(String(game.gameId)),

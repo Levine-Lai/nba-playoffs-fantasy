@@ -230,6 +230,7 @@ export interface ScheduleGame {
   homeScore?: number | null;
   awayScore?: number | null;
   statusText?: string;
+  ifNecessary?: boolean;
   stageLabel?: string;
 }
 

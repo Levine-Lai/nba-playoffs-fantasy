@@ -126,6 +126,26 @@ function isPostseasonGameId(gameId) {
   return id.startsWith("004");
 }
 
+function isIfNecessary(value) {
+  return value === true || String(value).toLowerCase() === "true";
+}
+
+function isConfirmedPlayoffGame(game) {
+  if (!isPostseasonGameId(game.gameId)) {
+    return false;
+  }
+
+  if (Number(game.gameStatus ?? 0) >= 2) {
+    return true;
+  }
+
+  if (isIfNecessary(game.ifNecessary)) {
+    return false;
+  }
+
+  return Boolean(game.homeTeam?.teamId && game.awayTeam?.teamId);
+}
+
 function toDeadlineIso(dateInput, leadMinutes = 30) {
   const date = new Date(dateInput ?? "");
   if (!Number.isFinite(date.getTime())) {
@@ -244,6 +264,7 @@ function buildScheduleCache(playoffGames) {
       home: game.homeTeam?.teamName ? `${game.homeTeam.teamCity} ${game.homeTeam.teamName}` : "TBD",
       away: game.awayTeam?.teamName ? `${game.awayTeam.teamCity} ${game.awayTeam.teamName}` : "TBD",
       status: game.gameStatus === 3 ? "final" : game.gameStatus === 2 ? "live" : "upcoming",
+      ifNecessary: isIfNecessary(game.ifNecessary),
       homeTeam: game.homeTeam?.teamId
         ? {
             name: `${game.homeTeam.teamCity} ${game.homeTeam.teamName}`,
@@ -293,7 +314,7 @@ function buildScheduleCache(playoffGames) {
 function extractPlayoffGames(scheduleData) {
   return (scheduleData?.leagueSchedule?.gameDates ?? [])
     .flatMap((gameDate) => (gameDate.games ?? []).map((game) => ({ ...game, scheduleDate: gameDate.gameDate })))
-    .filter((game) => isPostseasonGameId(game.gameId));
+    .filter(isConfirmedPlayoffGame);
 }
 
 const scheduleData = await fetchJson(SCHEDULE_URL);
