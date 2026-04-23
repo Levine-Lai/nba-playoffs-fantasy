@@ -840,7 +840,7 @@ export default function TransactionsPage() {
                     <div className={`${group.colorClass} grid grid-cols-[1fr_62px_62px] items-center px-4 py-3 text-sm`}>
                       <div>{group.label}</div>
                       <div className="text-center">$</div>
-                      <div className="text-center">**</div>
+                      <div className="text-center">avg</div>
                     </div>
                     {group.players.map((player) => {
                       const isSelected = pendingDrafts.some((draft) => draft.inPlayer?.id === player.id);

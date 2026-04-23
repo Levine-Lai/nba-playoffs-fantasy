@@ -75,6 +75,12 @@ type PlayerDataSummary = {
 
 let playerDataSummaryCache: { expiresAt: number; value: PlayerDataSummary } | null = null;
 
+export function getActiveMarketTeamCodes(nextMatchupByTeam = new Map<string, NextMatchup>()) {
+  return [...nextMatchupByTeam.keys()]
+    .map((teamCode) => Number(teamCode))
+    .filter((teamCode) => Number.isFinite(teamCode) && teamCode > 0);
+}
+
 function safeJsonParse<T>(value: string, fallback: T) {
   try {
     return JSON.parse(value) as T;
@@ -589,6 +595,12 @@ export async function searchPlayerPool(
 ) {
   const clauses = ["p.can_select = 1"];
   const bindings: unknown[] = [];
+  const activeTeamCodes = getActiveMarketTeamCodes(nextMatchupByTeam);
+
+  if (activeTeamCodes.length) {
+    clauses.push(`t.code IN (${activeTeamCodes.map(() => "?").join(",")})`);
+    bindings.push(...activeTeamCodes);
+  }
 
   if (filters.search) {
     clauses.push("(p.web_name LIKE ? OR p.first_name LIKE ? OR p.second_name LIKE ?)");

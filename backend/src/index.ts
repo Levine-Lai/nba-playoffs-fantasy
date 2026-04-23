@@ -25,6 +25,7 @@ import {
   createSession,
   DB_PATH_LABEL,
   deleteSession,
+  getActiveMarketTeamCodes,
   getAuthenticatedUserByToken,
   getPlayerDataSummary,
   getPlayersByIds,
@@ -80,6 +81,21 @@ const DEFAULT_LINEUP_CORRECTIONS: LineupCorrectionRegistry = {
     }
   }
 };
+
+function filterPlayerMarketMetaTeams<T extends { teams: Array<{ code?: number | null }> }>(
+  meta: T,
+  activeTeamCodes: number[]
+) {
+  if (!activeTeamCodes.length) {
+    return meta;
+  }
+
+  const activeTeamCodeSet = new Set(activeTeamCodes);
+  return {
+    ...meta,
+    teams: meta.teams.filter((team) => typeof team.code === "number" && activeTeamCodeSet.has(team.code))
+  };
+}
 
 type ScoringPeriodContext = {
   key: string;
@@ -1912,7 +1928,7 @@ export default {
         return json(
           {
             players,
-            meta: await getPlayerDataSummary(env)
+            meta: filterPlayerMarketMetaTeams(await getPlayerDataSummary(env), getActiveMarketTeamCodes(nextMatchupByTeam))
           },
           { status: 200 },
           env
