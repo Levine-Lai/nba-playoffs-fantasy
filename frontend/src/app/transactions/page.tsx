@@ -156,6 +156,43 @@ function getDisplayedChipState(card: ChipCardState, locallySelected: boolean) {
 
 const MAX_COST_OPTIONS = Array.from({ length: 38 }, (_, index) => (23 - index * 0.5).toFixed(1));
 
+function getTeamOptionsFromPlayers(players: Player[]) {
+  const optionsById = new Map<number, TeamOption>();
+  players.forEach((player) => {
+    const id = Number(player.teamId ?? 0);
+    if (id && !optionsById.has(id)) {
+      optionsById.set(id, { id, name: player.team });
+    }
+  });
+
+  return [...optionsById.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function isDefaultSelectionState({
+  view,
+  sort,
+  debouncedSearch,
+  maxSalary,
+  replacementFocusId,
+  openReplacementPositions
+}: {
+  view: string;
+  sort: SortMode;
+  debouncedSearch: string;
+  maxSalary: string;
+  replacementFocusId: string | null;
+  openReplacementPositions: string[];
+}) {
+  return (
+    view === "all" &&
+    sort === "salary" &&
+    !debouncedSearch &&
+    !maxSalary &&
+    !replacementFocusId &&
+    openReplacementPositions.length === 0
+  );
+}
+
 export default function TransactionsPage() {
   const [data, setData] = useState<TransactionsResponse | null>(null);
   const [selection, setSelection] = useState<Player[]>([]);
@@ -260,15 +297,34 @@ export default function TransactionsPage() {
     getTransactionsOptions()
       .then((payload) => {
         setData(payload);
+        setSelection(payload.market);
+        setTeamOptions(getTeamOptionsFromPlayers(payload.market));
         setChipDraft(null);
       })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "Failed to load transaction data."));
   }, []);
 
   useEffect(() => {
+    if (
+      data &&
+      isDefaultSelectionState({
+        view,
+        sort,
+        debouncedSearch,
+        maxSalary,
+        replacementFocusId,
+        openReplacementPositions
+      })
+    ) {
+      setSelection(data.market);
+      setTeamOptions(getTeamOptionsFromPlayers(data.market));
+      setLoadingSelection(false);
+      return;
+    }
+
     void loadSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, sort, replacementFocusId, debouncedSearch, maxSalary, openReplacementPositions]);
+  }, [data, view, sort, replacementFocusId, debouncedSearch, maxSalary, openReplacementPositions]);
 
   const actionPlayer = useMemo(() => {
     if (!playerModalId) {

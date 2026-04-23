@@ -32,6 +32,7 @@ type ResponseCacheEntry = {
 };
 
 const responseCache = new Map<string, ResponseCacheEntry>();
+const pendingGetRequests = new Map<string, Promise<unknown>>();
 
 function buildCacheKey(path: string, method: string, token: string | null) {
   return `${method}:${token ?? "anon"}:${API_BASE}${path}`;
@@ -74,63 +75,83 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
     return cached.data as T;
   }
 
-  let attempt = 0;
-  const maxRetries = options.retries ?? (method === "GET" ? 1 : 0);
-
-  while (true) {
-    try {
-      const response = await fetchWithTimeout(
-        `${API_BASE}${path}`,
-        {
-          ...init,
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(init?.headers ?? {})
-          },
-          cache: "no-store"
-        },
-        options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-      );
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? (response.status === 401 ? "Please log in first." : "Request failed"));
-      }
-
-      const data = (await response.json()) as T;
-
-      if (cacheKey && options.cacheTtlMs) {
-        const cachedAt = Date.now();
-        responseCache.set(cacheKey, {
-          data,
-          expiresAt: cachedAt + options.cacheTtlMs,
-          staleUntil: cachedAt + Math.max(options.cacheTtlMs * 6, 60000)
-        });
-      }
-
-      if (method !== "GET") {
-        clearResponseCache();
-      }
-
-      return data;
-    } catch (error) {
-      if (attempt < maxRetries && isNetworkError(error)) {
-        attempt += 1;
-        continue;
-      }
-
-      if (cacheKey && options.allowStaleOnError && cached && cached.staleUntil > Date.now()) {
-        return cached.data as T;
-      }
-
-      if (isNetworkError(error)) {
-        throw new Error("Network error. Please try again.");
-      }
-
-      throw error instanceof Error ? error : new Error("Request failed");
-    }
+  const pendingRequest = cacheKey ? pendingGetRequests.get(cacheKey) : null;
+  if (pendingRequest) {
+    return pendingRequest as Promise<T>;
   }
+
+  const runRequest = async () => {
+    let attempt = 0;
+    const maxRetries = options.retries ?? (method === "GET" ? 1 : 0);
+
+    while (true) {
+      try {
+        const response = await fetchWithTimeout(
+          `${API_BASE}${path}`,
+          {
+            ...init,
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(init?.headers ?? {})
+            },
+            cache: "no-store"
+          },
+          options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+        );
+
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? (response.status === 401 ? "Please log in first." : "Request failed"));
+        }
+
+        const data = (await response.json()) as T;
+
+        if (cacheKey && options.cacheTtlMs) {
+          const cachedAt = Date.now();
+          responseCache.set(cacheKey, {
+            data,
+            expiresAt: cachedAt + options.cacheTtlMs,
+            staleUntil: cachedAt + Math.max(options.cacheTtlMs * 6, 60000)
+          });
+        }
+
+        if (method !== "GET") {
+          clearResponseCache();
+        }
+
+        return data;
+      } catch (error) {
+        if (attempt < maxRetries && isNetworkError(error)) {
+          attempt += 1;
+          continue;
+        }
+
+        if (cacheKey && options.allowStaleOnError && cached && cached.staleUntil > Date.now()) {
+          return cached.data as T;
+        }
+
+        if (isNetworkError(error)) {
+          throw new Error("Network error. Please try again.");
+        }
+
+        throw error instanceof Error ? error : new Error("Request failed");
+      }
+    }
+  };
+
+  const requestPromise = runRequest();
+  if (cacheKey) {
+    pendingGetRequests.set(cacheKey, requestPromise);
+    const clearPendingRequest = () => {
+      if (pendingGetRequests.get(cacheKey) === requestPromise) {
+        pendingGetRequests.delete(cacheKey);
+      }
+    };
+    requestPromise.then(clearPendingRequest, clearPendingRequest);
+  }
+
+  return requestPromise;
 }
 
 export function register(account: string, gameId: string, password: string, confirmPassword: string) {

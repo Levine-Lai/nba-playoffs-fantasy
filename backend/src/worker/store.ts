@@ -17,6 +17,7 @@ import type {
 
 export const DB_PATH_LABEL = "d1://PLAYOFF_FANTASY_DB";
 const USER_CHIPS_STATE_KEY = "user_chips_v1";
+const PLAYER_DATA_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type UserRow = {
   id: number;
@@ -62,6 +63,17 @@ type PlayerRow = {
   canSelect: number;
   canTransact: number;
 };
+
+type PlayerDataSummary = {
+  players: number;
+  teams: Array<{ id: number; code: number | null; name: string; shortName: string }>;
+  elementTypes: Array<{ id: number; singularName: string; shortName: string; squadSelect: number }>;
+  firstDeadline: string | null;
+  weeklyFreeTransfers: number;
+  initialBudget: number;
+};
+
+let playerDataSummaryCache: { expiresAt: number; value: PlayerDataSummary } | null = null;
 
 function safeJsonParse<T>(value: string, fallback: T) {
   try {
@@ -647,6 +659,11 @@ export async function searchPlayerPool(
 }
 
 export async function getPlayerDataSummary(env: Env) {
+  const now = Date.now();
+  if (playerDataSummaryCache && playerDataSummaryCache.expiresAt > now) {
+    return playerDataSummaryCache.value;
+  }
+
   const [countRow, teams, elementTypes] = await Promise.all([
     first<{ count: number }>(env, "SELECT COUNT(*) AS count FROM players"),
     all<{ id: number; code: number | null; name: string; shortName: string }>(
@@ -665,7 +682,7 @@ export async function getPlayerDataSummary(env: Env) {
     getRuleValue(env, "initial_budget", "100")
   ]);
 
-  return {
+  const summary = {
     players: Number(countRow?.count ?? 0),
     teams,
     elementTypes,
@@ -673,6 +690,13 @@ export async function getPlayerDataSummary(env: Env) {
     weeklyFreeTransfers: Number(weeklyFreeTransfers ?? 6),
     initialBudget: Number(initialBudget ?? 100)
   };
+
+  playerDataSummaryCache = {
+    value: summary,
+    expiresAt: now + PLAYER_DATA_SUMMARY_CACHE_TTL_MS
+  };
+
+  return summary;
 }
 
 export async function listStandingMembers(env: Env) {
