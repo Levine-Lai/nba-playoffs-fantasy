@@ -1216,7 +1216,6 @@ button:disabled {
   }
 
   .court-formation--pixel-bg {
-    --court-pixel-bg-width: clamp(320px, 44%, 540px);
     position: relative;
     isolation: isolate;
     overflow: hidden;
@@ -1226,18 +1225,7 @@ button:disabled {
   }
 
   .court-formation--pixel-bg::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: var(--court-pixel-bg-width);
-    aspect-ratio: 887 / 1774;
-    z-index: 0;
-    background: url("/backgrounds/points-pixel-court.png") center / contain no-repeat;
-    image-rendering: pixelated;
-    opacity: 0.96;
-    pointer-events: none;
-    transform: translate(-50%, -50%) rotate(90deg);
+    content: none;
   }
 
   .court-row {
