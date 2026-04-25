@@ -144,6 +144,7 @@ type LoadStateOptions = {
 };
 
 let standingPayloadRefreshPromise: Promise<void> | null = null;
+let standingPayloadRefreshStartedAt = 0;
 
 function extractBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -677,10 +678,15 @@ async function readLeaguePointsLedger(env: Env) {
 
 async function writeLeaguePointsLedger(env: Env, ledger: LeaguePointsLedger) {
   await writeAppState(env, LEAGUE_POINTS_LEDGER_KEY, ledger);
+  await invalidateStandingPayloadCache(env);
 }
 
 async function readStandingPayloadCache(env: Env) {
   return readAppState<StandingPayloadCache>(env, STANDING_PAYLOAD_CACHE_KEY, {});
+}
+
+async function invalidateStandingPayloadCache(env: Env) {
+  await writeAppState(env, STANDING_PAYLOAD_CACHE_KEY, {});
 }
 
 async function writeStandingPayloadCache(env: Env, cache: StandingPayloadCache) {
@@ -990,6 +996,15 @@ function isFreshStandingCacheEntry(entry: StandingPayloadCacheEntry | undefined)
   return Boolean(entry && new Date(entry.expiresAt).getTime() > Date.now());
 }
 
+function shouldQueueStandingPayloadRefresh(payload: StandingPayload) {
+  const refreshIntervalMs = Number(payload.refreshIntervalMs ?? 0);
+  if (!Number.isFinite(refreshIntervalMs) || refreshIntervalMs <= 0) {
+    return false;
+  }
+
+  return Date.now() - standingPayloadRefreshStartedAt >= refreshIntervalMs;
+}
+
 function withStandingRefreshRetry(payload: StandingPayload) {
   if (payload.refreshIntervalMs && payload.refreshIntervalMs > 0) {
     return payload;
@@ -1181,6 +1196,7 @@ function queueStandingPayloadRefresh(env: Env, ctx?: ExecutionContext) {
     });
 
   standingPayloadRefreshPromise = refreshPromise;
+  standingPayloadRefreshStartedAt = Date.now();
 
   if (ctx) {
     ctx.waitUntil(refreshPromise);
@@ -1192,6 +1208,9 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, 
   const requestedKey = getRequestedStandingPhaseKey(requestedPhaseKey);
   const requestedCacheEntry = cache[requestedKey];
   if (isFreshStandingCacheEntry(requestedCacheEntry)) {
+    if (shouldQueueStandingPayloadRefresh(requestedCacheEntry!.payload)) {
+      queueStandingPayloadRefresh(env, ctx);
+    }
     return requestedCacheEntry.payload;
   }
 
@@ -1199,6 +1218,9 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, 
   const selectedPhaseKey = getSelectedStandingPhaseKey(phaseOptions, requestedPhaseKey);
   const selectedCacheEntry = cache[selectedPhaseKey];
   if (isFreshStandingCacheEntry(selectedCacheEntry)) {
+    if (shouldQueueStandingPayloadRefresh(selectedCacheEntry!.payload)) {
+      queueStandingPayloadRefresh(env, ctx);
+    }
     return selectedCacheEntry.payload;
   }
 
@@ -1555,6 +1577,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
     state.overallPoints = Number(overallPoints.toFixed(1));
     await saveStateForUser(env, userId, state);
+    await invalidateStandingPayloadCache(env);
     return {
       ok: true as const,
       payload: {
@@ -1570,6 +1593,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
   state.overallPoints = Number(overallPoints.toFixed(1));
   await saveStateForUser(env, userId, state);
+  await invalidateStandingPayloadCache(env);
 
   return {
     ok: true as const,
@@ -2026,6 +2050,7 @@ export default {
 
         if (stateChanged) {
           await saveStateForUser(env, auth.authUser.id, state);
+          await invalidateStandingPayloadCache(env);
         }
 
         if (hasCreatedTeam(state)) {
@@ -2039,6 +2064,7 @@ export default {
 
         if (stateChanged) {
           await saveStateForUser(env, auth.authUser.id, state);
+          await invalidateStandingPayloadCache(env);
         }
 
         const displayState = getDisplayProfileState(state, beforeDeadline);
