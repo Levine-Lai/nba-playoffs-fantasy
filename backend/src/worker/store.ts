@@ -201,6 +201,7 @@ export async function readAppState<T>(env: Env, key: string, fallback: T) {
 
 export async function writeAppState(env: Env, key: string, value: unknown) {
   const now = new Date().toISOString();
+  const serialized = JSON.stringify(value);
   await run(
     env,
     `
@@ -209,7 +210,7 @@ export async function writeAppState(env: Env, key: string, value: unknown) {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
     `,
     key,
-    JSON.stringify(value),
+    serialized,
     now
   );
 }

@@ -448,9 +448,43 @@ function cloneStoredLineupSnapshot(snapshot: StoredLineupSnapshot): StoredLineup
   };
 }
 
+function compactLockedPlayer(player: Player): Player {
+  return {
+    id: String(player.id ?? ""),
+    code: player.code ?? null,
+    name: player.name,
+    teamId: player.teamId ?? null,
+    teamCode: player.teamCode ?? null,
+    team: player.team,
+    position: player.position,
+    salary: Number(player.salary ?? 0),
+    points: Number(player.points ?? 0),
+    pointsWindowKey: player.pointsWindowKey ?? null
+  };
+}
+
+function compactStoredLineupSnapshot(snapshot: StoredLineupSnapshot): StoredLineupSnapshot {
+  return {
+    starters: snapshot.starters.map(compactLockedPlayer),
+    bench: snapshot.bench.map(compactLockedPlayer),
+    captainId: snapshot.captainId ?? "",
+    rosterValue: Number(snapshot.rosterValue ?? 0),
+    bank: Number(snapshot.bank ?? 0)
+  };
+}
+
 function cloneLockedLineupEntry(entry: LockedLineupEntry): LockedLineupEntry {
   return {
     snapshot: cloneStoredLineupSnapshot(entry.snapshot),
+    capturedAt: entry.capturedAt,
+    source: entry.source,
+    note: entry.note
+  };
+}
+
+function compactLockedLineupEntry(entry: LockedLineupEntry): LockedLineupEntry {
+  return {
+    snapshot: compactStoredLineupSnapshot(entry.snapshot),
     capturedAt: entry.capturedAt,
     source: entry.source,
     note: entry.note
@@ -496,12 +530,23 @@ function mergeLineupCorrectionRegistry(
   return merged;
 }
 
+function compactLineupLockRegistry(registry: LineupLockRegistry): LineupLockRegistry {
+  return Object.fromEntries(
+    Object.entries(registry).map(([userKey, periods]) => [
+      userKey,
+      Object.fromEntries(
+        Object.entries(periods ?? {}).map(([periodKey, entry]) => [periodKey, compactLockedLineupEntry(entry)])
+      )
+    ])
+  );
+}
+
 async function readLineupLockRegistry(env: Env) {
   return readAppState<LineupLockRegistry>(env, LINEUP_LOCKS_KEY, {});
 }
 
 async function writeLineupLockRegistry(env: Env, registry: LineupLockRegistry) {
-  await writeAppState(env, LINEUP_LOCKS_KEY, registry);
+  await writeAppState(env, LINEUP_LOCKS_KEY, compactLineupLockRegistry(registry));
 }
 
 async function readLineupCorrectionRegistry(env: Env) {
