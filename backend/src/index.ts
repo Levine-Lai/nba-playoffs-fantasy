@@ -912,8 +912,12 @@ function compareStandingIdentity(left: StandingMemberEntry, right: StandingMembe
   return String(left.gameId ?? "").localeCompare(String(right.gameId ?? ""), undefined, { sensitivity: "base" });
 }
 
+function getPreGamedayOverallPoints(member: StandingMemberEntry) {
+  return Number((Number(member.totalPoints ?? 0) - Number(member.phasePoints ?? 0)).toFixed(1));
+}
+
 function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
-  const overallMembers = members
+  const rankedOverallMembers = members
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
       const ledgerTotal = sumLeagueLedgerPoints(entries);
@@ -940,10 +944,31 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
     })
     .map((member, index) => ({
       ...member,
-      rank: index + 1,
-      previousRank: index + 1
+      rank: index + 1
     }));
 
+  const preGamedayOverallRankByUserId = new Map(
+    rankedOverallMembers
+      .slice()
+      .sort((left, right) => {
+        const pointsDiff = getPreGamedayOverallPoints(right) - getPreGamedayOverallPoints(left);
+        if (pointsDiff !== 0) {
+          return pointsDiff;
+        }
+
+        const transferDiff = Number(left.totalTransfers ?? 0) - Number(right.totalTransfers ?? 0);
+        if (transferDiff !== 0) {
+          return transferDiff;
+        }
+
+        return compareStandingIdentity(left, right);
+      })
+      .map((member, index) => [member.userId, index + 1])
+  );
+  const overallMembers = rankedOverallMembers.map((member) => ({
+    ...member,
+    previousRank: preGamedayOverallRankByUserId.get(member.userId) ?? member.rank
+  }));
   const overallRankByUserId = new Map(overallMembers.map((member) => [member.userId, member.rank]));
 
   if (phaseKey === "overall") {
