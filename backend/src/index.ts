@@ -922,7 +922,7 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
       return {
         ...member,
         totalPoints,
-        phasePoints: totalPoints
+        phasePoints: Number(member.gamedayPoints ?? 0)
       };
     })
     .sort((left, right) => {
@@ -953,9 +953,10 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
   return overallMembers
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
+      const phasePoints = getLeaguePhasePoints(entries, phaseKey);
       return {
         ...member,
-        phasePoints: getLeaguePhasePoints(entries, phaseKey),
+        phasePoints,
         previousRank: overallRankByUserId.get(member.userId) ?? member.rank
       };
     })
@@ -977,10 +978,15 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
 
       return compareStandingIdentity(left, right);
     })
-    .map((member, index) => ({
-      ...member,
-      rank: index + 1
-    }));
+    .map((member, index) => {
+      const phasePoints = Number(member.phasePoints ?? 0);
+      return {
+        ...member,
+        rank: index + 1,
+        phasePoints,
+        totalPoints: phasePoints
+      };
+    });
 }
 
 function getRequestedStandingPhaseKey(requestedPhaseKey: string | null) {
