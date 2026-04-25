@@ -1591,7 +1591,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   if (targetPhase !== "overall") {
     const targetPeriod = await getOfficialPlayoffPeriodByPhaseKey(env, targetPhase).catch(() => null);
     if (targetPeriod) {
-      const historicalState = await buildRosterStateForPeriod(
+      const historicalState = await hydrateStateAssets(env, await buildRosterStateForPeriod(
         env,
         userId,
         targetUser.gameId,
@@ -1600,7 +1600,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
         targetPeriod,
         lineupLocks,
         lineupCorrections
-      );
+      ));
       const preview = await buildOfficialPointsPreviewForPeriod(env, historicalState, targetPeriod.key, false).catch(() => null);
 
       if (preview) {
@@ -1643,7 +1643,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     await writeLineupLockRegistry(env, lineupLocks);
     shouldPersistLineupLocks = false;
   }
-  const scoringState = resolvedScoringState.state;
+  const scoringState = await hydrateStateAssets(env, resolvedScoringState.state);
   const preserveRosterPoints =
     Boolean(scoringPeriod) && isChipActiveForPeriod(chips.allStar.activePeriodKey, scoringPeriod?.key) && Boolean(chips.allStar.activeLineup);
   const livePreview = await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null);
