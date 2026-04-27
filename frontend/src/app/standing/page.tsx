@@ -124,6 +124,7 @@ export default function StandingPage() {
             {data.members.length ? (
               data.members.map((member) => {
                 const isCurrentUser = member.userId === currentUserId;
+                const displayedPhasePoints = member.phasePoints ?? member.gamedayPoints ?? 0;
 
                 return (
                 <tr
@@ -156,7 +157,7 @@ export default function StandingPage() {
                       </Link>
                     )}
                   </td>
-                  <td>{data.visible === false ? "-" : formatFantasyPoints(member.gamedayPoints ?? 0)}</td>
+                  <td>{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
                   <td>{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
                 </tr>
               );

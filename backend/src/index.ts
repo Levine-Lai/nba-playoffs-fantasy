@@ -144,6 +144,7 @@ type LoadStateOptions = {
 };
 
 let standingPayloadRefreshPromise: Promise<void> | null = null;
+let standingPayloadRefreshStartedAt = 0;
 
 function extractBearerToken(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -447,9 +448,43 @@ function cloneStoredLineupSnapshot(snapshot: StoredLineupSnapshot): StoredLineup
   };
 }
 
+function compactLockedPlayer(player: Player): Player {
+  return {
+    id: String(player.id ?? ""),
+    code: player.code ?? null,
+    name: player.name,
+    teamId: player.teamId ?? null,
+    teamCode: player.teamCode ?? null,
+    team: player.team,
+    position: player.position,
+    salary: Number(player.salary ?? 0),
+    points: Number(player.points ?? 0),
+    pointsWindowKey: player.pointsWindowKey ?? null
+  };
+}
+
+function compactStoredLineupSnapshot(snapshot: StoredLineupSnapshot): StoredLineupSnapshot {
+  return {
+    starters: snapshot.starters.map(compactLockedPlayer),
+    bench: snapshot.bench.map(compactLockedPlayer),
+    captainId: snapshot.captainId ?? "",
+    rosterValue: Number(snapshot.rosterValue ?? 0),
+    bank: Number(snapshot.bank ?? 0)
+  };
+}
+
 function cloneLockedLineupEntry(entry: LockedLineupEntry): LockedLineupEntry {
   return {
     snapshot: cloneStoredLineupSnapshot(entry.snapshot),
+    capturedAt: entry.capturedAt,
+    source: entry.source,
+    note: entry.note
+  };
+}
+
+function compactLockedLineupEntry(entry: LockedLineupEntry): LockedLineupEntry {
+  return {
+    snapshot: compactStoredLineupSnapshot(entry.snapshot),
     capturedAt: entry.capturedAt,
     source: entry.source,
     note: entry.note
@@ -495,12 +530,23 @@ function mergeLineupCorrectionRegistry(
   return merged;
 }
 
+function compactLineupLockRegistry(registry: LineupLockRegistry): LineupLockRegistry {
+  return Object.fromEntries(
+    Object.entries(registry).map(([userKey, periods]) => [
+      userKey,
+      Object.fromEntries(
+        Object.entries(periods ?? {}).map(([periodKey, entry]) => [periodKey, compactLockedLineupEntry(entry)])
+      )
+    ])
+  );
+}
+
 async function readLineupLockRegistry(env: Env) {
   return readAppState<LineupLockRegistry>(env, LINEUP_LOCKS_KEY, {});
 }
 
 async function writeLineupLockRegistry(env: Env, registry: LineupLockRegistry) {
-  await writeAppState(env, LINEUP_LOCKS_KEY, registry);
+  await writeAppState(env, LINEUP_LOCKS_KEY, compactLineupLockRegistry(registry));
 }
 
 async function readLineupCorrectionRegistry(env: Env) {
@@ -677,10 +723,15 @@ async function readLeaguePointsLedger(env: Env) {
 
 async function writeLeaguePointsLedger(env: Env, ledger: LeaguePointsLedger) {
   await writeAppState(env, LEAGUE_POINTS_LEDGER_KEY, ledger);
+  await invalidateStandingPayloadCache(env);
 }
 
 async function readStandingPayloadCache(env: Env) {
   return readAppState<StandingPayloadCache>(env, STANDING_PAYLOAD_CACHE_KEY, {});
+}
+
+async function invalidateStandingPayloadCache(env: Env) {
+  await writeAppState(env, STANDING_PAYLOAD_CACHE_KEY, {});
 }
 
 async function writeStandingPayloadCache(env: Env, cache: StandingPayloadCache) {
@@ -935,8 +986,12 @@ function shouldSyncLivePreviewPoints(preview: any) {
   return scoringPlayers.some((player) => String(player?.upcoming?.[1] ?? "").toUpperCase() !== "PRE");
 }
 
+function getPreGamedayOverallPoints(member: StandingMemberEntry) {
+  return Number((Number(member.totalPoints ?? 0) - Number(member.phasePoints ?? 0)).toFixed(1));
+}
+
 function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
-  const overallMembers = members
+  const rankedOverallMembers = members
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
       const ledgerTotal = sumLeagueLedgerPoints(entries);
@@ -945,7 +1000,7 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
       return {
         ...member,
         totalPoints,
-        phasePoints: totalPoints
+        phasePoints: Number(member.gamedayPoints ?? 0)
       };
     })
     .sort((left, right) => {
@@ -963,10 +1018,31 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
     })
     .map((member, index) => ({
       ...member,
-      rank: index + 1,
-      previousRank: index + 1
+      rank: index + 1
     }));
 
+  const preGamedayOverallRankByUserId = new Map(
+    rankedOverallMembers
+      .slice()
+      .sort((left, right) => {
+        const pointsDiff = getPreGamedayOverallPoints(right) - getPreGamedayOverallPoints(left);
+        if (pointsDiff !== 0) {
+          return pointsDiff;
+        }
+
+        const transferDiff = Number(left.totalTransfers ?? 0) - Number(right.totalTransfers ?? 0);
+        if (transferDiff !== 0) {
+          return transferDiff;
+        }
+
+        return compareStandingIdentity(left, right);
+      })
+      .map((member, index) => [member.userId, index + 1])
+  );
+  const overallMembers = rankedOverallMembers.map((member) => ({
+    ...member,
+    previousRank: preGamedayOverallRankByUserId.get(member.userId) ?? member.rank
+  }));
   const overallRankByUserId = new Map(overallMembers.map((member) => [member.userId, member.rank]));
 
   if (phaseKey === "overall") {
@@ -976,9 +1052,10 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
   return overallMembers
     .map((member) => {
       const entries = Object.values(ledger[member.userId] ?? {});
+      const phasePoints = getLeaguePhasePoints(entries, phaseKey);
       return {
         ...member,
-        phasePoints: getLeaguePhasePoints(entries, phaseKey),
+        phasePoints,
         previousRank: overallRankByUserId.get(member.userId) ?? member.rank
       };
     })
@@ -1000,10 +1077,15 @@ function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, le
 
       return compareStandingIdentity(left, right);
     })
-    .map((member, index) => ({
-      ...member,
-      rank: index + 1
-    }));
+    .map((member, index) => {
+      const phasePoints = Number(member.phasePoints ?? 0);
+      return {
+        ...member,
+        rank: index + 1,
+        phasePoints,
+        totalPoints: phasePoints
+      };
+    });
 }
 
 function getRequestedStandingPhaseKey(requestedPhaseKey: string | null) {
@@ -1017,6 +1099,15 @@ function getSelectedStandingPhaseKey(phaseOptions: Awaited<ReturnType<typeof get
 
 function isFreshStandingCacheEntry(entry: StandingPayloadCacheEntry | undefined) {
   return Boolean(entry && new Date(entry.expiresAt).getTime() > Date.now());
+}
+
+function shouldQueueStandingPayloadRefresh(payload: StandingPayload) {
+  const refreshIntervalMs = Number(payload.refreshIntervalMs ?? 0);
+  if (!Number.isFinite(refreshIntervalMs) || refreshIntervalMs <= 0) {
+    return false;
+  }
+
+  return Date.now() - standingPayloadRefreshStartedAt >= refreshIntervalMs;
 }
 
 function withStandingRefreshRetry(payload: StandingPayload) {
@@ -1213,6 +1304,7 @@ function queueStandingPayloadRefresh(env: Env, ctx?: ExecutionContext) {
     });
 
   standingPayloadRefreshPromise = refreshPromise;
+  standingPayloadRefreshStartedAt = Date.now();
 
   if (ctx) {
     ctx.waitUntil(refreshPromise);
@@ -1224,6 +1316,9 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, 
   const requestedKey = getRequestedStandingPhaseKey(requestedPhaseKey);
   const requestedCacheEntry = cache[requestedKey];
   if (isFreshStandingCacheEntry(requestedCacheEntry)) {
+    if (shouldQueueStandingPayloadRefresh(requestedCacheEntry!.payload)) {
+      queueStandingPayloadRefresh(env, ctx);
+    }
     return requestedCacheEntry.payload;
   }
 
@@ -1231,6 +1326,9 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, 
   const selectedPhaseKey = getSelectedStandingPhaseKey(phaseOptions, requestedPhaseKey);
   const selectedCacheEntry = cache[selectedPhaseKey];
   if (isFreshStandingCacheEntry(selectedCacheEntry)) {
+    if (shouldQueueStandingPayloadRefresh(selectedCacheEntry!.payload)) {
+      queueStandingPayloadRefresh(env, ctx);
+    }
     return selectedCacheEntry.payload;
   }
 
@@ -1525,7 +1623,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   if (targetPhase !== "overall") {
     const targetPeriod = await getOfficialPlayoffPeriodByPhaseKey(env, targetPhase).catch(() => null);
     if (targetPeriod) {
-      const historicalState = await buildRosterStateForPeriod(
+      const historicalState = await hydrateStateAssets(env, await buildRosterStateForPeriod(
         env,
         userId,
         targetUser.gameId,
@@ -1534,7 +1632,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
         targetPeriod,
         lineupLocks,
         lineupCorrections
-      );
+      ));
       const preview = await buildOfficialPointsPreviewForPeriod(env, historicalState, targetPeriod.key, false).catch(() => null);
 
       if (preview) {
@@ -1584,7 +1682,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     await writeLineupLockRegistry(env, lineupLocks);
     shouldPersistLineupLocks = false;
   }
-  const scoringState = resolvedScoringState.state;
+  const scoringState = await hydrateStateAssets(env, resolvedScoringState.state);
   const preserveRosterPoints =
     Boolean(scoringPeriod) && isChipActiveForPeriod(chips.allStar.activePeriodKey, scoringPeriod?.key) && Boolean(chips.allStar.activeLineup);
   const livePreview = await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null);
@@ -1596,6 +1694,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
       state.overallPoints = Number(overallPoints.toFixed(1));
     }
     await saveStateForUser(env, userId, state);
+    await invalidateStandingPayloadCache(env);
     return {
       ok: true as const,
       payload: {
@@ -1611,6 +1710,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
   state.overallPoints = Number(overallPoints.toFixed(1));
   await saveStateForUser(env, userId, state);
+  await invalidateStandingPayloadCache(env);
 
   return {
     ok: true as const,
@@ -2069,6 +2169,7 @@ export default {
 
         if (stateChanged) {
           await saveStateForUser(env, auth.authUser.id, state);
+          await invalidateStandingPayloadCache(env);
         }
 
         if (hasCreatedTeam(state)) {
@@ -2082,6 +2183,7 @@ export default {
 
         if (stateChanged) {
           await saveStateForUser(env, auth.authUser.id, state);
+          await invalidateStandingPayloadCache(env);
         }
 
         const displayState = getDisplayProfileState(state, beforeDeadline);
