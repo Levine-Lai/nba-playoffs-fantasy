@@ -860,6 +860,20 @@ function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, ph
   return 0;
 }
 
+function hasLeaguePhaseEntries(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
+  if (phaseKey === "overall") {
+    return Boolean(entries?.length);
+  }
+
+  const dayMatch = phaseKey.match(/^day-(\d+)$/);
+  if (dayMatch) {
+    const targetDay = Number(dayMatch[1]);
+    return Boolean((entries ?? []).some((entry) => entry.dayNumber === targetDay));
+  }
+
+  return false;
+}
+
 async function syncLeaguePointsLedger(
   env: Env,
   userId: string | number,
@@ -904,6 +918,21 @@ function compareStandingIdentity(left: StandingMemberEntry, right: StandingMembe
   }
 
   return String(left.gameId ?? "").localeCompare(String(right.gameId ?? ""), undefined, { sensitivity: "base" });
+}
+
+function shouldSyncLivePreviewPoints(preview: any) {
+  const finalPoints = Number(preview?.finalPoints ?? preview?.summary?.final ?? 0);
+  if (finalPoints !== 0) {
+    return true;
+  }
+
+  const lineupPlayers = [...(preview?.lineup?.starters ?? []), ...(preview?.lineup?.bench ?? [])];
+  const scoringPlayers = lineupPlayers.filter((player) => player?.countsForGameday === true);
+  if (!scoringPlayers.length) {
+    return true;
+  }
+
+  return scoringPlayers.some((player) => String(player?.upcoming?.[1] ?? "").toUpperCase() !== "PRE");
 }
 
 function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
@@ -1111,9 +1140,12 @@ async function rebuildStandingPayloadCache(env: Env) {
         let nextGamedayPoints = Number(
           (livePreview?.finalPoints ?? buildStoredPointsSnapshot(scoringState, currentScoringPeriod).summary.final ?? 0).toFixed(1)
         );
-        const ledgerSync = syncLeaguePointsLedgerInMemory(ledger, member.userId, currentScoringPeriod, nextGamedayPoints);
-        ledgerChanged = ledgerChanged || ledgerSync.changed;
-        let nextOverallPoints = Number(ledgerSync.total.toFixed(1));
+        let nextOverallPoints = Number(state.overallPoints ?? 0);
+        if (!livePreview || shouldSyncLivePreviewPoints(livePreview)) {
+          const ledgerSync = syncLeaguePointsLedgerInMemory(ledger, member.userId, currentScoringPeriod, nextGamedayPoints);
+          ledgerChanged = ledgerChanged || ledgerSync.changed;
+          nextOverallPoints = Number(ledgerSync.total.toFixed(1));
+        }
 
         if (shouldBackfillHistoricalCorrections(lineupCorrections, member.userId, member.gameId, currentScoringPeriod.key)) {
           const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips);
@@ -1506,8 +1538,15 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
       const preview = await buildOfficialPointsPreviewForPeriod(env, historicalState, targetPeriod.key, false).catch(() => null);
 
       if (preview) {
-        const phaseTotal = getLeaguePhasePoints(targetEntries, targetPhase);
-        const penaltyDelta = Number((phaseTotal - Number(preview.finalPoints ?? preview.summary.final ?? 0)).toFixed(1));
+        const previewFinal = Number(preview.finalPoints ?? preview.summary.final ?? 0);
+        const transferPenalty = await getTransferPenalty(env);
+        const actualPenaltyPoints = Number(
+          (-transferPenalty * countPenaltyTransfersForPeriod(state.history, targetPeriod.key)).toFixed(1)
+        );
+        const hasStoredPhasePoints = hasLeaguePhaseEntries(targetEntries, targetPhase);
+        const phaseTotal = hasStoredPhasePoints
+          ? getLeaguePhasePoints(targetEntries, targetPhase)
+          : Number((previewFinal + actualPenaltyPoints).toFixed(1));
         return {
           ok: true as const,
             payload: {
@@ -1517,8 +1556,8 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
                 final: phaseTotal
               },
             message:
-              penaltyDelta !== 0
-                ? `Includes ${penaltyDelta > 0 ? "+" : ""}${penaltyDelta.toFixed(1)} adjustment for transfer penalties on ${targetPeriod.label}.`
+              actualPenaltyPoints !== 0
+                ? `Includes ${actualPenaltyPoints > 0 ? "+" : ""}${actualPenaltyPoints.toFixed(1)} adjustment for transfer penalties on ${targetPeriod.label}.`
                 : preview.message,
             viewer
           }
@@ -1552,8 +1591,10 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   if (livePreview) {
     syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
     syncPersistedPointsState(state, livePreview.lineup, livePreview.finalPoints, preserveRosterPoints);
-    const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
-    state.overallPoints = Number(overallPoints.toFixed(1));
+    if (shouldSyncLivePreviewPoints(livePreview)) {
+      const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
+      state.overallPoints = Number(overallPoints.toFixed(1));
+    }
     await saveStateForUser(env, userId, state);
     return {
       ok: true as const,
@@ -2017,8 +2058,10 @@ export default {
         if (!beforeDeadline) {
           const currentPoints = Number(livePreview?.finalPoints ?? fallbackProfilePoints?.summary.final ?? state.gamedayPoints ?? 0);
           state.gamedayPoints = currentPoints;
-          const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, currentScoringPeriod, currentPoints);
-          state.overallPoints = Number(overallPoints.toFixed(1));
+          if (!livePreview || shouldSyncLivePreviewPoints(livePreview)) {
+            const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, currentScoringPeriod, currentPoints);
+            state.overallPoints = Number(overallPoints.toFixed(1));
+          }
           stateChanged = true;
         } else if (livePreview) {
           stateChanged = true;

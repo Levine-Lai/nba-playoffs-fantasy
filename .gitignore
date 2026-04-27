@@ -9,6 +9,7 @@ backend/.cache/
 backend/.npm-cache/
 backend/.wrangler/
 backend/tmp/
+tmp/
 backend/data/*.db-shm
 backend/data/*.db-wal
 *.log
