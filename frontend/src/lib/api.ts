@@ -5,6 +5,7 @@ import {
   LineupResponse,
   LoginResponse,
   PlayerSearchResponse,
+  PointsHistoryResponse,
   PointsResponse,
   ProfileResponse,
   RegisterResponse,
@@ -257,6 +258,19 @@ export function saveLineup(lineup: Pick<LineupResponse["lineup"], "starters" | "
 
 export function getPointsToday() {
   return request<PointsResponse>("/points/today", undefined, {
+    cacheTtlMs: 15000,
+    allowStaleOnError: true
+  });
+}
+
+export function getPointsHistory(userId?: string) {
+  const query = new URLSearchParams();
+  if (userId) {
+    query.set("userId", userId);
+  }
+
+  const queryString = query.toString();
+  return request<PointsHistoryResponse>(`/points/history${queryString ? `?${queryString}` : ""}`, undefined, {
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });

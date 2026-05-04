@@ -911,6 +911,11 @@ function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, ph
   return 0;
 }
 
+function getDayNumberFromPhaseKey(phaseKey: string) {
+  const dayMatch = String(phaseKey ?? "").match(/^day-(\d+)$/);
+  return dayMatch ? Number(dayMatch[1]) : null;
+}
+
 function hasLeaguePhaseEntries(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
   if (phaseKey === "overall") {
     return Boolean(entries?.length);
@@ -1722,6 +1727,105 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   };
 }
 
+async function buildPointsHistoryPayload(env: Env, userId: string, viewerUserId: string) {
+  const state = await safeLoadState(env, userId, { hydrateAssets: false });
+  if (!state) {
+    return { ok: false as const, response: json({ message: "User state not found." }, { status: 500 }, env) };
+  }
+
+  if (!hasCreatedTeam(state)) {
+    return { ok: false as const, response: json({ message: "Create your initial team first." }, { status: 400 }, env) };
+  }
+
+  const targetUser = await getPublicUserById(env, userId);
+  if (!targetUser) {
+    return { ok: false as const, response: json({ message: "User not found." }, { status: 404 }, env) };
+  }
+
+  const viewer = {
+    userId: targetUser.id,
+    gameId: targetUser.gameId,
+    teamName: state.teamName,
+    managerName: state.managerName,
+    isCurrentUser: targetUser.id === viewerUserId
+  };
+
+  const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+  if (editableContext.beforeCompetitionStart) {
+    return {
+      ok: true as const,
+      payload: {
+        visible: false,
+        message: "Points will unlock after Day 1 deadline.",
+        viewer,
+        entries: []
+      }
+    };
+  }
+
+  const [ledger, phaseOptions, officialPeriods] = await Promise.all([
+    readLeaguePointsLedger(env),
+    getStandingPhaseOptions(env).catch(() => []),
+    getOfficialPlayoffPeriods(env).catch(() => [])
+  ]);
+  const targetEntries = Object.values(ledger[String(userId)] ?? {});
+  const sourcesByDay = new Map<number, { phaseKey: string; label: string; dateLabel?: string | null }>();
+
+  officialPeriods
+    .filter((period) => new Date(period.deadline).getTime() <= Date.now())
+    .forEach((period) => {
+      sourcesByDay.set(period.dayNumber, {
+        phaseKey: `day-${period.dayNumber}`,
+        label: period.label,
+        dateLabel: period.gamedayDateLabel
+      });
+    });
+
+  if (!sourcesByDay.size) {
+    phaseOptions.forEach((option) => {
+      const dayNumber = getDayNumberFromPhaseKey(option.key);
+      if (dayNumber) {
+        sourcesByDay.set(dayNumber, {
+          phaseKey: option.key,
+          label: option.label,
+          dateLabel: null
+        });
+      }
+    });
+  }
+
+  targetEntries.forEach((entry) => {
+    if (!entry.dayNumber || sourcesByDay.has(entry.dayNumber)) {
+      return;
+    }
+
+    sourcesByDay.set(entry.dayNumber, {
+      phaseKey: `day-${entry.dayNumber}`,
+      label: entry.periodKey.startsWith("day:") ? entry.label : `Day ${entry.dayNumber}`,
+      dateLabel: null
+    });
+  });
+
+  const entries = [...sourcesByDay.entries()]
+    .sort(([leftDay], [rightDay]) => leftDay - rightDay)
+    .map(([dayNumber, source]) => ({
+      phaseKey: source.phaseKey,
+      label: source.label,
+      dayNumber,
+      dateLabel: source.dateLabel ?? null,
+      points: getLeaguePhasePoints(targetEntries, source.phaseKey)
+    }));
+
+  return {
+    ok: true as const,
+    payload: {
+      visible: true,
+      viewer,
+      entries
+    }
+  };
+}
+
 async function commitTransactionBatch(params: {
   env: Env;
   userId: string;
@@ -2368,6 +2472,17 @@ export default {
         }
 
         const result = await buildPointsPayloadForUser(env, auth.authUser.id, auth.authUser.id);
+        return result.ok ? json(result.payload, { status: 200 }, env) : result.response;
+      }
+
+      if (pathname === "/api/points/history" && request.method === "GET") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        const targetUserId = String(url.searchParams.get("userId") ?? auth.authUser.id).trim();
+        const result = await buildPointsHistoryPayload(env, targetUserId, auth.authUser.id);
         return result.ok ? json(result.payload, { status: 200 }, env) : result.response;
       }
 

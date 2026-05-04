@@ -3,6 +3,7 @@
 - Be concise in output but thorough in reasoning. / 输出保持简洁，但思考要充分。
 - Do not add extra descriptive UI copy unless the user explicitly asks for it or the copy is necessary to avoid confusion. / 除非用户明确要求，或该文案对避免误解确有必要，否则不要额外新增说明性 UI 文案。
 - Do not re-read files you have already read unless the file may have changed. / 除非文件可能已变化，否则不要重复读取已经看过的文件。
+- In this Windows workspace, `rg` may fail with `Access is denied`; if it does, immediately use PowerShell-native commands such as `Get-ChildItem` and `Select-String` instead of repeating the failed `rg` attempt. / 在这个 Windows 工作区里，`rg` 可能会因为 `Access is denied` 失败；如果发生这种情况，直接改用 `Get-ChildItem` 和 `Select-String` 等 PowerShell 原生命令，不要重复尝试失败的 `rg`。
 - No sycophantic openers or closing fluff. / 不要使用讨好式开场或冗余客套结尾。
 - Keep solutions simple and direct. / 方案保持简单直接。
 - User instructions always override this file. / 用户指令始终优先于本文件。

@@ -109,6 +109,27 @@ export interface PointsResponse {
   lineup: Lineup;
 }
 
+export interface PointsHistoryEntry {
+  phaseKey: string;
+  label: string;
+  dayNumber: number;
+  dateLabel?: string | null;
+  points: number;
+}
+
+export interface PointsHistoryResponse {
+  visible?: boolean;
+  message?: string;
+  viewer: {
+    userId: string;
+    gameId: string;
+    teamName: string;
+    managerName: string;
+    isCurrentUser: boolean;
+  };
+  entries: PointsHistoryEntry[];
+}
+
 export interface HomeLeaderEntry {
   rank: number;
   points: number;
