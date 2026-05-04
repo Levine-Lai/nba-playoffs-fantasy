@@ -572,57 +572,94 @@ button:disabled {
 
   .playoff-bracket {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.35rem;
+    grid-template-columns: repeat(4, minmax(210px, 1fr));
+    gap: 1.65rem;
     align-items: stretch;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     background:
-      radial-gradient(circle at 50% 0, rgba(42, 99, 210, 0.08), transparent 28rem),
-      linear-gradient(180deg, rgba(247, 249, 252, 0.96), #fff 180px);
+      linear-gradient(90deg, rgba(42, 99, 210, 0.08) 1px, transparent 1px) 0 0 / 25% 100%,
+      radial-gradient(circle at 18% 0, rgba(255, 219, 77, 0.18), transparent 18rem),
+      radial-gradient(circle at 82% 100%, rgba(42, 99, 210, 0.12), transparent 22rem),
+      linear-gradient(135deg, #f8fafc 0%, #ffffff 48%, #eef3f8 100%);
+    border-top: 1px solid rgba(42, 99, 210, 0.1);
   }
 
   .playoff-bracket__round {
     display: grid;
     grid-template-rows: auto 1fr;
-    gap: 0.85rem;
+    gap: 1rem;
+    position: relative;
+    z-index: 1;
   }
 
   .playoff-bracket__round-head {
-    border-bottom: 1px solid rgba(42, 99, 210, 0.16);
-    color: var(--nba-blue-dark);
+    border: 1px solid rgba(29, 66, 138, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 8px 20px rgba(29, 66, 138, 0.08);
+    color: #111;
     font-family: var(--font-action);
     font-size: 0.88rem;
     font-style: italic;
     font-weight: 700;
     letter-spacing: 0.06em;
-    padding-bottom: 0.45rem;
+    padding: 0.62rem 0.7rem 0.5rem;
     text-align: center;
     text-transform: uppercase;
   }
 
   .playoff-bracket__round-body {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    min-height: 900px;
+    display: grid;
+    grid-template-rows: repeat(8, minmax(72px, 1fr));
+    min-height: 860px;
+    position: relative;
   }
 
-  .playoff-bracket__round-body--r1 {
-    gap: 0.8rem;
+  .playoff-bracket__round-body::before {
+    content: "";
+    position: absolute;
+    top: 3.4rem;
+    bottom: 3.4rem;
+    left: calc(100% + 0.82rem);
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(29, 66, 138, 0.28) 16%, rgba(29, 66, 138, 0.28) 84%, transparent);
+    pointer-events: none;
   }
 
-  .playoff-bracket__round-body--r2 {
-    gap: 3rem;
+  .playoff-bracket__round:last-child .playoff-bracket__round-body::before {
+    display: none;
   }
 
-  .playoff-bracket__round-body--r3 {
-    gap: 9rem;
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(1) { grid-row: 1; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(2) { grid-row: 2; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(3) { grid-row: 3; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(4) { grid-row: 4; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(5) { grid-row: 5; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(6) { grid-row: 6; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(7) { grid-row: 7; }
+  .playoff-bracket__round-body--r1 .playoff-bracket__slot:nth-child(8) { grid-row: 8; }
+
+  .playoff-bracket__round-body--r2 .playoff-bracket__slot:nth-child(1) { grid-row: 1 / span 2; }
+  .playoff-bracket__round-body--r2 .playoff-bracket__slot:nth-child(2) { grid-row: 3 / span 2; }
+  .playoff-bracket__round-body--r2 .playoff-bracket__slot:nth-child(3) { grid-row: 5 / span 2; }
+  .playoff-bracket__round-body--r2 .playoff-bracket__slot:nth-child(4) { grid-row: 7 / span 2; }
+
+  .playoff-bracket__round-body--r3 .playoff-bracket__slot:nth-child(1) { grid-row: 2 / span 3; }
+  .playoff-bracket__round-body--r3 .playoff-bracket__slot:nth-child(2) { grid-row: 5 / span 3; }
+
+  .playoff-bracket__round-body--r4 .playoff-bracket__slot:nth-child(1) {
+    grid-row: 3 / span 4;
   }
 
   .playoff-bracket__round-body--r4 {
-    justify-content: center;
+    align-items: center;
   }
 
   .playoff-bracket__slot {
+    display: flex;
+    align-items: center;
     position: relative;
   }
 
@@ -630,39 +667,63 @@ button:disabled {
     content: "";
     position: absolute;
     top: 50%;
-    right: -1.35rem;
-    width: 1.35rem;
-    border-top: 1px solid rgba(42, 99, 210, 0.22);
+    right: -1.65rem;
+    width: 1.65rem;
+    border-top: 2px solid rgba(29, 66, 138, 0.28);
     transform: translateY(-50%);
   }
 
   .playoff-bracket__series {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.55rem;
-    border: 1px solid rgba(42, 99, 210, 0.14);
-    border-radius: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 3.15rem minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0.48rem;
+    width: 100%;
+    position: relative;
+    border: 1px solid rgba(29, 66, 138, 0.2);
+    border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 251, 0.96)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 243, 248, 0.98)),
       #fff;
-    box-shadow: 0 10px 24px rgba(18, 32, 56, 0.08);
-    padding: 0.72rem 0.82rem;
+    box-shadow: 0 14px 30px rgba(18, 32, 56, 0.12);
+    padding: 0.78rem 0.72rem;
+    transition: transform 140ms ease, box-shadow 140ms ease;
+  }
+
+  .playoff-bracket__series:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 36px rgba(18, 32, 56, 0.16);
+  }
+
+  .playoff-bracket__series-tag {
+    position: absolute;
+    left: 0.7rem;
+    top: -0.56rem;
+    border-radius: 999px;
+    background: var(--nba-blue-dark);
+    color: #fff;
+    font-family: var(--font-action);
+    font-size: 0.58rem;
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    padding: 0.27rem 0.42rem 0.22rem;
   }
 
   .playoff-bracket__team {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex: 1 1 0;
     min-width: 0;
-    border-radius: 10px;
-    padding: 0.44rem 0.46rem;
+    border-radius: 12px;
+    padding: 0.54rem 0.46rem;
+    background: rgba(255, 255, 255, 0.72);
   }
 
   .playoff-bracket__team--leading {
-    background: rgba(13, 177, 75, 0.14);
-    box-shadow: inset 0 0 0 1px rgba(13, 177, 75, 0.28);
+    background: linear-gradient(135deg, rgba(255, 219, 77, 0.54), rgba(13, 177, 75, 0.18));
+    box-shadow: inset 0 0 0 1px rgba(239, 194, 29, 0.76);
   }
 
   .playoff-bracket__team-main {
@@ -710,14 +771,16 @@ button:disabled {
   }
 
   .playoff-bracket__series-score {
+    display: grid;
+    place-items: center;
+    border-left: 1px solid rgba(29, 66, 138, 0.14);
+    border-right: 1px solid rgba(29, 66, 138, 0.14);
     color: var(--nba-blue-dark);
     font-family: var(--font-action);
-    font-size: 1.38rem;
+    font-size: 1.28rem;
     font-style: italic;
     font-weight: 700;
     line-height: 1;
-    flex: 0 0 auto;
-    min-width: 3.4rem;
     padding: 0 0.1rem;
     text-align: center;
   }

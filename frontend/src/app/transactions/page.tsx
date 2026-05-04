@@ -640,14 +640,6 @@ export default function TransactionsPage() {
               </button>
             </div>
 
-            {data.transferMode === "LIMITLESS" ? (
-              null
-            ) : (
-              <p className="text-sm text-slate-600">
-                Playoff FT remaining: {freeTransfersRemaining}/{seasonFreeTransferLimit}. After those are used, each extra transfer costs -50 unless a chip is active. If you activate WC or All-Star later in the same gameday, your confirmed transfers stay and that day's FT or penalty is cleared.
-              </p>
-            )}
-
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <article className="flex items-center justify-between rounded-sm border-2 border-brand-yellow bg-white px-4 py-3 text-lg">
                 <span>FT Used</span>

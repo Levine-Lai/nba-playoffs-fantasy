@@ -490,18 +490,25 @@ export default function SchedulePage() {
                 <div key={round.title} className="playoff-bracket__round">
                   <div className="playoff-bracket__round-head">{round.title}</div>
                   <div className={`playoff-bracket__round-body playoff-bracket__round-body--r${round.round}`}>
-                    {round.series.map((series) => {
+                    {round.series.map((series, seriesIndex) => {
                       const topLogo = getTeamLogo(series.topTeam ?? undefined);
                       const bottomLogo = getTeamLogo(series.bottomTeam ?? undefined);
                       const topIsLeading = series.topWins > series.bottomWins;
                       const bottomIsLeading = series.bottomWins > series.topWins;
+                      const branchClass =
+                        roundIndex < playoffBracket.length - 1
+                          ? seriesIndex % 2 === 0
+                            ? "playoff-bracket__slot--branch-upper"
+                            : "playoff-bracket__slot--branch-lower"
+                          : "";
 
                       return (
                         <div
                           key={`${series.round}-${series.seriesCode}`}
-                          className={`playoff-bracket__slot ${roundIndex < playoffBracket.length - 1 ? "playoff-bracket__slot--linked" : ""}`.trim()}
+                          className={`playoff-bracket__slot ${roundIndex < playoffBracket.length - 1 ? "playoff-bracket__slot--linked" : ""} ${branchClass}`.trim()}
                         >
                           <div className="playoff-bracket__series">
+                            <div className="playoff-bracket__series-tag">S{series.seriesCode}</div>
                             <div className={`playoff-bracket__team ${topIsLeading ? "playoff-bracket__team--leading" : ""}`.trim()}>
                               <div className="playoff-bracket__team-main">
                                 {topLogo ? (
