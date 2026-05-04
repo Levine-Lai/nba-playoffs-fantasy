@@ -67,7 +67,7 @@ function PointsPageContent() {
   }
 
   return (
-    <ContentWithSidebar sidebar={<RightSidebar snapshot={data.profileSnapshot} />}>
+    <ContentWithSidebar sidebar={<RightSidebar snapshot={data.profileSnapshot} pointsHistoryUserId={data.viewer?.userId ?? null} />}>
       <section className="panel">
         <div className="panel-body space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -78,18 +78,6 @@ function PointsPageContent() {
                   {getDisplayTeamName(data.viewer.teamName, data.viewer.gameId)}
                 </p>
               ) : null}
-              <Link
-                href={{
-                  pathname: "/points/history",
-                  query: {
-                    ...(data.viewer?.userId ? { userId: data.viewer.userId } : {}),
-                    ...(targetPhase ? { phase: targetPhase } : {})
-                  }
-                }}
-                className="mt-2 inline-flex text-sm font-semibold text-[#0a3c98] hover:underline"
-              >
-                gameday history
-              </Link>
             </div>
             <p className="text-sm text-slate-600">Daily points snapshot</p>
           </div>

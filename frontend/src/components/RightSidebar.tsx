@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getProfile } from "@/lib/api";
 import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
@@ -9,10 +10,12 @@ import { getDisplayTeamName } from "@/lib/teamName";
 
 export default function RightSidebar({
   snapshot,
-  bankDisplayOverride
+  bankDisplayOverride,
+  pointsHistoryUserId
 }: {
   snapshot?: ProfileResponse | null;
   bankDisplayOverride?: string | null;
+  pointsHistoryUserId?: string | null;
 }) {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,21 @@ export default function RightSidebar({
               <dd className="font-semibold">{formatFantasyPoints(display.profile.gamedayPoints)}</dd>
             </div>
           </dl>
+          {pointsHistoryUserId ? (
+            <div className="border-t border-slate-200 px-4 py-3">
+              <Link
+                href={{
+                  pathname: "/points/history",
+                  query: {
+                    userId: pointsHistoryUserId
+                  }
+                }}
+                className="text-sm font-semibold text-[#0a3c98] hover:underline"
+              >
+                gameday history
+              </Link>
+            </div>
+          ) : null}
         </div>
       </section>
 

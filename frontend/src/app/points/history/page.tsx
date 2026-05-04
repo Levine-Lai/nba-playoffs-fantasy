@@ -42,7 +42,7 @@ function PointsHistoryContent() {
   if (error || !data) {
     return (
       <section className="panel">
-        <div className="panel-head">Access Required</div>
+        <div className="panel-head">Gameday History</div>
         <div className="panel-body space-y-3 text-sm text-slate-700">
           <p>{error ?? "Please log in first."}</p>
           <Link href="/" className="inline-flex rounded bg-brand-blue px-4 py-2 font-semibold text-white">
