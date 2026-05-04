@@ -691,7 +691,7 @@ export async function getPlayerDataSummary(env: Env) {
 
   const [firstDeadline, weeklyFreeTransfers, initialBudget] = await Promise.all([
     getRuleValue(env, "first_deadline", null),
-    getRuleValue(env, "weekly_free_transfers", "6"),
+    getRuleValue(env, "weekly_free_transfers", "8"),
     getRuleValue(env, "initial_budget", "100")
   ]);
 
@@ -700,7 +700,7 @@ export async function getPlayerDataSummary(env: Env) {
     teams,
     elementTypes,
     firstDeadline,
-    weeklyFreeTransfers: Number(weeklyFreeTransfers ?? 6),
+    weeklyFreeTransfers: Number(weeklyFreeTransfers ?? 8),
     initialBudget: Number(initialBudget ?? 100)
   };
 

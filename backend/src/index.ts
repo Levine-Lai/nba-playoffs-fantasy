@@ -160,7 +160,7 @@ async function getInitialBudget(env: Env) {
 }
 
 async function getWeeklyFreeTransfers(env: Env) {
-  return Number((await getRuleValue(env, "weekly_free_transfers", "6")) ?? "6");
+  return Number((await getRuleValue(env, "weekly_free_transfers", "8")) ?? "8");
 }
 
 async function getTransferPenalty(env: Env) {

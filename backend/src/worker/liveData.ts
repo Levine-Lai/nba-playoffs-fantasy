@@ -809,7 +809,7 @@ function buildEditableContextFromGames(
 }
 
 export async function getEditablePeriodContext(env: Env, fallbackDeadline: string): Promise<EditablePeriodContext> {
-  const seasonFreeTransfers = Number((await getRuleValue(env, "weekly_free_transfers", "6")) ?? "6");
+  const seasonFreeTransfers = Number((await getRuleValue(env, "weekly_free_transfers", "8")) ?? "8");
   try {
     const officialGames = await getOfficialScheduleGames(env);
     if (officialGames.length) {
