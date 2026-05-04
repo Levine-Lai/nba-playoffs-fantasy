@@ -1,0 +1,34 @@
+{
+  "players": [
+    {
+      "slug": "jokic",
+      "name": "Nikola Jokic",
+      "jerseyTeam": "Denver Nuggets",
+      "source": ""
+    },
+    {
+      "slug": "gilgeous-alexander",
+      "name": "Shai Gilgeous-Alexander",
+      "jerseyTeam": "Oklahoma City Thunder",
+      "source": ""
+    },
+    {
+      "slug": "brunson",
+      "name": "Jalen Brunson",
+      "jerseyTeam": "New York Knicks",
+      "source": ""
+    },
+    {
+      "slug": "edwards",
+      "name": "Anthony Edwards",
+      "jerseyTeam": "Minnesota Timberwolves",
+      "source": ""
+    },
+    {
+      "slug": "antetokounmpo",
+      "name": "Giannis Antetokounmpo",
+      "jerseyTeam": "Milwaukee Bucks",
+      "source": ""
+    }
+  ]
+}

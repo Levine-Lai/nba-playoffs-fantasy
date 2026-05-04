@@ -25,7 +25,7 @@ interface PlayoffSeriesEntry {
 }
 
 const PLAYOFF_BRACKET_LAYOUT = [
-  { round: 1, title: "Round 1", seriesCodes: [10, 11, 12, 13, 14, 15, 16, 17] },
+  { round: 1, title: "Round 1", seriesCodes: [10, 13, 11, 12, 14, 17, 15, 16] },
   { round: 2, title: "Round 2", seriesCodes: [20, 21, 22, 23] },
   { round: 3, title: "Round 3", seriesCodes: [30, 31] },
   { round: 4, title: "Finals", seriesCodes: [40] }
