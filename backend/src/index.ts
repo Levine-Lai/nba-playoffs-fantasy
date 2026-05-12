@@ -976,6 +976,10 @@ function compareStandingIdentity(left: StandingMemberEntry, right: StandingMembe
 }
 
 function shouldSyncLivePreviewPoints(preview: any) {
+  if (preview?.dataComplete === false) {
+    return false;
+  }
+
   const finalPoints = Number(preview?.finalPoints ?? preview?.summary?.final ?? 0);
   if (finalPoints !== 0) {
     return true;
@@ -988,6 +992,10 @@ function shouldSyncLivePreviewPoints(preview: any) {
   }
 
   return scoringPlayers.some((player) => String(player?.upcoming?.[1] ?? "").toUpperCase() !== "PRE");
+}
+
+function hasCompleteLivePreview<T>(preview: T | null | undefined): preview is NonNullable<T> {
+  return Boolean(preview && (preview as any).dataComplete !== false);
 }
 
 function getPreGamedayOverallPoints(member: StandingMemberEntry) {
@@ -1232,11 +1240,17 @@ async function rebuildStandingPayloadCache(env: Env) {
         shouldPersistLineupLocks = shouldPersistLineupLocks || resolvedScoringState.registryChanged;
         const scoringState = resolvedScoringState.state;
         const livePreview = await buildOfficialLivePointsPreview(env, scoringState, false).catch(() => null);
-        let nextGamedayPoints = Number(
-          (livePreview?.finalPoints ?? buildStoredPointsSnapshot(scoringState, currentScoringPeriod).summary.final ?? 0).toFixed(1)
-        );
+        const reliableLivePreview = hasCompleteLivePreview(livePreview) ? livePreview : null;
+        let nextGamedayPoints = Number(member.gamedayPoints ?? state.gamedayPoints ?? 0);
         let nextOverallPoints = Number(state.overallPoints ?? 0);
-        if (!livePreview || shouldSyncLivePreviewPoints(livePreview)) {
+        let hasReliablePointsUpdate = false;
+
+        if (reliableLivePreview) {
+          nextGamedayPoints = Number((reliableLivePreview.finalPoints ?? reliableLivePreview.summary?.final ?? 0).toFixed(1));
+          hasReliablePointsUpdate = true;
+        }
+
+        if (reliableLivePreview && shouldSyncLivePreviewPoints(reliableLivePreview)) {
           const ledgerSync = syncLeaguePointsLedgerInMemory(ledger, member.userId, currentScoringPeriod, nextGamedayPoints);
           ledgerChanged = ledgerChanged || ledgerSync.changed;
           nextOverallPoints = Number(ledgerSync.total.toFixed(1));
@@ -1246,9 +1260,13 @@ async function rebuildStandingPayloadCache(env: Env) {
           const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips);
           nextGamedayPoints = Number(recalculated.gamedayPoints ?? nextGamedayPoints);
           nextOverallPoints = Number(recalculated.overallPoints ?? nextOverallPoints);
+          hasReliablePointsUpdate = true;
         }
 
-        if (Number(state.gamedayPoints ?? 0) !== nextGamedayPoints || Number(state.overallPoints ?? 0) !== nextOverallPoints) {
+        if (
+          hasReliablePointsUpdate &&
+          (Number(state.gamedayPoints ?? 0) !== nextGamedayPoints || Number(state.overallPoints ?? 0) !== nextOverallPoints)
+        ) {
           state.gamedayPoints = nextGamedayPoints;
           state.overallPoints = nextOverallPoints;
           await saveStateForUser(env, member.userId, state);
@@ -1690,11 +1708,12 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   const preserveRosterPoints =
     Boolean(scoringPeriod) && isChipActiveForPeriod(chips.allStar.activePeriodKey, scoringPeriod?.key) && Boolean(chips.allStar.activeLineup);
   const livePreview = await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null);
-  if (livePreview) {
-    syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
-    syncPersistedPointsState(state, livePreview.lineup, livePreview.finalPoints, preserveRosterPoints);
-    if (shouldSyncLivePreviewPoints(livePreview)) {
-      const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, livePreview.finalPoints);
+  const reliableLivePreview = hasCompleteLivePreview(livePreview) ? livePreview : null;
+  if (reliableLivePreview) {
+    syncPointsSnapshot(scoringState, reliableLivePreview.lineup, reliableLivePreview.finalPoints);
+    syncPersistedPointsState(state, reliableLivePreview.lineup, reliableLivePreview.finalPoints, preserveRosterPoints);
+    if (shouldSyncLivePreviewPoints(reliableLivePreview)) {
+      const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, reliableLivePreview.finalPoints);
       state.overallPoints = Number(overallPoints.toFixed(1));
     }
     await saveStateForUser(env, userId, state);
@@ -1702,14 +1721,25 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     return {
       ok: true as const,
       payload: {
-        ...livePreview,
+        ...reliableLivePreview,
         viewer,
-        profileSnapshot: buildProfileSnapshot(livePreview.finalPoints)
+        profileSnapshot: buildProfileSnapshot(reliableLivePreview.finalPoints)
       }
     };
   }
 
   const fallbackPoints = buildStoredPointsSnapshot(scoringState, scoringPeriod);
+  if (!livePreview || livePreview.dataComplete === false) {
+    return {
+      ok: true as const,
+      payload: {
+        ...fallbackPoints,
+        viewer,
+        profileSnapshot: buildProfileSnapshot(fallbackPoints.summary.final)
+      }
+    };
+  }
+
   state.gamedayPoints = fallbackPoints.summary.final;
   const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
   state.overallPoints = Number(overallPoints.toFixed(1));
@@ -2250,23 +2280,29 @@ export default {
           isChipActiveForPeriod(chips.allStar.activePeriodKey, currentScoringPeriod?.key) &&
           Boolean(chips.allStar.activeLineup);
         const livePreview = hasCreatedTeam(state) ? await buildOfficialLivePointsPreview(env, scoringState, beforeDeadline).catch(() => null) : null;
+        const reliableLivePreview = hasCompleteLivePreview(livePreview) ? livePreview : null;
         const fallbackProfilePoints = !beforeDeadline ? buildStoredPointsSnapshot(scoringState, currentScoringPeriod) : null;
 
-        if (livePreview) {
-          syncPointsSnapshot(scoringState, livePreview.lineup, livePreview.finalPoints);
-          syncPersistedPointsState(state, livePreview.lineup, livePreview.finalPoints, preserveRosterPoints);
+        if (reliableLivePreview) {
+          syncPointsSnapshot(scoringState, reliableLivePreview.lineup, reliableLivePreview.finalPoints);
+          syncPersistedPointsState(state, reliableLivePreview.lineup, reliableLivePreview.finalPoints, preserveRosterPoints);
         }
 
         let stateChanged = false;
         if (!beforeDeadline) {
-          const currentPoints = Number(livePreview?.finalPoints ?? fallbackProfilePoints?.summary.final ?? state.gamedayPoints ?? 0);
-          state.gamedayPoints = currentPoints;
-          if (!livePreview || shouldSyncLivePreviewPoints(livePreview)) {
+          const currentPoints = Number(
+            reliableLivePreview ? reliableLivePreview.finalPoints : fallbackProfilePoints?.summary.final ?? state.gamedayPoints ?? 0
+          );
+          const shouldPersistCurrentPoints = Boolean(reliableLivePreview);
+          if (shouldPersistCurrentPoints) {
+            state.gamedayPoints = currentPoints;
+          }
+          if (shouldPersistCurrentPoints && shouldSyncLivePreviewPoints(reliableLivePreview)) {
             const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, currentScoringPeriod, currentPoints);
             state.overallPoints = Number(overallPoints.toFixed(1));
           }
-          stateChanged = true;
-        } else if (livePreview) {
+          stateChanged = shouldPersistCurrentPoints;
+        } else if (reliableLivePreview) {
           stateChanged = true;
         }
 
@@ -2298,7 +2334,7 @@ export default {
               overallPoints: displayState.overallPoints,
               overallRank: displayState.overallRank,
               totalPlayers: displayState.totalPlayers,
-              gamedayPoints: livePreview?.finalPoints ?? displayState.gamedayPoints,
+              gamedayPoints: reliableLivePreview ? reliableLivePreview.finalPoints : displayState.gamedayPoints,
               fanLeague: displayState.fanLeague
             },
             transactions: {

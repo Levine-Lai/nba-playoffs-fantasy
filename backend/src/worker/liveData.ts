@@ -1104,16 +1104,20 @@ async function buildFantasyPointsPreviewForSlate(
     )
   ];
 
-  const boxScores = await Promise.all(
-    relevantGameIds.map(async (gameId) => {
-      const payload = await getOfficialBoxScore(gameId);
-      return payload?.game ? [String(gameId), payload.game] : null;
-    })
-  );
+  const missingBoxScoreGameIds: string[] = [];
+  const boxScoreEntries = (
+    await Promise.all(
+      relevantGameIds.map(async (gameId) => {
+        const payload = await getOfficialBoxScore(gameId).catch(() => null);
+        if (payload?.game) {
+          return [String(gameId), payload.game] as [string, Record<string, any>];
+        }
 
-  const boxScoreEntries = boxScores.filter(
-    (value): value is [string, Record<string, any>] => Array.isArray(value) && value.length === 2
-  );
+        missingBoxScoreGameIds.push(String(gameId));
+        return null;
+      })
+    )
+  ).filter((value): value is [string, Record<string, any>] => Array.isArray(value) && value.length === 2);
   const boxScoreByGameId = new Map(boxScoreEntries);
   const appearanceSettlementPassed = hasAppearanceSettlementPassed({
     gamedayKey: slate.gamedayKey ?? null,
@@ -1198,7 +1202,9 @@ async function buildFantasyPointsPreviewForSlate(
       gamedayIndex: slate.gamedayIndex,
       roundNumber: Number(slate.roundNumber ?? 0),
       dayNumber: Number(slate.dayNumber ?? 0)
-    }
+    },
+    dataComplete: missingBoxScoreGameIds.length === 0,
+    missingBoxScoreGameIds
   };
 }
 
