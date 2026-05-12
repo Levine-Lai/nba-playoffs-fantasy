@@ -58,8 +58,8 @@ D --> B
 - 5 starters count toward daily score.
 - Each playoff slate day is numbered globally from `Day 1` to the last playoff game day.
 - `Day 1` is the official game start. Before its deadline, transfers are unlimited.
-- After the `Day 1` deadline, each team gets `6` total free transfers for the full playoffs.
-- Once those `6` free transfers are gone, each extra normal transfer costs `-50` points.
+- After the `Day 1` deadline, each team gets `8` total free transfers for the full playoffs.
+- Once those `8` free transfers are gone, each extra normal transfer costs `-50` points.
 - Transfer penalties only hit standings after that slate deadline passes.
 - Wildcard and All-Star are each available once per account for the full playoff run.
 - Each playable day has a deadline 30 minutes before the first game of that day.
@@ -99,6 +99,7 @@ D --> B
 - After launch, each confirmed normal transfer costs `-50`.
 - Show transfer cost preview and finance metrics.
 - Show five upcoming calendar-day schedule slots in the transaction table; if a player has no game on a day, show `-`.
+- Player Selection includes still-alive playoff teams, including teams that have already clinched a series while their next matchup is not yet listed by the NBA feed.
 - Select outgoing and incoming players in draft mode, then confirm the whole batch.
 - Show draft cost as points penalty only; each normal transfer costs `-50` unless a chip removes it.
 - Allow Wildcard activation from the transaction page and persist it on confirm.
@@ -174,7 +175,7 @@ D --> B
 | Field | Type | Required | Description |
 |---|---|---|---|
 | initial_budget | number | Yes | Default 100 |
-| weekly_free_transfers | number | Yes | Compatibility key now used for the season-long playoff FT total, default `6` |
+| weekly_free_transfers | number | Yes | Compatibility key now used for the season-long playoff FT total, default `8` |
 | transfer_penalty | number | Yes | Default penalty value per normal transfer after `Day 1` starts |
 | first_deadline | ISO string | Yes | Legacy fallback for `Day 1` launch lock |
 

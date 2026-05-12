@@ -140,7 +140,7 @@ export default function StandingPage() {
                   <td>
                     {data.visible === false ? (
                       <span className={isCurrentUser ? "font-semibold text-brand-darkBlue" : "font-semibold text-slate-700"}>
-                        {getDisplayTeamName(member.teamName, member.gameId)}
+                        {getDisplayTeamName(member.teamName, member.managerName)}
                       </span>
                     ) : (
                       <Link
@@ -153,7 +153,7 @@ export default function StandingPage() {
                         }}
                         className={isCurrentUser ? "font-semibold text-brand-darkBlue hover:underline" : "font-semibold text-[#0a3c98] hover:underline"}
                       >
-                        {getDisplayTeamName(member.teamName, member.gameId)}
+                        {getDisplayTeamName(member.teamName, member.managerName)}
                       </Link>
                     )}
                   </td>

@@ -81,12 +81,11 @@ export function annotateGamesWithGamedays<T extends Record<string, unknown>>(gam
 }
 
 export function getPlayoffGameweekNumber(gameId: string | number | null | undefined) {
-  const id = String(gameId ?? "");
-  if (!id.startsWith("004") || id.length < 10) {
+  const seriesCode = getPlayoffSeriesCode(gameId);
+  if (seriesCode === null) {
     return null;
   }
 
-  const seriesCode = Number(id.slice(7, 9));
   if (seriesCode >= 10 && seriesCode <= 17) {
     return 1;
   }
@@ -101,6 +100,118 @@ export function getPlayoffGameweekNumber(gameId: string | number | null | undefi
   }
 
   return null;
+}
+
+export function getPlayoffSeriesCode(gameId: string | number | null | undefined) {
+  const id = String(gameId ?? "");
+  if (!id.startsWith("004") || id.length < 10) {
+    return null;
+  }
+
+  const seriesCode = Number(id.slice(7, 9));
+  return Number.isFinite(seriesCode) ? seriesCode : null;
+}
+
+type PlayoffTeamLike = {
+  code?: string | number | null;
+  id?: string | number | null;
+};
+
+type PlayoffTeamGameLike = {
+  id?: string | number | null;
+  status?: string | null;
+  homeTeam?: PlayoffTeamLike | null;
+  awayTeam?: PlayoffTeamLike | null;
+  homeScore?: string | number | null;
+  awayScore?: string | number | null;
+};
+
+function getTeamCode(team: PlayoffTeamLike | null | undefined) {
+  return String(team?.code ?? team?.id ?? "").trim();
+}
+
+function toFiniteScore(score: string | number | null | undefined) {
+  const numericScore = Number(score);
+  return Number.isFinite(numericScore) ? numericScore : null;
+}
+
+export function getActivePlayoffTeamCodes<T extends PlayoffTeamGameLike>(games: T[]) {
+  const activeTeamCodes = new Set<string>();
+  const seriesByCode = new Map<
+    number,
+    {
+      roundNumber: number;
+      teams: Set<string>;
+      wins: Map<string, number>;
+    }
+  >();
+
+  games.forEach((game) => {
+    const seriesCode = getPlayoffSeriesCode(game.id);
+    const roundNumber = getPlayoffGameweekNumber(game.id);
+    const homeCode = getTeamCode(game.homeTeam);
+    const awayCode = getTeamCode(game.awayTeam);
+
+    if (seriesCode === null || roundNumber === null || !homeCode || !awayCode) {
+      return;
+    }
+
+    const series =
+      seriesByCode.get(seriesCode) ??
+      {
+        roundNumber,
+        teams: new Set<string>(),
+        wins: new Map<string, number>()
+      };
+    series.teams.add(homeCode);
+    series.teams.add(awayCode);
+    seriesByCode.set(seriesCode, series);
+
+    if (game.status !== "final") {
+      activeTeamCodes.add(homeCode);
+      activeTeamCodes.add(awayCode);
+      return;
+    }
+
+    const homeScore = toFiniteScore(game.homeScore);
+    const awayScore = toFiniteScore(game.awayScore);
+    if (homeScore === null || awayScore === null || homeScore === awayScore) {
+      return;
+    }
+
+    const winnerCode = homeScore > awayScore ? homeCode : awayCode;
+    series.wins.set(winnerCode, (series.wins.get(winnerCode) ?? 0) + 1);
+  });
+
+  const completedSeries = [...seriesByCode.entries()]
+    .map(([seriesCode, series]) => {
+      const winnerCode = [...series.wins.entries()].find(([, wins]) => wins >= 4)?.[0] ?? null;
+      return winnerCode ? { seriesCode, roundNumber: series.roundNumber, teams: series.teams, winnerCode } : null;
+    })
+    .filter((series): series is { seriesCode: number; roundNumber: number; teams: Set<string>; winnerCode: string } =>
+      Boolean(series)
+    );
+
+  const latestLostRoundByTeam = new Map<string, number>();
+  completedSeries.forEach((series) => {
+    series.teams.forEach((teamCode) => {
+      if (teamCode === series.winnerCode) {
+        return;
+      }
+
+      latestLostRoundByTeam.set(teamCode, Math.max(latestLostRoundByTeam.get(teamCode) ?? 0, series.roundNumber));
+    });
+  });
+
+  completedSeries.forEach((series) => {
+    if ((latestLostRoundByTeam.get(series.winnerCode) ?? 0) > series.roundNumber) {
+      return;
+    }
+
+    activeTeamCodes.add(series.winnerCode);
+  });
+
+  return [...activeTeamCodes];
 }
 
 function buildPlayoffGamedayLabel(gamedayNumber: number) {

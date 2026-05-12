@@ -126,6 +126,115 @@ function isPostseasonGameId(gameId) {
   return id.startsWith("004");
 }
 
+function getPlayoffSeriesCode(gameId) {
+  const id = String(gameId ?? "");
+  if (!id.startsWith("004") || id.length < 10) {
+    return null;
+  }
+
+  const seriesCode = Number(id.slice(7, 9));
+  return Number.isFinite(seriesCode) ? seriesCode : null;
+}
+
+function getPlayoffRoundNumber(gameId) {
+  const seriesCode = getPlayoffSeriesCode(gameId);
+  if (seriesCode === null) {
+    return null;
+  }
+
+  if (seriesCode >= 10 && seriesCode <= 17) {
+    return 1;
+  }
+  if (seriesCode >= 20 && seriesCode <= 23) {
+    return 2;
+  }
+  if (seriesCode >= 30 && seriesCode <= 31) {
+    return 3;
+  }
+  if (seriesCode === 40) {
+    return 4;
+  }
+
+  return null;
+}
+
+function getTeamCode(team) {
+  return Number(team?.teamId ?? team?.code ?? team?.id ?? 0);
+}
+
+function toFiniteScore(score) {
+  const numericScore = Number(score);
+  return Number.isFinite(numericScore) ? numericScore : null;
+}
+
+function getActivePlayoffTeamIds(games) {
+  const activeTeamIds = new Set();
+  const seriesByCode = new Map();
+
+  for (const game of games) {
+    const seriesCode = getPlayoffSeriesCode(game.gameId ?? game.id);
+    const roundNumber = getPlayoffRoundNumber(game.gameId ?? game.id);
+    const homeCode = getTeamCode(game.homeTeam);
+    const awayCode = getTeamCode(game.awayTeam);
+
+    if (seriesCode === null || roundNumber === null || !homeCode || !awayCode) {
+      continue;
+    }
+
+    const series = seriesByCode.get(seriesCode) ?? {
+      roundNumber,
+      teams: new Set(),
+      wins: new Map()
+    };
+    series.teams.add(homeCode);
+    series.teams.add(awayCode);
+    seriesByCode.set(seriesCode, series);
+
+    if (Number(game.gameStatus ?? 0) !== 3 && game.status !== "final") {
+      activeTeamIds.add(homeCode);
+      activeTeamIds.add(awayCode);
+      continue;
+    }
+
+    const homeScore = toFiniteScore(game.homeTeam?.score ?? game.homeScore);
+    const awayScore = toFiniteScore(game.awayTeam?.score ?? game.awayScore);
+    if (homeScore === null || awayScore === null || homeScore === awayScore) {
+      continue;
+    }
+
+    const winnerCode = homeScore > awayScore ? homeCode : awayCode;
+    series.wins.set(winnerCode, (series.wins.get(winnerCode) ?? 0) + 1);
+  }
+
+  const completedSeries = [...seriesByCode.values()]
+    .map((series) => {
+      const winnerCode = [...series.wins.entries()].find(([, wins]) => wins >= 4)?.[0] ?? null;
+      return winnerCode ? { roundNumber: series.roundNumber, teams: series.teams, winnerCode } : null;
+    })
+    .filter(Boolean);
+  const latestLostRoundByTeam = new Map();
+
+  for (const series of completedSeries) {
+    for (const teamCode of series.teams) {
+      if (teamCode === series.winnerCode) {
+        continue;
+      }
+
+      latestLostRoundByTeam.set(teamCode, Math.max(latestLostRoundByTeam.get(teamCode) ?? 0, series.roundNumber));
+    }
+  }
+
+  for (const series of completedSeries) {
+    if ((latestLostRoundByTeam.get(series.winnerCode) ?? 0) > series.roundNumber) {
+      continue;
+    }
+
+    activeTeamIds.add(series.winnerCode);
+  }
+
+  return activeTeamIds;
+}
+
 function isIfNecessary(value) {
   return value === true || String(value).toLowerCase() === "true";
 }
@@ -367,13 +476,7 @@ if (!boxscores.length) {
 scheduleCache.ready = true;
 const teams = new Map();
 const players = new Map();
-const activeTeamIds = new Set(
-  playoffGames
-    .filter((game) => Number(game.gameStatus ?? 0) !== 3)
-    .flatMap((game) => [game.homeTeam?.teamId, game.awayTeam?.teamId])
-    .filter(Boolean)
-    .map((value) => Number(value))
-);
+const activeTeamIds = getActivePlayoffTeamIds(playoffGames);
 
 for (const game of boxscores) {
   for (const teamKey of ["homeTeam", "awayTeam"]) {

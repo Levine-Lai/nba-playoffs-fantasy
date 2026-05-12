@@ -1,5 +1,11 @@
 import { buildInitialUserState } from "../shared/gameTemplate";
-import { buildPlayoffPeriods, findEditablePlayoffPeriod, isPostseasonGameId, normalizeScheduleDateKey } from "../shared/scheduleUtils";
+import {
+  buildPlayoffPeriods,
+  findEditablePlayoffPeriod,
+  getActivePlayoffTeamCodes,
+  isPostseasonGameId,
+  normalizeScheduleDateKey
+} from "../shared/scheduleUtils";
 import { countTrackedTotalTransfers } from "./gameplay";
 import type {
   AuthUser,
@@ -898,6 +904,24 @@ export function buildNextMatchupByTeamFromCache(cache: StoredScheduleCache | nul
       gamedayLabel: null,
       tipoff: null,
       upcomingSchedule
+    });
+  }
+
+  for (const teamCode of getActivePlayoffTeamCodes(games)) {
+    if (lookup.has(teamCode)) {
+      continue;
+    }
+
+    lookup.set(teamCode, {
+      opponent: {
+        name: "",
+        triCode: "",
+        logoUrl: null,
+        logoFallbackUrl: null
+      },
+      gamedayLabel: null,
+      tipoff: null,
+      upcomingSchedule: scheduleByTeam.get(teamCode) ?? []
     });
   }
 

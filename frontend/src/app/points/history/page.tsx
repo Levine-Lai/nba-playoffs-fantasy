@@ -60,7 +60,7 @@ function PointsHistoryContent() {
           <div>
             <h1 className="text-[2.25rem] font-semibold italic leading-none text-[#111] sm:text-[3rem]">Gameday History</h1>
             <p className="mt-3 text-[1.05rem] text-slate-700">
-              {getDisplayTeamName(data.viewer.teamName, data.viewer.gameId)}
+              {getDisplayTeamName(data.viewer.teamName, data.viewer.managerName)}
             </p>
           </div>
           <Link

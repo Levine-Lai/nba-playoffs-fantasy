@@ -4,6 +4,7 @@ import {
   buildPlayoffPeriods,
   findEditablePlayoffPeriod,
   findScoringPlayoffPeriod,
+  getActivePlayoffTeamCodes,
   getPlayoffGameweekNumber,
   isPostseasonGameId,
   normalizeScheduleDateKey
@@ -542,7 +543,6 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
       continue;
     }
 
-    const firstScheduledCell = upcomingSchedule.find((cell) => cell.hasGame) ?? null;
     lookup.set(teamCode, {
       opponent: {
         name: "",
@@ -553,6 +553,24 @@ function buildNextMatchupByGames(games: OfficialScheduleGame[]) {
       gamedayLabel: null,
       tipoff: null,
       upcomingSchedule
+    });
+  }
+
+  for (const teamCode of getActivePlayoffTeamCodes(games)) {
+    if (lookup.has(teamCode)) {
+      continue;
+    }
+
+    lookup.set(teamCode, {
+      opponent: {
+        name: "",
+        triCode: "",
+        logoUrl: null,
+        logoFallbackUrl: null
+      },
+      gamedayLabel: null,
+      tipoff: null,
+      upcomingSchedule: upcomingScheduleByTeam.get(teamCode) ?? []
     });
   }
 

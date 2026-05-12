@@ -22,8 +22,8 @@ Recent transaction rules implemented in the current build:
 - play-in (`005...`) games are excluded from schedule, standings phases, and scoring
 - transaction drafts are confirmed as a batch
 - before the `Day 1` deadline, setup moves are unlimited and do not consume playoff free transfers
-- after the `Day 1` deadline, each team gets `6` total playoff free transfers for the entire postseason
-- once those `6` playoff FT are used, each extra normal transfer costs `-50`
+- after the `Day 1` deadline, each team gets `8` total playoff free transfers for the entire postseason
+- once those `8` playoff FT are used, each extra normal transfer costs `-50`
 - transfer penalties only appear in standings after that slate deadline passes
 - `Wildcard` and `All-Star` stay locked until after the `Day 1` deadline
 - `Wildcard` is a once-per-playoffs chip for unlimited no-penalty transfers after it unlocks
@@ -106,11 +106,11 @@ npm run dev
 
 - `npm run db:seed:bootstrap`
   Creates `backend/tmp/d1-seed.sql` from the NBA Fantasy bootstrap API.
-  The generated seed now defaults `first_deadline` to `2026-04-18T16:30:00Z`, `weekly_free_transfers` to `6`, and `transfer_penalty` to `50`.
+  The generated seed now defaults `first_deadline` to `2026-04-18T16:30:00Z`, `weekly_free_transfers` to `8`, and `transfer_penalty` to `50`.
 
 - `npm run db:seed:live`
   Tries to build `backend/tmp/d1-seed.sql` from official playoff schedule / box score feeds.
-  This is optional and depends on upstream availability. Only true playoff (`004...`) games are imported.
+  This is optional and depends on upstream availability. Only true playoff (`004...`) games are imported, and series winners stay transactable while waiting for the next matchup to appear in the NBA feed.
 
 ## Deployment Docs
 
@@ -125,7 +125,7 @@ npm run dev
 - Frontend production build: `npm run build --prefix frontend`
 - Transaction flow now also uses `POST /api/transactions/confirm` for batch-confirm + chip activation
 - Registration now requires both `account` and `gameId` to be unique; apply `backend/migrations/0002_users_game_id_unique.sql` anywhere the D1 schema already exists
-- Playoff total FT setup now uses `backend/migrations/0005_playoff_total_free_transfers.sql` to set `weekly_free_transfers = 6` and keep `transfer_penalty = 50`
+- Playoff total FT setup now uses `backend/migrations/0006_playoff_free_transfers_to_eight.sql` to set `weekly_free_transfers = 8` and keep `transfer_penalty = 50`
 - `backend/migrations/0004_true_playoff_init_reset.sql` moves `Day 1` to `2026-04-18T16:30:00Z`, clears old play-in scoring state, and resets transfer / chip history for the real playoff launch
 - Root build check: `npm run build`
 - Local D1 migration applied successfully

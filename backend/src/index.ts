@@ -13,7 +13,6 @@ import {
   getRosterPlayers,
   hasCreatedTeam,
   isValidStarterMix,
-  replacePlayerForState,
   replacePlayerOnRoster,
   syncTransferWindowState,
   withVisiblePoints

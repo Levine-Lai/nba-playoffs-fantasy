@@ -53,7 +53,7 @@ Still in `backend/`:
 npm run db:migrate:remote
 ```
 
-This applies every SQL file under `backend/migrations/`, including `0001_init.sql`, `0002_users_game_id_unique.sql`, `0003_day_slate_transfer_penalty.sql`, `0004_true_playoff_init_reset.sql`, and `0005_playoff_total_free_transfers.sql`.
+This applies every SQL file under `backend/migrations/`, including `0001_init.sql`, `0002_users_game_id_unique.sql`, `0003_day_slate_transfer_penalty.sql`, `0004_true_playoff_init_reset.sql`, `0005_playoff_total_free_transfers.sql`, and `0006_playoff_free_transfers_to_eight.sql`.
 
 For the 2026 playoff launch reset, `0004_true_playoff_init_reset.sql` also:
 
@@ -61,7 +61,7 @@ For the 2026 playoff launch reset, `0004_true_playoff_init_reset.sql` also:
 - clears old play-in standings / penalty ledger state
 - resets transfer history and chip usage while preserving accounts, rosters, and leagues
 
-`0005_playoff_total_free_transfers.sql` sets the season-long playoff FT pool to `6`.
+`0006_playoff_free_transfers_to_eight.sql` sets the season-long playoff FT pool to `8`.
 
 ## 4. Choose How To Seed Production Data
 
@@ -72,6 +72,7 @@ You have 3 paths.
 Use this if you want current users, teams, leagues, rules, and cached schedule behavior copied to production.
 
 The exported seed is now sanitized for the real playoff start: scores reset to zero, transfer history is cleared, chip state is cleared, and play-in cache rows are removed.
+Do not reuse an existing `backend/tmp/d1-seed.sql`; generate it immediately before applying it so stale local rules do not reach production.
 
 ```bash
 npm run db:seed:from-local
@@ -82,7 +83,8 @@ npm run db:seed:apply:remote
 
 Use this if you want a clean online launch without carrying local accounts or league data.
 
-This seed now defaults to the real playoff opener deadline `2026-04-18T16:30:00Z`, with pre-`Day 1` unlimited setup transfers, `6` total playoff FT after the deadline, and `-50` for extra normal transfers once those FT are exhausted.
+This seed now defaults to the real playoff opener deadline `2026-04-18T16:30:00Z`, with pre-`Day 1` unlimited setup transfers, `8` total playoff FT after the deadline, and `-50` for extra normal transfers once those FT are exhausted.
+Do not reuse an existing `backend/tmp/d1-seed.sql`; generate it immediately before applying it so stale local rules do not reach production.
 
 ```bash
 npm run db:seed:bootstrap
@@ -93,7 +95,7 @@ npm run db:seed:apply:remote
 
 Use this only if you explicitly want the experimental live-playoff import path.
 
-Only true playoff (`004...`) games are imported into the schedule cache.
+Only true playoff (`004...`) games are imported into the schedule cache. Already-advanced series winners remain transactable while the NBA feed has not yet listed their next matchup.
 
 ```bash
 npm run db:seed:live
@@ -162,7 +164,7 @@ After both deployments finish:
 4. Build an initial 10-player team.
 5. Open `Transactions`, `Points`, `Schedule`, `Help`, and `Standing`.
 6. Confirm `Points` stay hidden before the `Day 1` deadline and unlock afterward.
-7. Confirm `Transactions` shows `6` playoff FT after the deadline.
+7. Confirm `Transactions` shows `8` playoff FT after the deadline.
 8. Confirm lineup state remains isolated by account.
 
 ## 8. Recommended Release Order

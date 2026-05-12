@@ -75,7 +75,7 @@ function PointsPageContent() {
               <h1 className="text-4xl font-semibold uppercase">{data.gameweek.label}</h1>
               {data.viewer ? (
                 <p className="mt-2 text-sm text-slate-600">
-                  {getDisplayTeamName(data.viewer.teamName, data.viewer.gameId)}
+                  {getDisplayTeamName(data.viewer.teamName, data.viewer.managerName)}
                 </p>
               ) : null}
             </div>
