@@ -115,6 +115,8 @@ export interface PointsHistoryEntry {
   dayNumber: number;
   dateLabel?: string | null;
   points: number;
+  actualPoints?: number;
+  penaltyPoints?: number;
 }
 
 export interface PointsHistoryResponse {

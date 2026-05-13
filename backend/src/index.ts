@@ -900,6 +900,55 @@ function syncLeaguePointsAdjustmentInMemory(
   };
 }
 
+function buildTransferPenaltyAdjustment(
+  period: { key: string; label: string; roundNumber: number; dayNumber: number },
+  history: TransferHistoryItem[],
+  transferPenalty: number
+) {
+  return {
+    key: `penalty:${period.key}`,
+    label: `Transfer penalty for ${period.label}`,
+    roundNumber: period.roundNumber,
+    dayNumber: period.dayNumber,
+    points: Number((-transferPenalty * countPenaltyTransfersForPeriod(history, period.key)).toFixed(1))
+  };
+}
+
+function syncTransferPenaltyAdjustmentsInMemory(
+  ledger: LeaguePointsLedger,
+  userId: string | number,
+  periods: Array<{ key: string; label: string; roundNumber: number; dayNumber: number }>,
+  history: TransferHistoryItem[],
+  transferPenalty: number
+) {
+  let changed = false;
+  let total = sumLeagueLedgerPoints(Object.values(ledger[String(userId)] ?? {}));
+
+  for (const period of periods) {
+    const result = syncLeaguePointsAdjustmentInMemory(
+      ledger,
+      userId,
+      buildTransferPenaltyAdjustment(period, history, transferPenalty)
+    );
+    changed = changed || result.changed;
+    total = result.total;
+  }
+
+  return { total, changed };
+}
+
+async function getTransferPenaltyPeriods(env: Env, fallbackPeriod: ScoringPeriodContext = null) {
+  const periods = await getOfficialPlayoffPeriods(env)
+    .then((items) => items.filter((period) => new Date(period.deadline).getTime() <= Date.now()))
+    .catch(() => []);
+
+  if (periods.length) {
+    return periods;
+  }
+
+  return fallbackPeriod ? [fallbackPeriod] : [];
+}
+
 async function getStandingPhaseOptions(env: Env) {
   return getStandingPhaseOptionsByDay(env);
 }
@@ -921,6 +970,28 @@ function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, ph
   }
 
   return 0;
+}
+
+function getLeaguePhasePointBreakdown(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
+  const dayMatch = phaseKey.match(/^day-(\d+)$/);
+  if (!dayMatch) {
+    const totalPoints = sumLeagueLedgerPoints(entries);
+    return {
+      actualPoints: totalPoints,
+      penaltyPoints: 0,
+      totalPoints
+    };
+  }
+
+  const targetDay = Number(dayMatch[1]);
+  const phaseEntries = (entries ?? []).filter((entry) => entry.dayNumber === targetDay);
+  const actualPoints = sumLeagueLedgerPoints(phaseEntries.filter((entry) => !String(entry.periodKey ?? "").startsWith("penalty:")));
+  const penaltyPoints = sumLeagueLedgerPoints(phaseEntries.filter((entry) => String(entry.periodKey ?? "").startsWith("penalty:")));
+  return {
+    actualPoints,
+    penaltyPoints,
+    totalPoints: Number((actualPoints + penaltyPoints).toFixed(1))
+  };
 }
 
 function getDayNumberFromPhaseKey(phaseKey: string) {
@@ -954,6 +1025,53 @@ async function syncLeaguePointsLedger(
     await writeLeaguePointsLedger(env, ledger);
   }
   return result.total;
+}
+
+async function syncLeaguePointsAndTransferPenalties(
+  env: Env,
+  userId: string | number,
+  scoringPeriod: ScoringPeriodContext,
+  points: number,
+  history: TransferHistoryItem[]
+) {
+  const [transferPenalty, penaltyPeriods, ledger] = await Promise.all([
+    getTransferPenalty(env),
+    getTransferPenaltyPeriods(env, scoringPeriod),
+    readLeaguePointsLedger(env)
+  ]);
+  const scoreSync = syncLeaguePointsLedgerInMemory(ledger, userId, scoringPeriod, points);
+  const penaltySync = syncTransferPenaltyAdjustmentsInMemory(ledger, userId, penaltyPeriods, history, transferPenalty);
+  const changed = scoreSync.changed || penaltySync.changed;
+
+  if (changed) {
+    await writeLeaguePointsLedger(env, ledger);
+  }
+
+  return penaltySync.total;
+}
+
+async function syncTransferPenalties(
+  env: Env,
+  userId: string | number,
+  history: TransferHistoryItem[],
+  fallbackPeriod: ScoringPeriodContext = null
+) {
+  const [transferPenalty, penaltyPeriods, ledger] = await Promise.all([
+    getTransferPenalty(env),
+    getTransferPenaltyPeriods(env, fallbackPeriod),
+    readLeaguePointsLedger(env)
+  ]);
+  const result = syncTransferPenaltyAdjustmentsInMemory(ledger, userId, penaltyPeriods, history, transferPenalty);
+  const hasLedgerEntries = Boolean(Object.keys(ledger[String(userId)] ?? {}).length);
+
+  if (result.changed) {
+    await writeLeaguePointsLedger(env, ledger);
+  }
+
+  return {
+    ...result,
+    hasLedgerEntries
+  };
 }
 
 async function syncLeaguePointsAdjustment(
@@ -1229,6 +1347,10 @@ async function rebuildStandingPayloadCache(env: Env) {
     const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
 
     if (currentScoringPeriod) {
+      const [transferPenalty, penaltyPeriods] = await Promise.all([
+        getTransferPenalty(env),
+        getTransferPenaltyPeriods(env, currentScoringPeriod)
+      ]);
       const lineupLocks = await readLineupLockRegistry(env);
       const lineupCorrections = await readLineupCorrectionRegistry(env);
       let shouldPersistLineupLocks = false;
@@ -1268,6 +1390,14 @@ async function rebuildStandingPayloadCache(env: Env) {
           ledgerChanged = ledgerChanged || ledgerSync.changed;
           nextOverallPoints = Number(ledgerSync.total.toFixed(1));
         }
+
+        const penaltySync = syncTransferPenaltyAdjustmentsInMemory(ledger, member.userId, penaltyPeriods, state.history, transferPenalty);
+        const hasLedgerEntries = Boolean(Object.keys(ledger[String(member.userId)] ?? {}).length);
+        ledgerChanged = ledgerChanged || penaltySync.changed;
+        if (penaltySync.changed || hasLedgerEntries) {
+          nextOverallPoints = Number(penaltySync.total.toFixed(1));
+        }
+        hasReliablePointsUpdate = hasReliablePointsUpdate || penaltySync.changed;
 
         if (shouldBackfillHistoricalCorrections(lineupCorrections, member.userId, member.gameId, currentScoringPeriod.key)) {
           const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips);
@@ -1676,10 +1806,16 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
         const actualPenaltyPoints = Number(
           (-transferPenalty * countPenaltyTransfersForPeriod(state.history, targetPeriod.key)).toFixed(1)
         );
-        const hasStoredPhasePoints = hasLeaguePhaseEntries(targetEntries, targetPhase);
-        const phaseTotal = hasStoredPhasePoints
-          ? getLeaguePhasePoints(targetEntries, targetPhase)
-          : Number((previewFinal + actualPenaltyPoints).toFixed(1));
+        const storedBreakdown = getLeaguePhasePointBreakdown(targetEntries, targetPhase);
+        const targetDayNumber = getDayNumberFromPhaseKey(targetPhase);
+        const hasStoredActualPoints = Boolean(
+          targetDayNumber &&
+            targetEntries.some(
+              (entry) => entry.dayNumber === targetDayNumber && !String(entry.periodKey ?? "").startsWith("penalty:")
+            )
+        );
+        const phaseBasePoints = hasStoredActualPoints ? storedBreakdown.actualPoints : previewFinal;
+        const phaseTotal = Number((phaseBasePoints + actualPenaltyPoints).toFixed(1));
         return {
           ok: true as const,
             payload: {
@@ -1726,7 +1862,13 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     syncPointsSnapshot(scoringState, reliableLivePreview.lineup, reliableLivePreview.finalPoints);
     syncPersistedPointsState(state, reliableLivePreview.lineup, reliableLivePreview.finalPoints, preserveRosterPoints);
     if (shouldSyncLivePreviewPoints(reliableLivePreview)) {
-      const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, reliableLivePreview.finalPoints);
+      const overallPoints = await syncLeaguePointsAndTransferPenalties(
+        env,
+        userId,
+        scoringPeriod,
+        reliableLivePreview.finalPoints,
+        state.history
+      );
       state.overallPoints = Number(overallPoints.toFixed(1));
     }
     await saveStateForUser(env, userId, state);
@@ -1743,6 +1885,15 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
 
   const fallbackPoints = buildStoredPointsSnapshot(scoringState, scoringPeriod);
   if (!livePreview || livePreview.dataComplete === false) {
+    const penaltySync = await syncTransferPenalties(env, userId, state.history, scoringPeriod);
+    if (penaltySync.changed || penaltySync.hasLedgerEntries) {
+      const syncedOverallPoints = Number(penaltySync.total.toFixed(1));
+      if (Number(state.overallPoints ?? 0) !== syncedOverallPoints) {
+        state.overallPoints = syncedOverallPoints;
+        await saveStateForUser(env, userId, state);
+      }
+    }
+
     return {
       ok: true as const,
       payload: {
@@ -1754,7 +1905,13 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
   }
 
   state.gamedayPoints = fallbackPoints.summary.final;
-  const overallPoints = await syncLeaguePointsLedger(env, userId, scoringPeriod, fallbackPoints.summary.final);
+  const overallPoints = await syncLeaguePointsAndTransferPenalties(
+    env,
+    userId,
+    scoringPeriod,
+    fallbackPoints.summary.final,
+    state.history
+  );
   state.overallPoints = Number(overallPoints.toFixed(1));
   await saveStateForUser(env, userId, state);
   await invalidateStandingPayloadCache(env);
@@ -1805,13 +1962,14 @@ async function buildPointsHistoryPayload(env: Env, userId: string, viewerUserId:
     };
   }
 
-  const [ledger, phaseOptions, officialPeriods] = await Promise.all([
+  const [ledger, phaseOptions, officialPeriods, transferPenalty] = await Promise.all([
     readLeaguePointsLedger(env),
     getStandingPhaseOptions(env).catch(() => []),
-    getOfficialPlayoffPeriods(env).catch(() => [])
+    getOfficialPlayoffPeriods(env).catch(() => []),
+    getTransferPenalty(env)
   ]);
   const targetEntries = Object.values(ledger[String(userId)] ?? {});
-  const sourcesByDay = new Map<number, { phaseKey: string; label: string; dateLabel?: string | null }>();
+  const sourcesByDay = new Map<number, { phaseKey: string; label: string; dateLabel?: string | null; periodKey?: string | null }>();
 
   officialPeriods
     .filter((period) => new Date(period.deadline).getTime() <= Date.now())
@@ -1819,7 +1977,8 @@ async function buildPointsHistoryPayload(env: Env, userId: string, viewerUserId:
       sourcesByDay.set(period.dayNumber, {
         phaseKey: `day-${period.dayNumber}`,
         label: period.label,
-        dateLabel: period.gamedayDateLabel
+        dateLabel: period.gamedayDateLabel,
+        periodKey: period.key
       });
     });
 
@@ -1830,33 +1989,62 @@ async function buildPointsHistoryPayload(env: Env, userId: string, viewerUserId:
         sourcesByDay.set(dayNumber, {
           phaseKey: option.key,
           label: option.label,
-          dateLabel: null
+          dateLabel: null,
+          periodKey: null
         });
       }
     });
   }
 
   targetEntries.forEach((entry) => {
-    if (!entry.dayNumber || sourcesByDay.has(entry.dayNumber)) {
+    if (!entry.dayNumber) {
+      return;
+    }
+
+    const basePeriodKey = String(entry.periodKey ?? "").replace(/^penalty:/, "");
+    const existingSource = sourcesByDay.get(entry.dayNumber);
+    if (existingSource) {
+      if (!existingSource.periodKey && basePeriodKey.startsWith("day:")) {
+        existingSource.periodKey = basePeriodKey;
+      }
       return;
     }
 
     sourcesByDay.set(entry.dayNumber, {
       phaseKey: `day-${entry.dayNumber}`,
       label: entry.periodKey.startsWith("day:") ? entry.label : `Day ${entry.dayNumber}`,
-      dateLabel: null
+      dateLabel: null,
+      periodKey: basePeriodKey.startsWith("day:") ? basePeriodKey : null
     });
   });
 
   const entries = [...sourcesByDay.entries()]
     .sort(([leftDay], [rightDay]) => leftDay - rightDay)
-    .map(([dayNumber, source]) => ({
-      phaseKey: source.phaseKey,
-      label: source.label,
-      dayNumber,
-      dateLabel: source.dateLabel ?? null,
-      points: getLeaguePhasePoints(targetEntries, source.phaseKey)
-    }));
+    .map(([dayNumber, source]) => {
+      const breakdown = getLeaguePhasePointBreakdown(targetEntries, source.phaseKey);
+      const penaltyPoints = source.periodKey
+        ? buildTransferPenaltyAdjustment(
+            {
+              key: source.periodKey,
+              label: source.label,
+              roundNumber: 0,
+              dayNumber
+            },
+            state.history,
+            transferPenalty
+          ).points
+        : breakdown.penaltyPoints;
+
+      return {
+        phaseKey: source.phaseKey,
+        label: source.label,
+        dayNumber,
+        dateLabel: source.dateLabel ?? null,
+        points: Number((breakdown.actualPoints + penaltyPoints).toFixed(1)),
+        actualPoints: breakdown.actualPoints,
+        penaltyPoints
+      };
+    });
 
   return {
     ok: true as const,
@@ -2344,10 +2532,25 @@ export default {
             state.gamedayPoints = currentPoints;
           }
           if (shouldPersistCurrentPoints && shouldSyncLivePreviewPoints(reliableLivePreview)) {
-            const overallPoints = await syncLeaguePointsLedger(env, auth.authUser.id, currentScoringPeriod, currentPoints);
+            const overallPoints = await syncLeaguePointsAndTransferPenalties(
+              env,
+              auth.authUser.id,
+              currentScoringPeriod,
+              currentPoints,
+              state.history
+            );
             state.overallPoints = Number(overallPoints.toFixed(1));
           }
-          stateChanged = shouldPersistCurrentPoints;
+          const penaltySync = await syncTransferPenalties(env, auth.authUser.id, state.history, currentScoringPeriod);
+          const syncedOverallPoints = Number(penaltySync.total.toFixed(1));
+          if (
+            (penaltySync.changed || penaltySync.hasLedgerEntries) &&
+            Number(state.overallPoints ?? 0) !== syncedOverallPoints
+          ) {
+            state.overallPoints = syncedOverallPoints;
+            stateChanged = true;
+          }
+          stateChanged = stateChanged || shouldPersistCurrentPoints;
         } else if (reliableLivePreview) {
           stateChanged = true;
         }

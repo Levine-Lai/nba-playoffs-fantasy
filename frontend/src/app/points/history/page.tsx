@@ -6,7 +6,7 @@ import { Suspense, useState } from "react";
 import { getPointsHistory } from "@/lib/api";
 import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { getDisplayTeamName } from "@/lib/teamName";
-import { PointsHistoryResponse } from "@/lib/types";
+import { PointsHistoryEntry, PointsHistoryResponse } from "@/lib/types";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 export default function PointsHistoryPage() {
@@ -22,6 +22,15 @@ function PointsHistoryContent() {
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const targetUserId = searchParams.get("userId")?.trim() ?? "";
+
+  function formatHistoryPoints(entry: PointsHistoryEntry) {
+    const penaltyPoints = Number(entry.penaltyPoints ?? 0);
+    if (penaltyPoints !== 0) {
+      return `${formatFantasyPoints(entry.actualPoints ?? entry.points)}(${formatFantasyPoints(penaltyPoints)})`;
+    }
+
+    return formatFantasyPoints(entry.points);
+  }
 
   useVisibilityPolling(async () => {
     try {
@@ -109,7 +118,7 @@ function PointsHistoryContent() {
                       {entry.dateLabel ? <span className="ml-2 font-normal text-slate-500">{entry.dateLabel}</span> : null}
                     </Link>
                   </td>
-                  <td>{formatFantasyPoints(entry.points)}</td>
+                  <td>{formatHistoryPoints(entry)}</td>
                 </tr>
               ))
             ) : (
