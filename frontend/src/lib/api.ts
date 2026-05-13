@@ -12,6 +12,7 @@ import {
   ScheduleGameDetailResponse,
   ScheduleResponse,
   StandingResponse,
+  TransactionsHistoryResponse,
   TransactionsResponse,
   UpdateTeamNameResponse
 } from "@/lib/types";
@@ -279,6 +280,19 @@ export function getPointsHistory(userId?: string) {
 export function getTransactionsOptions() {
   return request<TransactionsResponse>("/transactions/options", undefined, {
     cacheTtlMs: 5000,
+    allowStaleOnError: true
+  });
+}
+
+export function getTransactionsHistory(userId?: string) {
+  const query = new URLSearchParams();
+  if (userId) {
+    query.set("userId", userId);
+  }
+
+  const queryString = query.toString();
+  return request<TransactionsHistoryResponse>(`/transactions/history${queryString ? `?${queryString}` : ""}`, undefined, {
+    cacheTtlMs: 15000,
     allowStaleOnError: true
   });
 }

@@ -250,6 +250,19 @@ function buildChipTransferNote(chip: TransactionChipChoice, gameweekLabel: strin
   return chip === "wildcard" ? `Wildcard active for ${gameweekLabel}` : `All-Star active for ${gameweekLabel}`;
 }
 
+function getTransferHistoryChip(item: TransferHistoryItem) {
+  const note = String(item.note ?? "");
+  if (item.chip === "wildcard" || note.startsWith("Wildcard active")) {
+    return "wildcard";
+  }
+
+  if (item.chip === "all-star" || note.startsWith("All-Star active")) {
+    return "all-star";
+  }
+
+  return null;
+}
+
 function neutralizeTransferWindowCosts(history: TransferHistoryItem[], periodKey: string, note: string) {
   return history.map((item) =>
     item.windowKey === periodKey
@@ -1855,6 +1868,39 @@ async function buildPointsHistoryPayload(env: Env, userId: string, viewerUserId:
   };
 }
 
+async function buildTransactionsHistoryPayload(env: Env, userId: string, viewerUserId: string) {
+  const state = await safeLoadState(env, userId, { hydrateAssets: false });
+  if (!state) {
+    return { ok: false as const, response: json({ message: "User state not found." }, { status: 500 }, env) };
+  }
+
+  if (!hasCreatedTeam(state)) {
+    return { ok: false as const, response: json({ message: "Create your initial team first." }, { status: 400 }, env) };
+  }
+
+  const targetUser = await getPublicUserById(env, userId);
+  if (!targetUser) {
+    return { ok: false as const, response: json({ message: "User not found." }, { status: 404 }, env) };
+  }
+
+  return {
+    ok: true as const,
+    payload: {
+      viewer: {
+        userId: targetUser.id,
+        gameId: targetUser.gameId,
+        teamName: state.teamName,
+        managerName: state.managerName,
+        isCurrentUser: targetUser.id === viewerUserId
+      },
+      history: state.history.map((item) => ({
+        ...item,
+        chip: getTransferHistoryChip(item)
+      }))
+    }
+  };
+}
+
 async function commitTransactionBatch(params: {
   env: Env;
   userId: string;
@@ -2582,6 +2628,17 @@ export default {
           { status: 200 },
           env
         );
+      }
+
+      if (pathname === "/api/transactions/history" && request.method === "GET") {
+        const auth = await requireAuth(request, env);
+        if (!auth.ok) {
+          return auth.response;
+        }
+
+        const targetUserId = String(url.searchParams.get("userId") ?? auth.authUser.id).trim();
+        const result = await buildTransactionsHistoryPayload(env, targetUserId, auth.authUser.id);
+        return result.ok ? json(result.payload, { status: 200 }, env) : result.response;
       }
 
       if (pathname === "/api/transactions/confirm" && request.method === "POST") {

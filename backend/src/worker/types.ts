@@ -81,6 +81,7 @@ export interface TransferHistoryItem {
   note: string;
   windowKey?: string;
   countsTowardLimit?: boolean;
+  chip?: "wildcard" | "all-star" | null;
 }
 
 export interface UserState {

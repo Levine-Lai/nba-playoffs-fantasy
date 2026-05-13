@@ -11,11 +11,13 @@ import { getDisplayTeamName } from "@/lib/teamName";
 export default function RightSidebar({
   snapshot,
   bankDisplayOverride,
-  pointsHistoryUserId
+  pointsHistoryUserId,
+  transactionsHistoryUserId
 }: {
   snapshot?: ProfileResponse | null;
   bankDisplayOverride?: string | null;
   pointsHistoryUserId?: string | null;
+  transactionsHistoryUserId?: string | null;
 }) {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export default function RightSidebar({
   }
 
   const bankDisplay = bankDisplayOverride ?? String(display.transactions.bank);
+  const transactionHistoryUserId = transactionsHistoryUserId ?? pointsHistoryUserId;
 
   return (
     <aside className="space-y-4 xl:sticky xl:top-4">
@@ -107,11 +110,11 @@ export default function RightSidebar({
 
       <section className="sidebar-card">
         <h4 className="sidebar-card__head">Transactions And Finance</h4>
-          <dl>
-            <div className="sidebar-row">
-              <dt>FT remaining</dt>
-              <dd className="font-semibold">{display.transactions.freeLeft}</dd>
-            </div>
+        <dl>
+          <div className="sidebar-row">
+            <dt>FT remaining</dt>
+            <dd className="font-semibold">{display.transactions.freeLeft}</dd>
+          </div>
           <div className="sidebar-row">
             <dt>Total transactions</dt>
             <dd className="font-semibold">{display.transactions.total}</dd>
@@ -125,6 +128,21 @@ export default function RightSidebar({
             <dd className="font-semibold">{bankDisplay}</dd>
           </div>
         </dl>
+        {transactionHistoryUserId ? (
+          <div className="border-t border-slate-200 px-4 py-3">
+            <Link
+              href={{
+                pathname: "/transactions/history",
+                query: {
+                  userId: transactionHistoryUserId
+                }
+              }}
+              className="text-sm font-semibold text-[#0a3c98] hover:underline"
+            >
+              transaction history
+            </Link>
+          </div>
+        ) : null}
       </section>
     </aside>
   );

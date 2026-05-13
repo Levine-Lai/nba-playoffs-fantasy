@@ -181,6 +181,7 @@ export interface TransferHistoryItem {
   note: string;
   windowKey?: string;
   countsTowardLimit?: boolean;
+  chip?: "wildcard" | "all-star" | null;
 }
 
 export interface ChipCardState {
@@ -206,6 +207,17 @@ export interface TransactionsResponse {
   };
   lineup: Lineup;
   market: TransferMarketPlayer[];
+}
+
+export interface TransactionsHistoryResponse {
+  viewer: {
+    userId: string;
+    gameId: string;
+    teamName: string;
+    managerName: string;
+    isCurrentUser: boolean;
+  };
+  history: TransferHistoryItem[];
 }
 
 export interface StandingMemberEntry {
