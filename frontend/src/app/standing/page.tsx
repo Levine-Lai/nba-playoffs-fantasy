@@ -28,8 +28,8 @@ function CardBadge({ label, used }: { label: "WC" | "AS"; used: boolean }) {
       title={`${label} ${used ? "used" : "unused"}`}
       className={
         used
-          ? "inline-flex min-w-10 justify-center rounded border border-[#b91c1c] bg-[#dc2626] px-2 py-1 text-xs font-bold text-white shadow-sm"
-          : "inline-flex min-w-10 justify-center rounded border border-[#15803d] bg-[#16a34a] px-2 py-1 text-xs font-bold text-white shadow-sm"
+          ? "inline-flex min-w-11 justify-center rounded border border-[#e4a5a5] bg-[#f4d6d6] px-2.5 py-1.5 text-sm font-black text-[#8f1d1d]"
+          : "inline-flex min-w-11 justify-center rounded border border-[#9fd8af] bg-[#d9f2df] px-2.5 py-1.5 text-sm font-black text-[#17652d]"
       }
     >
       {label}
@@ -109,10 +109,10 @@ export default function StandingPage() {
     <section className="panel overflow-hidden">
       <div className="bg-white px-6 py-7">
         <div className="flex flex-wrap items-center justify-between gap-5">
-          <div className="flex flex-wrap items-center gap-4">
-            <h1 className="font-sans text-[2.35rem] font-black leading-none text-[#111] sm:text-[3.2rem]">Standing</h1>
+          <div className="flex flex-wrap items-center gap-5">
+            <h1 className="font-sans text-[3.25rem] font-black leading-none text-[#111] sm:text-[4.5rem]">Standing</h1>
             {displayedDayLabel ? (
-              <span className="rounded-sm border border-slate-300 bg-slate-100 px-3 py-1.5 text-base font-black text-[#111]">
+              <span className="rounded-sm border border-slate-300 bg-slate-100 px-4 py-3 font-sans text-[1.2rem] font-black uppercase leading-none text-[#111] sm:text-[1.55rem]">
                 {displayedDayLabel}
               </span>
             ) : null}
@@ -177,14 +177,14 @@ export default function StandingPage() {
                   className={isCurrentUser ? "standing-row--current" : undefined}
                 >
                   <td>
-                    <div className="flex items-center text-lg font-black text-[#111]">
+                    <div className="flex items-center text-xl font-black text-[#111]">
                       <span>{member.rank}</span>
                       <RankTrend rank={member.rank} previousRank={member.previousRank ?? member.rank} />
                     </div>
                   </td>
                   <td>
                     {data.visible === false ? (
-                      <span className={isCurrentUser ? "text-lg font-black text-brand-darkBlue" : "text-lg font-black text-slate-800"}>
+                      <span className={isCurrentUser ? "text-xl font-black text-brand-darkBlue" : "text-xl font-black text-slate-800"}>
                         {getDisplayTeamName(member.teamName, member.managerName)}
                       </span>
                     ) : (
@@ -196,15 +196,15 @@ export default function StandingPage() {
                             phase: data.selectedPhaseKey ?? selectedPhase
                           }
                         }}
-                        className={isCurrentUser ? "text-lg font-black text-brand-darkBlue hover:underline" : "text-lg font-black text-[#0a3c98] hover:underline"}
+                        className={isCurrentUser ? "text-xl font-black text-brand-darkBlue hover:underline" : "text-xl font-black text-[#0a3c98] hover:underline"}
                       >
                         {getDisplayTeamName(member.teamName, member.managerName)}
                       </Link>
                     )}
                   </td>
-                  <td className="text-lg font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
-                  <td className="text-lg font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
-                  <td className="whitespace-nowrap text-base font-extrabold text-[#111]">
+                  <td className="text-xl font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
+                  <td className="text-xl font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
+                  <td className="whitespace-nowrap text-lg font-black text-[#111]">
                     {data.visible === false ? "-" : `${freeTransfersUsed}/${freeTransfersLimit}`}
                   </td>
                   <td className="standing-card-cell">
