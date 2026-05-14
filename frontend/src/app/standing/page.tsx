@@ -109,13 +109,15 @@ export default function StandingPage() {
     <section className="panel overflow-hidden">
       <div className="bg-white px-6 py-7">
         <div className="flex flex-wrap items-center justify-between gap-5">
-          <div className="flex flex-wrap items-center gap-5">
-            <h1 className="font-sans text-[3.25rem] font-black leading-none text-[#111] sm:text-[4.5rem]">Standing</h1>
-            {displayedDayLabel ? (
-              <span className="rounded-sm border border-slate-300 bg-slate-100 px-4 py-3 font-sans text-[1.2rem] font-black uppercase leading-none text-[#111] sm:text-[1.55rem]">
-                {displayedDayLabel}
-              </span>
-            ) : null}
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+            <h1 className="font-sans text-[3.25rem] font-black leading-none text-[#111] sm:text-[4.5rem]">
+              Standing
+              {displayedDayLabel ? (
+                <span className="ml-5 font-sans text-[3.25rem] font-black uppercase leading-none text-[#111] sm:text-[4.5rem]">
+                  {displayedDayLabel}
+                </span>
+              ) : null}
+            </h1>
           </div>
 
           <div className="w-full max-w-[210px]">
@@ -177,14 +179,14 @@ export default function StandingPage() {
                   className={isCurrentUser ? "standing-row--current" : undefined}
                 >
                   <td>
-                    <div className="flex items-center text-xl font-black text-[#111]">
+                    <div className="flex items-center text-2xl font-black text-[#111]">
                       <span>{member.rank}</span>
                       <RankTrend rank={member.rank} previousRank={member.previousRank ?? member.rank} />
                     </div>
                   </td>
                   <td>
                     {data.visible === false ? (
-                      <span className={isCurrentUser ? "text-xl font-black text-brand-darkBlue" : "text-xl font-black text-slate-800"}>
+                      <span className={isCurrentUser ? "text-2xl font-black text-brand-darkBlue" : "text-2xl font-black text-slate-800"}>
                         {getDisplayTeamName(member.teamName, member.managerName)}
                       </span>
                     ) : (
@@ -196,15 +198,15 @@ export default function StandingPage() {
                             phase: data.selectedPhaseKey ?? selectedPhase
                           }
                         }}
-                        className={isCurrentUser ? "text-xl font-black text-brand-darkBlue hover:underline" : "text-xl font-black text-[#0a3c98] hover:underline"}
+                        className={isCurrentUser ? "text-2xl font-black text-brand-darkBlue hover:underline" : "text-2xl font-black text-[#0a3c98] hover:underline"}
                       >
                         {getDisplayTeamName(member.teamName, member.managerName)}
                       </Link>
                     )}
                   </td>
-                  <td className="text-xl font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
-                  <td className="text-xl font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
-                  <td className="whitespace-nowrap text-lg font-black text-[#111]">
+                  <td className="text-2xl font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
+                  <td className="text-2xl font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
+                  <td className="whitespace-nowrap text-xl font-black text-[#111]">
                     {data.visible === false ? "-" : `${freeTransfersUsed}/${freeTransfersLimit}`}
                   </td>
                   <td className="standing-card-cell">
