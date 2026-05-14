@@ -259,9 +259,9 @@ button:disabled {
 
   .standing-table th {
     color: #1f2933;
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     font-weight: 800;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     white-space: nowrap;
   }
@@ -275,10 +275,16 @@ button:disabled {
   .standing-table th:nth-child(3),
   .standing-table th:nth-child(4),
   .standing-table th:nth-child(5),
+  .standing-table th:nth-child(6),
   .standing-table td:nth-child(3),
   .standing-table td:nth-child(4),
-  .standing-table td:nth-child(5) {
+  .standing-table td:nth-child(5),
+  .standing-table td:nth-child(6) {
     text-align: right;
+  }
+
+  .standing-card-cell {
+    min-width: 8.5rem;
   }
 
   .schedule-calendar {

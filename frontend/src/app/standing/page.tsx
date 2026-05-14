@@ -37,6 +37,17 @@ function CardBadge({ label, used }: { label: "WC" | "AS"; used: boolean }) {
   );
 }
 
+function getDisplayedDayLabel(data: StandingResponse, selectedPhase: string) {
+  const selectedPhaseKey = data.selectedPhaseKey ?? selectedPhase;
+  const selectedOption = data.phaseOptions.find((option) => option.key === selectedPhaseKey);
+  if (selectedOption && selectedOption.key !== "overall") {
+    return selectedOption.label;
+  }
+
+  const dayOptions = data.phaseOptions.filter((option) => option.key !== "overall");
+  return dayOptions[dayOptions.length - 1]?.label ?? null;
+}
+
 export default function StandingPage() {
   const [data, setData] = useState<StandingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,13 +103,19 @@ export default function StandingPage() {
     );
   }
 
+  const displayedDayLabel = getDisplayedDayLabel(data, selectedPhase);
+
   return (
     <section className="panel overflow-hidden">
       <div className="bg-white px-6 py-7">
-        <div className="flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <h1 className="text-[2.25rem] font-semibold italic leading-none text-[#111] sm:text-[3rem]">Standing</h1>
-            <p className="mt-3 text-[1.05rem] text-slate-700">All registered players ranked by fantasy points.</p>
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <h1 className="font-sans text-[2.35rem] font-black leading-none text-[#111] sm:text-[3.2rem]">Standing</h1>
+            {displayedDayLabel ? (
+              <span className="rounded-sm border border-slate-300 bg-slate-100 px-3 py-1.5 text-base font-black text-[#111]">
+                {displayedDayLabel}
+              </span>
+            ) : null}
           </div>
 
           <div className="w-full max-w-[210px]">
@@ -126,7 +143,15 @@ export default function StandingPage() {
             {data.message ?? "Points will unlock after Day 1 deadline."}
           </p>
         ) : null}
-        <table className="table-shell standing-table min-w-[820px]">
+        <table className="table-shell standing-table min-w-[860px]">
+          <colgroup>
+            <col className="w-[10%]" />
+            <col className="w-[36%]" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[13%]" />
+            <col className="w-[19%]" />
+          </colgroup>
           <thead>
             <tr>
               <th>Rank</th>
@@ -182,11 +207,11 @@ export default function StandingPage() {
                   <td className="whitespace-nowrap text-base font-extrabold text-[#111]">
                     {data.visible === false ? "-" : `${freeTransfersUsed}/${freeTransfersLimit}`}
                   </td>
-                  <td>
+                  <td className="standing-card-cell">
                     {data.visible === false ? (
                       "-"
                     ) : (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <CardBadge label="WC" used={cardsUsed.wildcard} />
                         <CardBadge label="AS" used={cardsUsed.allStar} />
                       </div>
