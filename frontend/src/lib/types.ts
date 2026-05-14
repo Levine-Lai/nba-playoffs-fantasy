@@ -232,6 +232,12 @@ export interface StandingMemberEntry {
   phasePoints?: number;
   gamedayPoints: number;
   totalPoints: number;
+  freeTransfersUsed?: number;
+  freeTransfersLimit?: number;
+  cardsUsed?: {
+    wildcard: boolean;
+    allStar: boolean;
+  };
 }
 
 export interface StandingPhaseOption {

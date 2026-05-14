@@ -6,7 +6,7 @@ import {
   isPostseasonGameId,
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
-import { countTrackedTotalTransfers } from "./gameplay";
+import { countNormalTransferUsage, countTrackedTotalTransfers } from "./gameplay";
 import type {
   AuthUser,
   Env,
@@ -719,33 +719,39 @@ export async function getPlayerDataSummary(env: Env) {
 }
 
 export async function listStandingMembers(env: Env) {
-  const rows = await all<{
+  const [rows, chipRegistry] = await Promise.all([
+    all<{
     userId: number;
     gameId: string;
     teamName: string;
     managerName: string;
     overallPoints: number;
     gamedayPoints: number;
+    weeklyFreeLimit: number;
     historyJson: string;
-  }>(
-    env,
-    `
-      SELECT
-        u.id AS userId,
-        u.game_id AS gameId,
-        s.team_name AS teamName,
-        s.manager_name AS managerName,
-        s.overall_points AS overallPoints,
-        s.gameday_points AS gamedayPoints,
-        s.history_json AS historyJson
-      FROM users u
-      JOIN user_states s ON s.user_id = u.id
-      ORDER BY s.overall_points DESC, s.team_name COLLATE NOCASE ASC, u.game_id COLLATE NOCASE ASC
-    `
-  );
+    }>(
+      env,
+      `
+        SELECT
+          u.id AS userId,
+          u.game_id AS gameId,
+          s.team_name AS teamName,
+          s.manager_name AS managerName,
+          s.overall_points AS overallPoints,
+          s.gameday_points AS gamedayPoints,
+          s.weekly_free_limit AS weeklyFreeLimit,
+          s.history_json AS historyJson
+        FROM users u
+        JOIN user_states s ON s.user_id = u.id
+        ORDER BY s.overall_points DESC, s.team_name COLLATE NOCASE ASC, u.game_id COLLATE NOCASE ASC
+      `
+    ),
+    readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {})
+  ]);
 
   return rows.map((row, index) => {
     const history = safeJsonParse<TransferHistoryItem[]>(row.historyJson, []);
+    const chips = chipRegistry[String(row.userId)];
     return {
       userId: String(row.userId),
       gameId: row.gameId,
@@ -754,7 +760,13 @@ export async function listStandingMembers(env: Env) {
       rank: index + 1,
       gamedayPoints: Number(row.gamedayPoints ?? 0),
       totalPoints: Number(row.overallPoints ?? 0),
-      totalTransfers: countTrackedTotalTransfers(history)
+      totalTransfers: countTrackedTotalTransfers(history),
+      freeTransfersUsed: countNormalTransferUsage(history),
+      freeTransfersLimit: Number(row.weeklyFreeLimit ?? 8),
+      cardsUsed: {
+        wildcard: Boolean(chips?.wildcard?.used),
+        allStar: Boolean(chips?.allStar?.used)
+      }
     } satisfies StandingMemberEntry;
   });
 }

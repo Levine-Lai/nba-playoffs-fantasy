@@ -166,8 +166,22 @@ export function isUnlimitedSetupTransfer(item: TransferHistoryItem) {
   return String(item.note ?? "").startsWith("Unlimited before ");
 }
 
-function countUsedSeasonFreeTransfers(history: TransferHistoryItem[]) {
+export function countUsedSeasonFreeTransfers(history: TransferHistoryItem[]) {
   return history.filter(countsTowardSeasonFreeTransfer).length;
+}
+
+function isChipTransfer(item: TransferHistoryItem) {
+  const note = String(item.note ?? "");
+  return (
+    item.chip === "wildcard" ||
+    item.chip === "all-star" ||
+    note.startsWith("Wildcard active") ||
+    note.startsWith("All-Star active")
+  );
+}
+
+export function countNormalTransferUsage(history: TransferHistoryItem[]) {
+  return history.filter((item) => !isUnlimitedSetupTransfer(item) && !isChipTransfer(item)).length;
 }
 
 function countRemainingSeasonFreeTransfers(history: TransferHistoryItem[], totalFreeTransfers: number) {

@@ -257,6 +257,30 @@ button:disabled {
     background: rgba(42, 99, 210, 0.24);
   }
 
+  .standing-table th {
+    color: #1f2933;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .standing-table td {
+    padding-bottom: 1rem;
+    padding-top: 1rem;
+    font-size: 1rem;
+  }
+
+  .standing-table th:nth-child(3),
+  .standing-table th:nth-child(4),
+  .standing-table th:nth-child(5),
+  .standing-table td:nth-child(3),
+  .standing-table td:nth-child(4),
+  .standing-table td:nth-child(5) {
+    text-align: right;
+  }
+
   .schedule-calendar {
     background:
       linear-gradient(180deg, rgba(238, 241, 243, 0.8) 0, rgba(255, 255, 255, 0) 40px),

@@ -66,6 +66,7 @@ const LINEUP_LOCKS_KEY = "lineup_locks_v1";
 const LINEUP_CORRECTIONS_KEY = "lineup_corrections_v1";
 const STANDING_PAYLOAD_CACHE_KEY = "standing_payload_cache_v1";
 const STANDING_REFRESH_RETRY_MS = 5000;
+const STANDING_SYNC_REFRESH_TIMEOUT_MS = 15000;
 const STANDING_CACHE_TTL_MS = 20000;
 const STANDING_BEFORE_DEADLINE_CACHE_TTL_MS = 60000;
 
@@ -142,7 +143,7 @@ type LoadStateOptions = {
   hydrateAssets?: boolean;
 };
 
-let standingPayloadRefreshPromise: Promise<void> | null = null;
+let standingPayloadRefreshPromise: Promise<StandingPayloadCache | null> | null = null;
 let standingPayloadRefreshStartedAt = 0;
 
 function extractBearerToken(request: Request) {
@@ -1253,8 +1254,8 @@ function shouldQueueStandingPayloadRefresh(payload: StandingPayload) {
   return Date.now() - standingPayloadRefreshStartedAt >= refreshIntervalMs;
 }
 
-function withStandingRefreshRetry(payload: StandingPayload) {
-  if (payload.refreshIntervalMs && payload.refreshIntervalMs > 0) {
+function withStandingRefreshRetry(payload: StandingPayload, forceShortRetry = false) {
+  if (!forceShortRetry && payload.refreshIntervalMs && payload.refreshIntervalMs > 0) {
     return payload;
   }
 
@@ -1267,11 +1268,12 @@ function withStandingRefreshRetry(payload: StandingPayload) {
     currentNextRefreshAt > now &&
     currentNextRefreshAt <= retryAt
   ) {
-    return payload;
+    return forceShortRetry ? { ...payload, refreshIntervalMs: null } : payload;
   }
 
   return {
     ...payload,
+    refreshIntervalMs: forceShortRetry ? null : payload.refreshIntervalMs,
     nextRefreshAt: new Date(retryAt).toISOString()
   };
 }
@@ -1454,13 +1456,13 @@ async function rebuildStandingPayloadCache(env: Env) {
 
 function queueStandingPayloadRefresh(env: Env, ctx?: ExecutionContext) {
   if (standingPayloadRefreshPromise) {
-    return;
+    return standingPayloadRefreshPromise;
   }
 
   const refreshPromise = rebuildStandingPayloadCache(env)
-    .then(() => undefined)
     .catch((error) => {
       console.error("Failed to refresh standing payload cache", error);
+      return null;
     })
     .finally(() => {
       if (standingPayloadRefreshPromise === refreshPromise) {
@@ -1473,6 +1475,23 @@ function queueStandingPayloadRefresh(env: Env, ctx?: ExecutionContext) {
 
   if (ctx) {
     ctx.waitUntil(refreshPromise);
+  }
+
+  return refreshPromise;
+}
+
+async function waitForStandingPayloadRefresh(refreshPromise: Promise<StandingPayloadCache | null>) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), STANDING_SYNC_REFRESH_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([refreshPromise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
   }
 }
 
@@ -1497,13 +1516,18 @@ async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, 
     return selectedCacheEntry.payload;
   }
 
-  queueStandingPayloadRefresh(env, ctx);
-
-  if (selectedCacheEntry) {
-    return withStandingRefreshRetry(selectedCacheEntry.payload);
+  const refreshPromise = queueStandingPayloadRefresh(env, ctx);
+  const refreshedCache = await waitForStandingPayloadRefresh(refreshPromise);
+  const refreshedEntry = refreshedCache?.[selectedPhaseKey] ?? refreshedCache?.[requestedKey] ?? refreshedCache?.overall;
+  if (refreshedEntry) {
+    return refreshedEntry.payload;
   }
 
-  return withStandingRefreshRetry(await buildStoredStandingPayload(env, selectedPhaseKey));
+  if (selectedCacheEntry) {
+    return withStandingRefreshRetry(selectedCacheEntry.payload, true);
+  }
+
+  return withStandingRefreshRetry(await buildStoredStandingPayload(env, selectedPhaseKey), true);
 }
 
 async function safeLoadState(env: Env, userId: string | number, options: LoadStateOptions = {}) {
@@ -1891,6 +1915,7 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
       if (Number(state.overallPoints ?? 0) !== syncedOverallPoints) {
         state.overallPoints = syncedOverallPoints;
         await saveStateForUser(env, userId, state);
+        await invalidateStandingPayloadCache(env);
       }
     }
 

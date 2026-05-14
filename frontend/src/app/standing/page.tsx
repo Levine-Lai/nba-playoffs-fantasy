@@ -22,6 +22,21 @@ function RankTrend({ rank, previousRank }: { rank: number; previousRank: number 
   return <span className="ml-2 inline-block text-slate-400">-</span>;
 }
 
+function CardBadge({ label, used }: { label: "WC" | "AS"; used: boolean }) {
+  return (
+    <span
+      title={`${label} ${used ? "used" : "unused"}`}
+      className={
+        used
+          ? "inline-flex min-w-10 justify-center rounded border border-[#b91c1c] bg-[#dc2626] px-2 py-1 text-xs font-bold text-white shadow-sm"
+          : "inline-flex min-w-10 justify-center rounded border border-[#15803d] bg-[#16a34a] px-2 py-1 text-xs font-bold text-white shadow-sm"
+      }
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function StandingPage() {
   const [data, setData] = useState<StandingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,13 +126,15 @@ export default function StandingPage() {
             {data.message ?? "Points will unlock after Day 1 deadline."}
           </p>
         ) : null}
-        <table className="table-shell">
+        <table className="table-shell standing-table min-w-[820px]">
           <thead>
             <tr>
               <th>Rank</th>
               <th>Team Name</th>
               <th>PTS</th>
               <th>TOT</th>
+              <th>FT Used</th>
+              <th>Card Used</th>
             </tr>
           </thead>
           <tbody>
@@ -125,6 +142,9 @@ export default function StandingPage() {
               data.members.map((member) => {
                 const isCurrentUser = member.userId === currentUserId;
                 const displayedPhasePoints = member.phasePoints ?? member.gamedayPoints ?? 0;
+                const freeTransfersUsed = Number(member.freeTransfersUsed ?? 0);
+                const freeTransfersLimit = Number(member.freeTransfersLimit ?? 8);
+                const cardsUsed = member.cardsUsed ?? { wildcard: false, allStar: false };
 
                 return (
                 <tr
@@ -132,14 +152,14 @@ export default function StandingPage() {
                   className={isCurrentUser ? "standing-row--current" : undefined}
                 >
                   <td>
-                    <div className="flex items-center">
+                    <div className="flex items-center text-lg font-black text-[#111]">
                       <span>{member.rank}</span>
                       <RankTrend rank={member.rank} previousRank={member.previousRank ?? member.rank} />
                     </div>
                   </td>
                   <td>
                     {data.visible === false ? (
-                      <span className={isCurrentUser ? "font-semibold text-brand-darkBlue" : "font-semibold text-slate-700"}>
+                      <span className={isCurrentUser ? "text-lg font-black text-brand-darkBlue" : "text-lg font-black text-slate-800"}>
                         {getDisplayTeamName(member.teamName, member.managerName)}
                       </span>
                     ) : (
@@ -151,20 +171,33 @@ export default function StandingPage() {
                             phase: data.selectedPhaseKey ?? selectedPhase
                           }
                         }}
-                        className={isCurrentUser ? "font-semibold text-brand-darkBlue hover:underline" : "font-semibold text-[#0a3c98] hover:underline"}
+                        className={isCurrentUser ? "text-lg font-black text-brand-darkBlue hover:underline" : "text-lg font-black text-[#0a3c98] hover:underline"}
                       >
                         {getDisplayTeamName(member.teamName, member.managerName)}
                       </Link>
                     )}
                   </td>
-                  <td>{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
-                  <td>{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
+                  <td className="text-lg font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(displayedPhasePoints)}</td>
+                  <td className="text-lg font-black text-[#111]">{data.visible === false ? "-" : formatFantasyPoints(member.totalPoints ?? 0)}</td>
+                  <td className="whitespace-nowrap text-base font-extrabold text-[#111]">
+                    {data.visible === false ? "-" : `${freeTransfersUsed}/${freeTransfersLimit}`}
+                  </td>
+                  <td>
+                    {data.visible === false ? (
+                      "-"
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <CardBadge label="WC" used={cardsUsed.wildcard} />
+                        <CardBadge label="AS" used={cardsUsed.allStar} />
+                      </div>
+                    )}
+                  </td>
                 </tr>
               );
               })
             ) : (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-sm text-slate-600">
+                <td colSpan={6} className="px-4 py-6 text-sm text-slate-600">
                   No registered players yet.
                 </td>
               </tr>
