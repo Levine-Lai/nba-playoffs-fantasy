@@ -113,7 +113,7 @@ export default function StandingPage() {
             <h1 className="font-sans text-[3.25rem] font-black leading-none text-[#111] sm:text-[4.5rem]">
               Standing
               {displayedDayLabel ? (
-                <span className="ml-5 font-sans text-[3.25rem] font-black uppercase leading-none text-[#111] sm:text-[4.5rem]">
+                <span className="ml-5 font-sans text-[1.08rem] font-black uppercase leading-none tracking-[0.02em] text-[#1f2933]">
                   {displayedDayLabel}
                 </span>
               ) : null}
