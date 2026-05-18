@@ -6,8 +6,10 @@ import {
   buildStoredLineupSnapshot,
   buildTransactionsPayload,
   calcFinalPoints,
+  countUsedSeasonFreeTransfers,
   countTrackedTotalTransfers,
   createInitialTeamForState,
+  filterSettledTransferHistory,
   getEffectiveScoringPlayerIds,
   getDisplayProfileState,
   getRosterPlayers,
@@ -1761,23 +1763,36 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     managerName: state.managerName,
     isCurrentUser: targetUser.id === viewerUserId
   };
-  const buildProfileSnapshot = (gamedayPoints: number) => ({
-    profile: {
-      teamName: state.teamName,
-      managerName: state.managerName,
-      overallPoints: Number(state.overallPoints ?? 0),
-      overallRank: Number(state.overallRank ?? 0),
-      totalPlayers: Number(state.totalPlayers ?? 0),
-      gamedayPoints: Number(gamedayPoints ?? 0),
-      fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
-    },
-    transactions: {
-      freeLeft: Math.max(0, Number(state.weeklyFreeLimit ?? 0) - Number(state.usedThisWeek ?? 0)),
-      total: Number(state.totalTransfers ?? 0),
-      rosterValue: Number(state.rosterValue ?? 0),
-      bank: Number(state.bank ?? 0)
-    }
-  });
+  const transferPrivacyPeriods = viewer.isCurrentUser ? [] : await getOfficialPlayoffPeriods(env).catch(() => []);
+  const buildProfileSnapshot = (gamedayPoints: number) => {
+    const publicHistory = viewer.isCurrentUser
+      ? state.history
+      : filterSettledTransferHistory(state.history, transferPrivacyPeriods);
+    const usedFreeTransfers = viewer.isCurrentUser
+      ? Number(state.usedThisWeek ?? 0)
+      : countUsedSeasonFreeTransfers(publicHistory);
+    const totalTransfers = viewer.isCurrentUser
+      ? Number(state.totalTransfers ?? 0)
+      : countTrackedTotalTransfers(publicHistory);
+
+    return {
+      profile: {
+        teamName: state.teamName,
+        managerName: state.managerName,
+        overallPoints: Number(state.overallPoints ?? 0),
+        overallRank: Number(state.overallRank ?? 0),
+        totalPlayers: Number(state.totalPlayers ?? 0),
+        gamedayPoints: Number(gamedayPoints ?? 0),
+        fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
+      },
+      transactions: {
+        freeLeft: Math.max(0, Number(state.weeklyFreeLimit ?? 0) - usedFreeTransfers),
+        total: totalTransfers,
+        rosterValue: Number(state.rosterValue ?? 0),
+        bank: Number(state.bank ?? 0)
+      }
+    };
+  };
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
@@ -2096,6 +2111,9 @@ async function buildTransactionsHistoryPayload(env: Env, userId: string, viewerU
     return { ok: false as const, response: json({ message: "User not found." }, { status: 404 }, env) };
   }
 
+  const transferPrivacyPeriods = await getOfficialPlayoffPeriods(env).catch(() => []);
+  const publicHistory = filterSettledTransferHistory(state.history, transferPrivacyPeriods);
+
   return {
     ok: true as const,
     payload: {
@@ -2106,7 +2124,7 @@ async function buildTransactionsHistoryPayload(env: Env, userId: string, viewerU
         managerName: state.managerName,
         isCurrentUser: targetUser.id === viewerUserId
       },
-      history: state.history.map((item) => ({
+      history: publicHistory.map((item) => ({
         ...item,
         chip: getTransferHistoryChip(item)
       }))

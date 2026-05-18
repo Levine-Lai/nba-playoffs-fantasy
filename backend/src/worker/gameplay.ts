@@ -184,6 +184,38 @@ export function countNormalTransferUsage(history: TransferHistoryItem[]) {
   return history.filter((item) => !isUnlimitedSetupTransfer(item) && !isChipTransfer(item)).length;
 }
 
+export function filterSettledTransferHistory(
+  history: TransferHistoryItem[],
+  periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
+  now = Date.now()
+) {
+  const visibleWindowKeys = new Set<string>();
+  let latestPassedDeadline: number | null = null;
+
+  periods.forEach((period) => {
+    const deadline = new Date(period.deadline ?? "").getTime();
+    if (!Number.isFinite(deadline) || deadline > now) {
+      return;
+    }
+
+    latestPassedDeadline = latestPassedDeadline === null ? deadline : Math.max(latestPassedDeadline, deadline);
+    [period.key, period.transferWindowKey]
+      .map((key) => String(key ?? "").trim())
+      .filter(Boolean)
+      .forEach((key) => visibleWindowKeys.add(key));
+  });
+
+  return history.filter((item) => {
+    const windowKey = String(item.windowKey ?? "").trim();
+    if (windowKey && visibleWindowKeys.has(windowKey)) {
+      return true;
+    }
+
+    const timestamp = new Date(item.timestamp ?? "").getTime();
+    return latestPassedDeadline !== null && Number.isFinite(timestamp) && timestamp <= latestPassedDeadline;
+  });
+}
+
 function countRemainingSeasonFreeTransfers(history: TransferHistoryItem[], totalFreeTransfers: number) {
   return Math.max(0, Number(totalFreeTransfers ?? 0) - countUsedSeasonFreeTransfers(history));
 }

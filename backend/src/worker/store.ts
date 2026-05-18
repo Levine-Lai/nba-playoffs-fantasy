@@ -6,7 +6,7 @@ import {
   isPostseasonGameId,
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
-import { countNormalTransferUsage, countTrackedTotalTransfers } from "./gameplay";
+import { countNormalTransferUsage, countTrackedTotalTransfers, filterSettledTransferHistory } from "./gameplay";
 import type {
   AuthUser,
   Env,
@@ -718,8 +718,64 @@ export async function getPlayerDataSummary(env: Env) {
   return summary;
 }
 
+async function getTransferPrivacyPeriods(env: Env) {
+  const cache = await getStoredScheduleCache(env).catch(() => null);
+  const games = (Array.isArray(cache?.games) ? cache.games : []).filter((game) => {
+    if (!isPostseasonGameId(game.id)) {
+      return false;
+    }
+
+    if (game.status === "live" || game.status === "final") {
+      return true;
+    }
+
+    if (isIfNecessary(game.ifNecessary)) {
+      return false;
+    }
+
+    return hasKnownScheduleTeam(game.homeTeam) && hasKnownScheduleTeam(game.awayTeam);
+  });
+
+  return buildPlayoffPeriods(
+    games,
+    (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
+    (game) => game.id
+  );
+}
+
+function isSettledTransferWindow(
+  periodKey: string | null | undefined,
+  periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
+  now = Date.now()
+) {
+  const targetKey = String(periodKey ?? "").trim();
+  if (!targetKey) {
+    return false;
+  }
+
+  return periods.some((period) => {
+    const deadline = new Date(period.deadline ?? "").getTime();
+    if (!Number.isFinite(deadline) || deadline > now) {
+      return false;
+    }
+
+    return period.key === targetKey || period.transferWindowKey === targetKey;
+  });
+}
+
+function isPublicChipUsed(
+  chip: UserChipsState["wildcard"] | UserChipsState["allStar"] | undefined,
+  periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>
+) {
+  if (!chip?.used) {
+    return false;
+  }
+
+  return !chip.activePeriodKey || isSettledTransferWindow(chip.activePeriodKey, periods);
+}
+
 export async function listStandingMembers(env: Env) {
-  const [rows, chipRegistry] = await Promise.all([
+  const [rows, chipRegistry, transferPrivacyPeriods] = await Promise.all([
     all<{
     userId: number;
     gameId: string;
@@ -746,11 +802,13 @@ export async function listStandingMembers(env: Env) {
         ORDER BY s.overall_points DESC, s.team_name COLLATE NOCASE ASC, u.game_id COLLATE NOCASE ASC
       `
     ),
-    readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {})
+    readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {}),
+    getTransferPrivacyPeriods(env)
   ]);
 
   return rows.map((row, index) => {
     const history = safeJsonParse<TransferHistoryItem[]>(row.historyJson, []);
+    const settledHistory = filterSettledTransferHistory(history, transferPrivacyPeriods);
     const chips = chipRegistry[String(row.userId)];
     return {
       userId: String(row.userId),
@@ -760,12 +818,12 @@ export async function listStandingMembers(env: Env) {
       rank: index + 1,
       gamedayPoints: Number(row.gamedayPoints ?? 0),
       totalPoints: Number(row.overallPoints ?? 0),
-      totalTransfers: countTrackedTotalTransfers(history),
-      freeTransfersUsed: countNormalTransferUsage(history),
+      totalTransfers: countTrackedTotalTransfers(settledHistory),
+      freeTransfersUsed: countNormalTransferUsage(settledHistory),
       freeTransfersLimit: Number(row.weeklyFreeLimit ?? 8),
       cardsUsed: {
-        wildcard: Boolean(chips?.wildcard?.used),
-        allStar: Boolean(chips?.allStar?.used)
+        wildcard: isPublicChipUsed(chips?.wildcard, transferPrivacyPeriods),
+        allStar: isPublicChipUsed(chips?.allStar, transferPrivacyPeriods)
       }
     } satisfies StandingMemberEntry;
   });
