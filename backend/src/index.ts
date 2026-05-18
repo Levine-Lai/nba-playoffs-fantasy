@@ -2233,7 +2233,8 @@ async function buildTransactionsHistoryPayload(env: Env, userId: string, viewerU
     return { ok: false as const, response: json({ message: "User not found." }, { status: 404 }, env) };
   }
 
-  const transferPrivacyPeriods = await getTransferPrivacyPeriodsForStanding(env, shouldUseStaticStandingData());
+  const transferPrivacyPeriods =
+    targetUser.id === viewerUserId ? null : await getTransferPrivacyPeriodsForStanding(env, shouldUseStaticStandingData());
   const publicHistory = transferPrivacyPeriods ? filterSettledTransferHistory(state.history, transferPrivacyPeriods) : state.history;
 
   return {

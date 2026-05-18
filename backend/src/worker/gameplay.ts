@@ -189,21 +189,7 @@ export function filterSettledTransferHistory(
   periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
   now = Date.now()
 ) {
-  const deadlineByWindowKey = new Map<string, number>();
-  let latestPassedDeadline: number | null = null;
-
-  periods.forEach((period) => {
-    const deadline = new Date(period.deadline ?? "").getTime();
-    if (!Number.isFinite(deadline) || deadline > now) {
-      return;
-    }
-
-    latestPassedDeadline = latestPassedDeadline === null ? deadline : Math.max(latestPassedDeadline, deadline);
-    [period.key, period.transferWindowKey]
-      .map((key) => String(key ?? "").trim())
-      .filter(Boolean)
-      .forEach((key) => deadlineByWindowKey.set(key, deadline));
-  });
+  const latestPassedDeadline = getLatestPassedTransferDeadline(periods, now);
 
   return history.filter((item) => {
     const timestamp = new Date(item.timestamp ?? "").getTime();
@@ -211,14 +197,22 @@ export function filterSettledTransferHistory(
       return false;
     }
 
-    const windowKey = String(item.windowKey ?? "").trim();
-    const windowDeadline = windowKey ? deadlineByWindowKey.get(windowKey) ?? null : null;
-    if (windowDeadline !== null) {
-      return timestamp <= windowDeadline;
-    }
-
     return latestPassedDeadline !== null && timestamp <= latestPassedDeadline;
   });
+}
+
+export function getLatestPassedTransferDeadline(
+  periods: Array<{ deadline?: string | null }>,
+  now = Date.now()
+) {
+  return periods.reduce<number | null>((latest, period) => {
+    const deadline = new Date(period.deadline ?? "").getTime();
+    if (!Number.isFinite(deadline) || deadline > now) {
+      return latest;
+    }
+
+    return latest === null ? deadline : Math.max(latest, deadline);
+  }, null);
 }
 
 function countRemainingSeasonFreeTransfers(history: TransferHistoryItem[], totalFreeTransfers: number) {

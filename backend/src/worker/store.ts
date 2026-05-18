@@ -6,7 +6,7 @@ import {
   isPostseasonGameId,
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
-import { countNormalTransferUsage, countTrackedTotalTransfers, filterSettledTransferHistory } from "./gameplay";
+import { countNormalTransferUsage, countTrackedTotalTransfers, filterSettledTransferHistory, getLatestPassedTransferDeadline } from "./gameplay";
 import type {
   AuthUser,
   Env,
@@ -718,30 +718,6 @@ export async function getPlayerDataSummary(env: Env) {
   return summary;
 }
 
-function getSettledTransferWindowDeadline(
-  periodKey: string | null | undefined,
-  periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
-  now = Date.now()
-) {
-  const targetKey = String(periodKey ?? "").trim();
-  if (!targetKey) {
-    return null;
-  }
-
-  for (const period of periods) {
-    const deadline = new Date(period.deadline ?? "").getTime();
-    if (!Number.isFinite(deadline) || deadline > now) {
-      continue;
-    }
-
-    if (period.key === targetKey || period.transferWindowKey === targetKey) {
-      return deadline;
-    }
-  }
-
-  return null;
-}
-
 function isPublicChipUsed(
   chip: UserChipsState["wildcard"] | UserChipsState["allStar"] | undefined,
   periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>
@@ -754,13 +730,13 @@ function isPublicChipUsed(
     return true;
   }
 
-  const windowDeadline = getSettledTransferWindowDeadline(chip.activePeriodKey, periods);
-  if (windowDeadline === null) {
+  const latestPassedDeadline = getLatestPassedTransferDeadline(periods);
+  if (latestPassedDeadline === null) {
     return false;
   }
 
   const activatedAt = new Date(chip.activatedAt ?? "").getTime();
-  return !Number.isFinite(activatedAt) || activatedAt <= windowDeadline;
+  return Number.isFinite(activatedAt) && activatedAt <= latestPassedDeadline;
 }
 
 export async function listStandingMembers(
