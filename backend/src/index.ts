@@ -74,6 +74,7 @@ const STANDING_BEFORE_DEADLINE_CACHE_TTL_MS = 60000;
 const STANDING_STATIC_TIME_ZONE_OFFSET_MS = 8 * 60 * 60 * 1000;
 const STANDING_DYNAMIC_START_HOUR_BEIJING = 6;
 const STANDING_DYNAMIC_END_HOUR_BEIJING = 14;
+const STANDING_PAYLOAD_CACHE_VERSION = 2;
 
 const DEFAULT_LINEUP_CORRECTIONS: LineupCorrectionRegistry = {
   kusuri: {
@@ -128,6 +129,7 @@ type StandingPayloadCacheEntry = {
     message?: string;
     refreshIntervalMs: number | null;
     nextRefreshAt: string | null;
+    cacheVersion?: number;
     selectedPhaseKey: string;
     phaseOptions: Awaited<ReturnType<typeof getStandingPhaseOptions>>;
     members: StandingMemberEntry[];
@@ -1304,7 +1306,11 @@ function getSelectedStandingPhaseKey(phaseOptions: Awaited<ReturnType<typeof get
 }
 
 function isFreshStandingCacheEntry(entry: StandingPayloadCacheEntry | undefined) {
-  return Boolean(entry && new Date(entry.expiresAt).getTime() > Date.now());
+  return Boolean(
+    entry &&
+      entry.payload?.cacheVersion === STANDING_PAYLOAD_CACHE_VERSION &&
+      new Date(entry.expiresAt).getTime() > Date.now()
+  );
 }
 
 function shouldQueueStandingPayloadRefresh(payload: StandingPayload) {
@@ -1360,6 +1366,7 @@ function createStandingPayload({
     message: beforeDeadline ? "Points will unlock after Day 1 deadline." : undefined,
     refreshIntervalMs: refreshPlan.refreshIntervalMs,
     nextRefreshAt: refreshPlan.nextRefreshAt,
+    cacheVersion: STANDING_PAYLOAD_CACHE_VERSION,
     selectedPhaseKey,
     phaseOptions,
     members: buildRankedMembers(members, selectedPhaseKey, ledger)

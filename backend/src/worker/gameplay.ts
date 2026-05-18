@@ -189,7 +189,7 @@ export function filterSettledTransferHistory(
   periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
   now = Date.now()
 ) {
-  const visibleWindowKeys = new Set<string>();
+  const deadlineByWindowKey = new Map<string, number>();
   let latestPassedDeadline: number | null = null;
 
   periods.forEach((period) => {
@@ -202,17 +202,22 @@ export function filterSettledTransferHistory(
     [period.key, period.transferWindowKey]
       .map((key) => String(key ?? "").trim())
       .filter(Boolean)
-      .forEach((key) => visibleWindowKeys.add(key));
+      .forEach((key) => deadlineByWindowKey.set(key, deadline));
   });
 
   return history.filter((item) => {
-    const windowKey = String(item.windowKey ?? "").trim();
-    if (windowKey && visibleWindowKeys.has(windowKey)) {
-      return true;
+    const timestamp = new Date(item.timestamp ?? "").getTime();
+    if (!Number.isFinite(timestamp)) {
+      return false;
     }
 
-    const timestamp = new Date(item.timestamp ?? "").getTime();
-    return latestPassedDeadline !== null && Number.isFinite(timestamp) && timestamp <= latestPassedDeadline;
+    const windowKey = String(item.windowKey ?? "").trim();
+    const windowDeadline = windowKey ? deadlineByWindowKey.get(windowKey) ?? null : null;
+    if (windowDeadline !== null) {
+      return timestamp <= windowDeadline;
+    }
+
+    return latestPassedDeadline !== null && timestamp <= latestPassedDeadline;
   });
 }
 

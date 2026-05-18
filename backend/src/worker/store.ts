@@ -718,24 +718,28 @@ export async function getPlayerDataSummary(env: Env) {
   return summary;
 }
 
-function isSettledTransferWindow(
+function getSettledTransferWindowDeadline(
   periodKey: string | null | undefined,
   periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
   now = Date.now()
 ) {
   const targetKey = String(periodKey ?? "").trim();
   if (!targetKey) {
-    return false;
+    return null;
   }
 
-  return periods.some((period) => {
+  for (const period of periods) {
     const deadline = new Date(period.deadline ?? "").getTime();
     if (!Number.isFinite(deadline) || deadline > now) {
-      return false;
+      continue;
     }
 
-    return period.key === targetKey || period.transferWindowKey === targetKey;
-  });
+    if (period.key === targetKey || period.transferWindowKey === targetKey) {
+      return deadline;
+    }
+  }
+
+  return null;
 }
 
 function isPublicChipUsed(
@@ -746,7 +750,17 @@ function isPublicChipUsed(
     return false;
   }
 
-  return !chip.activePeriodKey || isSettledTransferWindow(chip.activePeriodKey, periods);
+  if (!chip.activePeriodKey) {
+    return true;
+  }
+
+  const windowDeadline = getSettledTransferWindowDeadline(chip.activePeriodKey, periods);
+  if (windowDeadline === null) {
+    return false;
+  }
+
+  const activatedAt = new Date(chip.activatedAt ?? "").getTime();
+  return !Number.isFinite(activatedAt) || activatedAt <= windowDeadline;
 }
 
 export async function listStandingMembers(
