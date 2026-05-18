@@ -718,31 +718,6 @@ export async function getPlayerDataSummary(env: Env) {
   return summary;
 }
 
-async function getTransferPrivacyPeriods(env: Env) {
-  const cache = await getStoredScheduleCache(env).catch(() => null);
-  const games = (Array.isArray(cache?.games) ? cache.games : []).filter((game) => {
-    if (!isPostseasonGameId(game.id)) {
-      return false;
-    }
-
-    if (game.status === "live" || game.status === "final") {
-      return true;
-    }
-
-    if (isIfNecessary(game.ifNecessary)) {
-      return false;
-    }
-
-    return hasKnownScheduleTeam(game.homeTeam) && hasKnownScheduleTeam(game.awayTeam);
-  });
-
-  return buildPlayoffPeriods(
-    games,
-    (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
-    (game) => game.id
-  );
-}
-
 function isSettledTransferWindow(
   periodKey: string | null | undefined,
   periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
@@ -774,8 +749,13 @@ function isPublicChipUsed(
   return !chip.activePeriodKey || isSettledTransferWindow(chip.activePeriodKey, periods);
 }
 
-export async function listStandingMembers(env: Env) {
-  const [rows, chipRegistry, transferPrivacyPeriods] = await Promise.all([
+export async function listStandingMembers(
+  env: Env,
+  options: {
+    transferPrivacyPeriods?: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>;
+  } = {}
+) {
+  const [rows, chipRegistry] = await Promise.all([
     all<{
     userId: number;
     gameId: string;
@@ -802,13 +782,14 @@ export async function listStandingMembers(env: Env) {
         ORDER BY s.overall_points DESC, s.team_name COLLATE NOCASE ASC, u.game_id COLLATE NOCASE ASC
       `
     ),
-    readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {}),
-    getTransferPrivacyPeriods(env)
+    readAppState<Record<string, UserChipsState>>(env, USER_CHIPS_STATE_KEY, {})
   ]);
 
   return rows.map((row, index) => {
     const history = safeJsonParse<TransferHistoryItem[]>(row.historyJson, []);
-    const settledHistory = filterSettledTransferHistory(history, transferPrivacyPeriods);
+    const settledHistory = options.transferPrivacyPeriods
+      ? filterSettledTransferHistory(history, options.transferPrivacyPeriods)
+      : history;
     const chips = chipRegistry[String(row.userId)];
     return {
       userId: String(row.userId),
@@ -822,8 +803,12 @@ export async function listStandingMembers(env: Env) {
       freeTransfersUsed: countNormalTransferUsage(settledHistory),
       freeTransfersLimit: Number(row.weeklyFreeLimit ?? 8),
       cardsUsed: {
-        wildcard: isPublicChipUsed(chips?.wildcard, transferPrivacyPeriods),
-        allStar: isPublicChipUsed(chips?.allStar, transferPrivacyPeriods)
+        wildcard: options.transferPrivacyPeriods
+          ? isPublicChipUsed(chips?.wildcard, options.transferPrivacyPeriods)
+          : Boolean(chips?.wildcard?.used),
+        allStar: options.transferPrivacyPeriods
+          ? isPublicChipUsed(chips?.allStar, options.transferPrivacyPeriods)
+          : Boolean(chips?.allStar?.used)
       }
     } satisfies StandingMemberEntry;
   });
