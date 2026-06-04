@@ -184,6 +184,37 @@ export function countNormalTransferUsage(history: TransferHistoryItem[]) {
   return history.filter((item) => !isUnlimitedSetupTransfer(item) && !isChipTransfer(item)).length;
 }
 
+export function filterSettledTransferHistory(
+  history: TransferHistoryItem[],
+  periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>,
+  now = Date.now()
+) {
+  const latestPassedDeadline = getLatestPassedTransferDeadline(periods, now);
+
+  return history.filter((item) => {
+    const timestamp = new Date(item.timestamp ?? "").getTime();
+    if (!Number.isFinite(timestamp)) {
+      return false;
+    }
+
+    return latestPassedDeadline !== null && timestamp <= latestPassedDeadline;
+  });
+}
+
+export function getLatestPassedTransferDeadline(
+  periods: Array<{ deadline?: string | null }>,
+  now = Date.now()
+) {
+  return periods.reduce<number | null>((latest, period) => {
+    const deadline = new Date(period.deadline ?? "").getTime();
+    if (!Number.isFinite(deadline) || deadline > now) {
+      return latest;
+    }
+
+    return latest === null ? deadline : Math.max(latest, deadline);
+  }, null);
+}
+
 function countRemainingSeasonFreeTransfers(history: TransferHistoryItem[], totalFreeTransfers: number) {
   return Math.max(0, Number(totalFreeTransfers ?? 0) - countUsedSeasonFreeTransfers(history));
 }

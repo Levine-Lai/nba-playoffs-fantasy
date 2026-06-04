@@ -6,8 +6,10 @@ import {
   buildStoredLineupSnapshot,
   buildTransactionsPayload,
   calcFinalPoints,
+  countUsedSeasonFreeTransfers,
   countTrackedTotalTransfers,
   createInitialTeamForState,
+  filterSettledTransferHistory,
   getEffectiveScoringPlayerIds,
   getDisplayProfileState,
   getRosterPlayers,
@@ -18,7 +20,7 @@ import {
   withVisiblePoints
 } from "./worker/gameplay";
 import { handleCorsPreflight, json, parseJsonBody } from "./worker/http";
-import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildScheduleGameDetailPayload, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay, getStandingRefreshPlan } from "./worker/liveData";
+import { buildHomeLeadersPayload, buildOfficialLivePointsPreview, buildOfficialPointsPreviewForPeriod, buildScheduleGameDetailPayload, buildSchedulePayload, getEditablePeriodContext, getGameweekPayload, getNextMatchupByTeam, getOfficialPlayoffPeriodByPhaseKey, getOfficialPlayoffPeriods, getOfficialScheduleTimeline, getScoringPeriodContext, getStandingPhaseOptionsByDay, getStandingRefreshPlan, getStoredPlayoffPeriods, getStoredStandingPhaseOptionsByDay } from "./worker/liveData";
 import {
   buildPublicUser,
   createSession,
@@ -69,6 +71,10 @@ const STANDING_REFRESH_RETRY_MS = 5000;
 const STANDING_SYNC_REFRESH_TIMEOUT_MS = 15000;
 const STANDING_CACHE_TTL_MS = 20000;
 const STANDING_BEFORE_DEADLINE_CACHE_TTL_MS = 60000;
+const STANDING_STATIC_TIME_ZONE_OFFSET_MS = 8 * 60 * 60 * 1000;
+const STANDING_DYNAMIC_START_HOUR_BEIJING = 6;
+const STANDING_DYNAMIC_END_HOUR_BEIJING = 14;
+const STANDING_PAYLOAD_CACHE_VERSION = 2;
 
 const DEFAULT_LINEUP_CORRECTIONS: LineupCorrectionRegistry = {
   kusuri: {
@@ -123,6 +129,7 @@ type StandingPayloadCacheEntry = {
     message?: string;
     refreshIntervalMs: number | null;
     nextRefreshAt: string | null;
+    cacheVersion?: number;
     selectedPhaseKey: string;
     phaseOptions: Awaited<ReturnType<typeof getStandingPhaseOptions>>;
     members: StandingMemberEntry[];
@@ -985,6 +992,31 @@ async function getStandingPhaseOptions(env: Env) {
   return getStandingPhaseOptionsByDay(env);
 }
 
+async function getStandingPhaseOptionsForMode(env: Env, useStaticData: boolean) {
+  if (!useStaticData) {
+    return getStandingPhaseOptions(env);
+  }
+
+  const storedPhaseOptions = await getStoredStandingPhaseOptionsByDay(env).catch(() => []);
+  return storedPhaseOptions.length ? storedPhaseOptions : [{ key: "overall", label: "Overall" }];
+}
+
+async function getTransferPrivacyPeriodsForStanding(env: Env, useStaticData: boolean) {
+  const primaryPeriods = useStaticData
+    ? await getStoredPlayoffPeriods(env).catch(() => [])
+    : await getOfficialPlayoffPeriods(env).catch(() => []);
+
+  if (primaryPeriods.length) {
+    return primaryPeriods;
+  }
+
+  const fallbackPeriods = useStaticData
+    ? []
+    : await getStoredPlayoffPeriods(env).catch(() => []);
+
+  return fallbackPeriods.length ? fallbackPeriods : null;
+}
+
 function getLeaguePhasePoints(entries: LeaguePointsLedgerEntry[] | undefined, phaseKey: string) {
   if (phaseKey === "overall") {
     return sumLeagueLedgerPoints(entries);
@@ -1165,6 +1197,38 @@ function getPreGamedayOverallPoints(member: StandingMemberEntry) {
   return Number((Number(member.totalPoints ?? 0) - Number(member.phasePoints ?? 0)).toFixed(1));
 }
 
+function getBeijingDate(now = Date.now()) {
+  return new Date(now + STANDING_STATIC_TIME_ZONE_OFFSET_MS);
+}
+
+function getBeijingHour(now = Date.now()) {
+  return getBeijingDate(now).getUTCHours();
+}
+
+function shouldUseStaticStandingData(now = Date.now()) {
+  const hour = getBeijingHour(now);
+  return hour < STANDING_DYNAMIC_START_HOUR_BEIJING || hour >= STANDING_DYNAMIC_END_HOUR_BEIJING;
+}
+
+function getNextStandingDynamicWindowStart(now = Date.now()) {
+  const beijingDate = getBeijingDate(now);
+  const hour = beijingDate.getUTCHours();
+  const year = beijingDate.getUTCFullYear();
+  const month = beijingDate.getUTCMonth();
+  const day = beijingDate.getUTCDate() + (hour < STANDING_DYNAMIC_START_HOUR_BEIJING ? 0 : 1);
+  return new Date(
+    Date.UTC(year, month, day, STANDING_DYNAMIC_START_HOUR_BEIJING) - STANDING_STATIC_TIME_ZONE_OFFSET_MS
+  ).toISOString();
+}
+
+function withStaticStandingRefreshPlan(payload: StandingPayload) {
+  return {
+    ...payload,
+    refreshIntervalMs: null,
+    nextRefreshAt: getNextStandingDynamicWindowStart()
+  };
+}
+
 function buildRankedMembers(members: StandingMemberEntry[], phaseKey: string, ledger: LeaguePointsLedger) {
   const rankedOverallMembers = members
     .map((member) => {
@@ -1273,7 +1337,11 @@ function getSelectedStandingPhaseKey(phaseOptions: Awaited<ReturnType<typeof get
 }
 
 function isFreshStandingCacheEntry(entry: StandingPayloadCacheEntry | undefined) {
-  return Boolean(entry && new Date(entry.expiresAt).getTime() > Date.now());
+  return Boolean(
+    entry &&
+      entry.payload?.cacheVersion === STANDING_PAYLOAD_CACHE_VERSION &&
+      new Date(entry.expiresAt).getTime() > Date.now()
+  );
 }
 
 function shouldQueueStandingPayloadRefresh(payload: StandingPayload) {
@@ -1329,17 +1397,25 @@ function createStandingPayload({
     message: beforeDeadline ? "Points will unlock after Day 1 deadline." : undefined,
     refreshIntervalMs: refreshPlan.refreshIntervalMs,
     nextRefreshAt: refreshPlan.nextRefreshAt,
+    cacheVersion: STANDING_PAYLOAD_CACHE_VERSION,
     selectedPhaseKey,
     phaseOptions,
     members: buildRankedMembers(members, selectedPhaseKey, ledger)
   };
 }
 
-async function getStandingRefreshPlanSafe(env: Env, beforeDeadline: boolean) {
+async function getStandingRefreshPlanSafe(env: Env, beforeDeadline: boolean, useStaticData = shouldUseStaticStandingData()) {
   if (beforeDeadline) {
     return {
       refreshIntervalMs: null,
       nextRefreshAt: null
+    };
+  }
+
+  if (useStaticData) {
+    return {
+      refreshIntervalMs: null,
+      nextRefreshAt: getNextStandingDynamicWindowStart()
     };
   }
 
@@ -1349,13 +1425,14 @@ async function getStandingRefreshPlanSafe(env: Env, beforeDeadline: boolean) {
   }));
 }
 
-async function buildStoredStandingPayload(env: Env, requestedPhaseKey: string | null) {
-  const phaseOptions = await getStandingPhaseOptions(env);
+async function buildStoredStandingPayload(env: Env, requestedPhaseKey: string | null, useStaticData = shouldUseStaticStandingData()) {
+  const phaseOptions = await getStandingPhaseOptionsForMode(env, useStaticData);
   const selectedPhaseKey = getSelectedStandingPhaseKey(phaseOptions, requestedPhaseKey);
   const beforeDeadline = await isBeforeFirstDeadline(env);
-  const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline);
+  const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline, useStaticData);
+  const transferPrivacyPeriods = await getTransferPrivacyPeriodsForStanding(env, useStaticData);
   const [members, ledger] = await Promise.all([
-    listStandingMembers(env),
+    listStandingMembers(env, transferPrivacyPeriods ? { transferPrivacyPeriods } : undefined),
     readLeaguePointsLedger(env)
   ]);
 
@@ -1369,14 +1446,15 @@ async function buildStoredStandingPayload(env: Env, requestedPhaseKey: string | 
   });
 }
 
-async function rebuildStandingPayloadCache(env: Env) {
-  const phaseOptions = await getStandingPhaseOptions(env);
+async function rebuildStandingPayloadCache(env: Env, useStaticData = shouldUseStaticStandingData()) {
+  const phaseOptions = await getStandingPhaseOptionsForMode(env, useStaticData);
   const beforeDeadline = await isBeforeFirstDeadline(env);
-  const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline);
-  let members = await listStandingMembers(env);
+  const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline, useStaticData);
+  const transferPrivacyPeriods = await getTransferPrivacyPeriodsForStanding(env, useStaticData);
+  let members = await listStandingMembers(env, transferPrivacyPeriods ? { transferPrivacyPeriods } : undefined);
   const ledger = await readLeaguePointsLedger(env);
 
-  if (!beforeDeadline) {
+  if (!beforeDeadline && !useStaticData) {
     const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
 
     if (currentScoringPeriod) {
@@ -1457,12 +1535,14 @@ async function rebuildStandingPayloadCache(env: Env) {
         await writeLeaguePointsLedger(env, ledger);
       }
 
-      members = await listStandingMembers(env);
+      members = await listStandingMembers(env, transferPrivacyPeriods ? { transferPrivacyPeriods } : undefined);
     }
   }
 
+  const now = Date.now();
+  const staticCacheTtlMs = Math.max(60 * 1000, new Date(getNextStandingDynamicWindowStart(now)).getTime() - now);
   const expiresAt = new Date(
-    Date.now() + (beforeDeadline ? STANDING_BEFORE_DEADLINE_CACHE_TTL_MS : STANDING_CACHE_TTL_MS)
+    now + (beforeDeadline ? STANDING_BEFORE_DEADLINE_CACHE_TTL_MS : useStaticData ? staticCacheTtlMs : STANDING_CACHE_TTL_MS)
   ).toISOString();
   const cache = await readStandingPayloadCache(env);
   const phaseKeys = [...new Set(["overall", ...phaseOptions.map((option) => option.key)])];
@@ -1527,9 +1607,44 @@ async function waitForStandingPayloadRefresh(refreshPromise: Promise<StandingPay
 }
 
 async function buildStandingPayload(env: Env, requestedPhaseKey: string | null, ctx?: ExecutionContext) {
+  const useStaticData = shouldUseStaticStandingData();
   const cache = await readStandingPayloadCache(env);
   const requestedKey = getRequestedStandingPhaseKey(requestedPhaseKey);
   const requestedCacheEntry = cache[requestedKey];
+
+  if (useStaticData) {
+    const phaseOptions = await getStandingPhaseOptionsForMode(env, true);
+    const selectedPhaseKey = getSelectedStandingPhaseKey(phaseOptions, requestedPhaseKey);
+    const selectedCacheEntry = cache[selectedPhaseKey];
+
+    if (isFreshStandingCacheEntry(requestedCacheEntry)) {
+      return withStaticStandingRefreshPlan(requestedCacheEntry!.payload);
+    }
+
+    if (isFreshStandingCacheEntry(selectedCacheEntry)) {
+      return withStaticStandingRefreshPlan(selectedCacheEntry!.payload);
+    }
+
+    const staticCache = await rebuildStandingPayloadCache(env, true).catch((error) => {
+      console.error("Failed to rebuild static standing payload cache", error);
+      return null;
+    });
+    const staticEntry = staticCache?.[selectedPhaseKey] ?? staticCache?.[requestedKey] ?? staticCache?.overall;
+    if (staticEntry) {
+      return withStaticStandingRefreshPlan(staticEntry.payload);
+    }
+
+    if (selectedCacheEntry) {
+      return withStaticStandingRefreshPlan(selectedCacheEntry.payload);
+    }
+
+    if (requestedCacheEntry) {
+      return withStaticStandingRefreshPlan(requestedCacheEntry.payload);
+    }
+
+    return withStaticStandingRefreshPlan(await buildStoredStandingPayload(env, selectedPhaseKey, true));
+  }
+
   if (isFreshStandingCacheEntry(requestedCacheEntry)) {
     if (shouldQueueStandingPayloadRefresh(requestedCacheEntry!.payload)) {
       queueStandingPayloadRefresh(env, ctx);
@@ -1647,7 +1762,12 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
 
 async function syncProfileStandingState(env: Env, userId: string | number, state: UserState) {
   const ledger = await readLeaguePointsLedger(env);
-  const rankedMembers = buildRankedMembers(await listStandingMembers(env), "overall", ledger);
+  const transferPrivacyPeriods = await getTransferPrivacyPeriodsForStanding(env, shouldUseStaticStandingData());
+  const rankedMembers = buildRankedMembers(
+    await listStandingMembers(env, transferPrivacyPeriods ? { transferPrivacyPeriods } : undefined),
+    "overall",
+    ledger
+  );
   const currentMember = rankedMembers.find((member) => member.userId === String(userId));
 
   state.overallRank = currentMember?.rank ?? 0;
@@ -1812,23 +1932,40 @@ async function buildPointsPayloadForUser(env: Env, userId: string, viewerUserId:
     managerName: state.managerName,
     isCurrentUser: targetUser.id === viewerUserId
   };
-  const buildProfileSnapshot = (gamedayPoints: number) => ({
-    profile: {
-      teamName: state.teamName,
-      managerName: state.managerName,
-      overallPoints: Number(state.overallPoints ?? 0),
-      overallRank: Number(state.overallRank ?? 0),
-      totalPlayers: Number(state.totalPlayers ?? 0),
-      gamedayPoints: Number(gamedayPoints ?? 0),
-      fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
-    },
-    transactions: {
-      freeLeft: Math.max(0, Number(state.weeklyFreeLimit ?? 0) - Number(state.usedThisWeek ?? 0)),
-      total: Number(state.totalTransfers ?? 0),
-      rosterValue: Number(state.rosterValue ?? 0),
-      bank: Number(state.bank ?? 0)
-    }
-  });
+  const transferPrivacyPeriods = viewer.isCurrentUser
+    ? null
+    : await getTransferPrivacyPeriodsForStanding(env, shouldUseStaticStandingData());
+  const buildProfileSnapshot = (gamedayPoints: number) => {
+    const publicHistory = viewer.isCurrentUser
+      ? state.history
+      : transferPrivacyPeriods
+        ? filterSettledTransferHistory(state.history, transferPrivacyPeriods)
+        : state.history;
+    const usedFreeTransfers = viewer.isCurrentUser
+      ? Number(state.usedThisWeek ?? 0)
+      : countUsedSeasonFreeTransfers(publicHistory);
+    const totalTransfers = viewer.isCurrentUser
+      ? Number(state.totalTransfers ?? 0)
+      : countTrackedTotalTransfers(publicHistory);
+
+    return {
+      profile: {
+        teamName: state.teamName,
+        managerName: state.managerName,
+        overallPoints: Number(state.overallPoints ?? 0),
+        overallRank: Number(state.overallRank ?? 0),
+        totalPlayers: Number(state.totalPlayers ?? 0),
+        gamedayPoints: Number(gamedayPoints ?? 0),
+        fanLeague: state.fanLeague === "Playoff Friends" ? "" : state.fanLeague
+      },
+      transactions: {
+        freeLeft: Math.max(0, Number(state.weeklyFreeLimit ?? 0) - usedFreeTransfers),
+        total: totalTransfers,
+        rosterValue: Number(state.rosterValue ?? 0),
+        bank: Number(state.bank ?? 0)
+      }
+    };
+  };
 
   const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
   const beforeDeadline = editableContext.beforeCompetitionStart;
@@ -2147,6 +2284,10 @@ async function buildTransactionsHistoryPayload(env: Env, userId: string, viewerU
     return { ok: false as const, response: json({ message: "User not found." }, { status: 404 }, env) };
   }
 
+  const transferPrivacyPeriods =
+    targetUser.id === viewerUserId ? null : await getTransferPrivacyPeriodsForStanding(env, shouldUseStaticStandingData());
+  const publicHistory = transferPrivacyPeriods ? filterSettledTransferHistory(state.history, transferPrivacyPeriods) : state.history;
+
   return {
     ok: true as const,
     payload: {
@@ -2157,7 +2298,7 @@ async function buildTransactionsHistoryPayload(env: Env, userId: string, viewerU
         managerName: state.managerName,
         isCurrentUser: targetUser.id === viewerUserId
       },
-      history: state.history.map((item) => ({
+      history: publicHistory.map((item) => ({
         ...item,
         chip: getTransferHistoryChip(item)
       }))

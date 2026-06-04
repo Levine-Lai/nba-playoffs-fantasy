@@ -328,7 +328,7 @@ async function getOfficialScheduleGames(env: Env) {
   ) as OfficialScheduleGame[];
 }
 
-function getPlayoffPeriodsFromGames(games: OfficialScheduleGame[]) {
+function getPlayoffPeriodsFromGames(games: Array<{ id: string; date: string; gamedayKey?: string }>) {
   return buildPlayoffPeriods(
     games,
     (game) => game.gamedayKey ?? normalizeScheduleDateKey(game.date),
@@ -933,6 +933,24 @@ export async function getStandingPhaseOptionsByDay(env: Env): Promise<StandingPh
     // Fall back to stored cache below.
   }
 
+  const cachedSchedule = await getStoredScheduleCache(env);
+  const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
+  return buildStandingPhaseOptionsFromGames(
+    cachedGames.map((game) => ({
+      id: game.id,
+      date: game.date,
+      gamedayKey: game.gamedayKey
+    }))
+  );
+}
+
+export async function getStoredPlayoffPeriods(env: Env) {
+  const cachedSchedule = await getStoredScheduleCache(env);
+  const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
+  return getPlayoffPeriodsFromGames(cachedGames);
+}
+
+export async function getStoredStandingPhaseOptionsByDay(env: Env): Promise<StandingPhaseOption[]> {
   const cachedSchedule = await getStoredScheduleCache(env);
   const cachedGames = filterStoredPlayoffGames(Array.isArray(cachedSchedule?.games) ? cachedSchedule.games : []);
   return buildStandingPhaseOptionsFromGames(

@@ -6,7 +6,7 @@ import {
   isPostseasonGameId,
   normalizeScheduleDateKey
 } from "../shared/scheduleUtils";
-import { countNormalTransferUsage, countTrackedTotalTransfers } from "./gameplay";
+import { countNormalTransferUsage, countTrackedTotalTransfers, filterSettledTransferHistory, getLatestPassedTransferDeadline } from "./gameplay";
 import type {
   AuthUser,
   Env,
@@ -718,7 +718,33 @@ export async function getPlayerDataSummary(env: Env) {
   return summary;
 }
 
-export async function listStandingMembers(env: Env) {
+function isPublicChipUsed(
+  chip: UserChipsState["wildcard"] | UserChipsState["allStar"] | undefined,
+  periods: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>
+) {
+  if (!chip?.used) {
+    return false;
+  }
+
+  if (!chip.activePeriodKey) {
+    return true;
+  }
+
+  const latestPassedDeadline = getLatestPassedTransferDeadline(periods);
+  if (latestPassedDeadline === null) {
+    return false;
+  }
+
+  const activatedAt = new Date(chip.activatedAt ?? "").getTime();
+  return Number.isFinite(activatedAt) && activatedAt <= latestPassedDeadline;
+}
+
+export async function listStandingMembers(
+  env: Env,
+  options: {
+    transferPrivacyPeriods?: Array<{ key?: string | null; transferWindowKey?: string | null; deadline?: string | null }>;
+  } = {}
+) {
   const [rows, chipRegistry] = await Promise.all([
     all<{
     userId: number;
@@ -751,6 +777,9 @@ export async function listStandingMembers(env: Env) {
 
   return rows.map((row, index) => {
     const history = safeJsonParse<TransferHistoryItem[]>(row.historyJson, []);
+    const settledHistory = options.transferPrivacyPeriods
+      ? filterSettledTransferHistory(history, options.transferPrivacyPeriods)
+      : history;
     const chips = chipRegistry[String(row.userId)];
     return {
       userId: String(row.userId),
@@ -760,12 +789,16 @@ export async function listStandingMembers(env: Env) {
       rank: index + 1,
       gamedayPoints: Number(row.gamedayPoints ?? 0),
       totalPoints: Number(row.overallPoints ?? 0),
-      totalTransfers: countTrackedTotalTransfers(history),
-      freeTransfersUsed: countNormalTransferUsage(history),
+      totalTransfers: countTrackedTotalTransfers(settledHistory),
+      freeTransfersUsed: countNormalTransferUsage(settledHistory),
       freeTransfersLimit: Number(row.weeklyFreeLimit ?? 8),
       cardsUsed: {
-        wildcard: Boolean(chips?.wildcard?.used),
-        allStar: Boolean(chips?.allStar?.used)
+        wildcard: options.transferPrivacyPeriods
+          ? isPublicChipUsed(chips?.wildcard, options.transferPrivacyPeriods)
+          : Boolean(chips?.wildcard?.used),
+        allStar: options.transferPrivacyPeriods
+          ? isPublicChipUsed(chips?.allStar, options.transferPrivacyPeriods)
+          : Boolean(chips?.allStar?.used)
       }
     } satisfies StandingMemberEntry;
   });
