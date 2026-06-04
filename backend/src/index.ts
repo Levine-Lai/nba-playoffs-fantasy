@@ -730,6 +730,37 @@ function resolveLineupStateForPeriod(params: {
   };
 }
 
+async function ensureCurrentScoringLineupLocked(params: {
+  env: Env;
+  userId: string | number;
+  gameId: string;
+  state: UserState;
+  chips: UserChipsState;
+}) {
+  const { env, userId, gameId, state, chips } = params;
+  const scoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
+  if (!scoringPeriod?.key) {
+    return false;
+  }
+
+  const lineupLocks = await readLineupLockRegistry(env);
+  const resolvedLineup = resolveLineupStateForPeriod({
+    registry: lineupLocks,
+    corrections: await readLineupCorrectionRegistry(env),
+    userId,
+    gameId,
+    periodKey: scoringPeriod.key,
+    sourceState: getScoringState(state, chips, scoringPeriod),
+    createIfMissing: true
+  });
+
+  if (resolvedLineup.registryChanged) {
+    await writeLineupLockRegistry(env, lineupLocks);
+  }
+
+  return resolvedLineup.registryChanged;
+}
+
 async function readLeaguePointsLedger(env: Env) {
   return readAppState<LeaguePointsLedger>(env, LEAGUE_POINTS_LEDGER_KEY, {});
 }
@@ -1659,7 +1690,7 @@ async function buildRosterStateForPeriod(
   gameId: string,
   state: UserState,
   chips: UserChipsState,
-  targetPeriod: { key: string; dayNumber: number; gamedayKey: string },
+  targetPeriod: { key: string; dayNumber: number; gamedayKey: string; deadline?: string },
   lineupLocks: LineupLockRegistry,
   lineupCorrections: LineupCorrectionRegistry
 ) {
@@ -1676,12 +1707,32 @@ async function buildRosterStateForPeriod(
   }
 
   const reconstructed = cloneState(state);
+  const targetDeadlineTime = new Date(targetPeriod.deadline ?? "").getTime();
   const rewoundHistory = reconstructed.history
     .filter(
-      (item) =>
-        isRewindableRosterChange(item) &&
-        String(item.windowKey ?? "").startsWith("day:") &&
-        String(item.windowKey).slice(4) > targetPeriod.gamedayKey
+      (item) => {
+        if (!isRewindableRosterChange(item)) {
+          return false;
+        }
+
+        const windowKey = String(item.windowKey ?? "");
+        if (!windowKey.startsWith("day:")) {
+          return false;
+        }
+
+        const windowDateKey = windowKey.slice(4);
+        if (windowDateKey > targetPeriod.gamedayKey) {
+          return true;
+        }
+
+        const transferTime = new Date(item.timestamp ?? "").getTime();
+        return (
+          windowDateKey === targetPeriod.gamedayKey &&
+          Number.isFinite(targetDeadlineTime) &&
+          Number.isFinite(transferTime) &&
+          transferTime > targetDeadlineTime
+        );
+      }
     )
     .slice()
     .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
@@ -2900,6 +2951,13 @@ export default {
 
         const chips = await getUserChipsState(env, auth.authUser.id);
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        await ensureCurrentScoringLineupLocked({
+          env,
+          userId: auth.authUser.id,
+          gameId: auth.authUser.gameId,
+          state,
+          chips
+        });
         const committed = await commitTransactionBatch({
           env,
           userId: auth.authUser.id,
@@ -2963,6 +3021,13 @@ export default {
 
         const chips = await getUserChipsState(env, auth.authUser.id);
         const editableContext = await getEditablePeriodContext(env, await getFirstDeadline(env));
+        await ensureCurrentScoringLineupLocked({
+          env,
+          userId: auth.authUser.id,
+          gameId: auth.authUser.gameId,
+          state,
+          chips
+        });
         const committed = await commitTransactionBatch({
           env,
           userId: auth.authUser.id,
