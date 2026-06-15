@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getStandings } from "@/lib/api";
 import { AuthUser, StandingResponse } from "@/lib/types";
 import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
@@ -53,14 +53,20 @@ export default function StandingPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPhase, setSelectedPhase] = useState("overall");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const loadedPhaseRef = useRef<string | null>(null);
 
   const loadStandings = async () => {
     try {
       const payload = await getStandings(selectedPhase);
       setData(payload);
+      loadedPhaseRef.current = selectedPhase;
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load standings.");
+      if (loadedPhaseRef.current !== selectedPhase) {
+        setError(err instanceof Error ? err.message : "Failed to load standings.");
+      } else {
+        setError(null);
+      }
     }
   };
 

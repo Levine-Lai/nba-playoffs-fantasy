@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { SyntheticEvent, useMemo, useState } from "react";
+import { SyntheticEvent, useMemo, useRef, useState } from "react";
 import { getSchedule, getScheduleGameDetail } from "@/lib/api";
 import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
@@ -286,14 +286,20 @@ export default function SchedulePage() {
   const [selectedGameDetail, setSelectedGameDetail] = useState<ScheduleGameDetailResponse | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const hasLoadedScheduleRef = useRef(false);
 
   useVisibilityPolling(async () => {
     try {
       const payload = await getSchedule();
       setData(payload);
+      hasLoadedScheduleRef.current = true;
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load schedule.");
+      if (!hasLoadedScheduleRef.current) {
+        setError(err instanceof Error ? err.message : "Failed to load schedule.");
+      } else {
+        setError(null);
+      }
     }
   }, {
     intervalMs: 60000

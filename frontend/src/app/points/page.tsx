@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import ContentWithSidebar from "@/components/ContentWithSidebar";
 import CourtPlayerCard from "@/components/CourtPlayerCard";
 import HomeDailyLeaders from "@/components/HomeDailyLeaders";
@@ -25,9 +25,11 @@ function PointsPageContent() {
   const [data, setData] = useState<PointsResponse | null>(null);
   const [leaders, setLeaders] = useState<HomeLeadersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loadedRequestKeyRef = useRef<string | null>(null);
   const searchParams = useSearchParams();
   const targetUserId = searchParams.get("userId")?.trim() ?? "";
   const targetPhase = searchParams.get("phase")?.trim() ?? "";
+  const requestKey = `${targetUserId}:${targetPhase}`;
 
   const starterFrontCourt = data ? data.lineup.starters.filter((player) => player.position === "FC") : ([] as Player[]);
   const starterBackCourt = data ? data.lineup.starters.filter((player) => player.position === "BC") : ([] as Player[]);
@@ -40,13 +42,18 @@ function PointsPageContent() {
       ]);
       setData(pointsPayload);
       setLeaders(leadersPayload);
+      loadedRequestKeyRef.current = requestKey;
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load points.");
+      if (loadedRequestKeyRef.current !== requestKey) {
+        setError(err instanceof Error ? err.message : "Failed to load points.");
+      } else {
+        setError(null);
+      }
     }
   }, {
     intervalMs: 30000
-  }, [targetPhase, targetUserId]);
+  }, [requestKey, targetPhase, targetUserId]);
 
   if (!data && !error) {
     return <div className="panel panel-body">Loading points...</div>;

@@ -18,11 +18,14 @@ import {
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8787/api";
-const DEFAULT_TIMEOUT_MS = 10000;
+const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_RETRY_DELAY_MS = 500;
+const MIN_STALE_CACHE_MS = 10 * 60 * 1000;
 
 type RequestOptions = {
   allowStaleOnError?: boolean;
   cacheTtlMs?: number;
+  retryDelayMs?: number;
   retries?: number;
   timeoutMs?: number;
 };
@@ -36,6 +39,16 @@ type ResponseCacheEntry = {
 const responseCache = new Map<string, ResponseCacheEntry>();
 const pendingGetRequests = new Map<string, Promise<unknown>>();
 
+class ApiHttpError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 function buildCacheKey(path: string, method: string, token: string | null) {
   return `${method}:${token ?? "anon"}:${API_BASE}${path}`;
 }
@@ -44,12 +57,40 @@ function clearResponseCache() {
   responseCache.clear();
 }
 
-function isNetworkError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function isFetchNetworkError(error: unknown) {
+  return error instanceof Error && error.name === "TypeError";
+}
+
+function isRetryableError(error: unknown) {
+  if (isAbortError(error) || isFetchNetworkError(error)) {
+    return true;
   }
 
-  return error.name === "AbortError" || error.name === "TypeError";
+  if (error instanceof ApiHttpError) {
+    return error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+
+  return false;
+}
+
+function buildTransientError(error: unknown) {
+  if (isAbortError(error)) {
+    return new Error("Request timed out. Please try again.");
+  }
+
+  if (isFetchNetworkError(error)) {
+    return new Error("Unable to reach the server. Please try again.");
+  }
+
+  return error instanceof Error ? error : new Error("Request failed");
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
@@ -84,7 +125,7 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
 
   const runRequest = async () => {
     let attempt = 0;
-    const maxRetries = options.retries ?? (method === "GET" ? 1 : 0);
+    const maxRetries = options.retries ?? (method === "GET" ? 2 : 0);
 
     while (true) {
       try {
@@ -104,7 +145,7 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
 
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? (response.status === 401 ? "Please log in first." : "Request failed"));
+          throw new ApiHttpError(body.message ?? (response.status === 401 ? "Please log in first." : "Request failed"), response.status);
         }
 
         const data = (await response.json()) as T;
@@ -114,7 +155,7 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
           responseCache.set(cacheKey, {
             data,
             expiresAt: cachedAt + options.cacheTtlMs,
-            staleUntil: cachedAt + Math.max(options.cacheTtlMs * 6, 60000)
+            staleUntil: cachedAt + Math.max(options.cacheTtlMs * 12, MIN_STALE_CACHE_MS)
           });
         }
 
@@ -124,8 +165,9 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
 
         return data;
       } catch (error) {
-        if (attempt < maxRetries && isNetworkError(error)) {
+        if (attempt < maxRetries && isRetryableError(error)) {
           attempt += 1;
+          await wait((options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS) * attempt);
           continue;
         }
 
@@ -133,8 +175,8 @@ async function request<T>(path: string, init?: RequestInit, options: RequestOpti
           return cached.data as T;
         }
 
-        if (isNetworkError(error)) {
-          throw new Error("Network error. Please try again.");
+        if (isAbortError(error) || isFetchNetworkError(error)) {
+          throw buildTransientError(error);
         }
 
         throw error instanceof Error ? error : new Error("Request failed");
@@ -182,6 +224,7 @@ export function getMe() {
 
 export function getProfile() {
   return request<ProfileResponse>("/profile", undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 10000,
     allowStaleOnError: true
   });
@@ -189,6 +232,7 @@ export function getProfile() {
 
 export function getHomeLeaders() {
   return request<HomeLeadersResponse>("/home-leaders", undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -203,6 +247,7 @@ export function updateTeamName(teamName: string) {
 
 export function getLineup() {
   return request<LineupResponse>("/lineup", undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 5000,
     allowStaleOnError: true
   });
@@ -238,6 +283,7 @@ export function getPlayers(params?: {
 
   const queryString = query.toString();
   return request<PlayerSearchResponse>(`/players${queryString ? `?${queryString}` : ""}`, undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -259,6 +305,8 @@ export function saveLineup(lineup: Pick<LineupResponse["lineup"], "starters" | "
 
 export function getPointsToday() {
   return request<PointsResponse>("/points/today", undefined, {
+    timeoutMs: 45000,
+    retries: 2,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -272,6 +320,7 @@ export function getPointsHistory(userId?: string) {
 
   const queryString = query.toString();
   return request<PointsHistoryResponse>(`/points/history${queryString ? `?${queryString}` : ""}`, undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -279,6 +328,7 @@ export function getPointsHistory(userId?: string) {
 
 export function getTransactionsOptions() {
   return request<TransactionsResponse>("/transactions/options", undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 5000,
     allowStaleOnError: true
   });
@@ -292,6 +342,7 @@ export function getTransactionsHistory(userId?: string) {
 
   const queryString = query.toString();
   return request<TransactionsHistoryResponse>(`/transactions/history${queryString ? `?${queryString}` : ""}`, undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -322,7 +373,7 @@ export function getStandings(phase?: string) {
 
   const queryString = query.toString();
   return request<StandingResponse>(`/standings${queryString ? `?${queryString}` : ""}`, undefined, {
-    timeoutMs: 20000,
+    timeoutMs: 45000,
     retries: 2,
     cacheTtlMs: 5000,
     allowStaleOnError: true
@@ -336,6 +387,8 @@ export function getStandingPreview(userId: string, phase?: string) {
     query.set("phase", phase);
   }
   return request<PointsResponse>(`/standings/preview?${query.toString()}`, undefined, {
+    timeoutMs: 45000,
+    retries: 2,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -343,6 +396,7 @@ export function getStandingPreview(userId: string, phase?: string) {
 
 export function getSchedule() {
   return request<ScheduleResponse>("/schedule", undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 30000,
     allowStaleOnError: true
   });
@@ -353,6 +407,7 @@ export function getScheduleGameDetail(gameId: string) {
   query.set("gameId", gameId);
 
   return request<ScheduleGameDetailResponse>(`/schedule/game?${query.toString()}`, undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 15000,
     allowStaleOnError: true
   });
@@ -360,6 +415,7 @@ export function getScheduleGameDetail(gameId: string) {
 
 export function getHelpRules() {
   return request<HelpResponse>("/help/rules", undefined, {
+    timeoutMs: 30000,
     cacheTtlMs: 5 * 60 * 1000,
     allowStaleOnError: true
   });

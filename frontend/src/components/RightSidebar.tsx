@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { getProfile } from "@/lib/api";
 import { formatFantasyPoints } from "@/lib/formatFantasyPoints";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
@@ -21,10 +21,12 @@ export default function RightSidebar({
 }) {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedProfileRef = useRef(Boolean(snapshot));
 
   useVisibilityPolling(async () => {
     if (snapshot) {
       setData(snapshot);
+      hasLoadedProfileRef.current = true;
       setError(null);
       return;
     }
@@ -32,9 +34,14 @@ export default function RightSidebar({
     try {
       const payload = await getProfile();
       setData(payload);
+      hasLoadedProfileRef.current = true;
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load profile.");
+      if (!hasLoadedProfileRef.current) {
+        setError(err instanceof Error ? err.message : "Failed to load profile.");
+      } else {
+        setError(null);
+      }
     }
   }, {
     intervalMs: 120000

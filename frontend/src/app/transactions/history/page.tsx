@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { getTransactionsHistory } from "@/lib/api";
 import { getDisplayTeamName } from "@/lib/teamName";
 import { TransactionsHistoryResponse, TransferHistoryItem } from "@/lib/types";
@@ -47,6 +47,7 @@ function getChipLabel(item: TransferHistoryItem) {
 function TransactionsHistoryContent() {
   const [data, setData] = useState<TransactionsHistoryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loadedUserIdRef = useRef<string | null>(null);
   const searchParams = useSearchParams();
   const targetUserId = searchParams.get("userId")?.trim() ?? "";
 
@@ -54,9 +55,14 @@ function TransactionsHistoryContent() {
     try {
       const payload = await getTransactionsHistory(targetUserId || undefined);
       setData(payload);
+      loadedUserIdRef.current = targetUserId;
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load history.");
+      if (loadedUserIdRef.current !== targetUserId) {
+        setError(err instanceof Error ? err.message : "Failed to load history.");
+      } else {
+        setError(null);
+      }
     }
   }, {
     intervalMs: 30000
