@@ -111,6 +111,7 @@ type ScoringPeriodContext = {
   roundNumber: number;
   dayNumber: number;
 } | null;
+type OfficialPlayoffPeriod = Awaited<ReturnType<typeof getOfficialPlayoffPeriods>>[number];
 
 type LeaguePointsLedgerEntry = {
   periodKey: string;
@@ -148,6 +149,11 @@ type ConfirmTransferDraft = {
 };
 type LoadStateOptions = {
   hydrateAssets?: boolean;
+};
+type BackfillOfficialPointsLedgerOptions = {
+  periods?: OfficialPlayoffPeriod[];
+  prune?: boolean;
+  updateGamedayPoints?: boolean;
 };
 
 let standingPayloadRefreshPromise: Promise<StandingPayloadCache | null> | null = null;
@@ -1077,6 +1083,23 @@ function hasLeaguePhaseEntries(entries: LeaguePointsLedgerEntry[] | undefined, p
   return false;
 }
 
+function hasActualLeaguePointsEntry(ledger: LeaguePointsLedger, userId: string | number, periodKey: string) {
+  const entry = ledger[String(userId)]?.[periodKey];
+  return Boolean(entry && !String(entry.periodKey ?? "").startsWith("penalty:"));
+}
+
+function getMissingActualLedgerPeriods<T extends { key: string }>(
+  ledger: LeaguePointsLedger,
+  userId: string | number,
+  periods: T[]
+) {
+  return periods.filter((period) => !hasActualLeaguePointsEntry(ledger, userId, period.key));
+}
+
+function isOfficialBackfillPeriod(period: { key: string }): period is OfficialPlayoffPeriod {
+  return Boolean((period as OfficialPlayoffPeriod).gamedayKey);
+}
+
 async function syncLeaguePointsLedger(
   env: Env,
   userId: string | number,
@@ -1452,7 +1475,7 @@ async function rebuildStandingPayloadCache(env: Env, useStaticData = shouldUseSt
   const refreshPlan = await getStandingRefreshPlanSafe(env, beforeDeadline, useStaticData);
   const transferPrivacyPeriods = await getTransferPrivacyPeriodsForStanding(env, useStaticData);
   let members = await listStandingMembers(env, transferPrivacyPeriods ? { transferPrivacyPeriods } : undefined);
-  const ledger = await readLeaguePointsLedger(env);
+  let ledger = await readLeaguePointsLedger(env);
 
   if (!beforeDeadline && !useStaticData) {
     const currentScoringPeriod = ((await getScoringPeriodContext(env).catch(() => null)) ?? null) as ScoringPeriodContext | null;
@@ -1510,8 +1533,28 @@ async function rebuildStandingPayloadCache(env: Env, useStaticData = shouldUseSt
         }
         hasReliablePointsUpdate = hasReliablePointsUpdate || penaltySync.changed;
 
-        if (shouldBackfillHistoricalCorrections(lineupCorrections, member.userId, member.gameId, currentScoringPeriod.key)) {
-          const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips);
+        const needsCorrectionBackfill = shouldBackfillHistoricalCorrections(
+          lineupCorrections,
+          member.userId,
+          member.gameId,
+          currentScoringPeriod.key
+        );
+        const missingLedgerPeriods = getMissingActualLedgerPeriods(ledger, member.userId, penaltyPeriods)
+          .filter(isOfficialBackfillPeriod)
+          .filter((period) => period.key !== currentScoringPeriod.key);
+
+        if (needsCorrectionBackfill || missingLedgerPeriods.length) {
+          if (ledgerChanged) {
+            await writeLeaguePointsLedger(env, ledger);
+            ledgerChanged = false;
+          }
+
+          const recalculated = await backfillOfficialPointsLedger(env, member.userId, state, chips, {
+            periods: needsCorrectionBackfill ? undefined : missingLedgerPeriods,
+            prune: needsCorrectionBackfill,
+            updateGamedayPoints: needsCorrectionBackfill
+          });
+          ledger = await readLeaguePointsLedger(env);
           nextGamedayPoints = Number(recalculated.gamedayPoints ?? nextGamedayPoints);
           nextOverallPoints = Number(recalculated.overallPoints ?? nextOverallPoints);
           hasReliablePointsUpdate = true;
@@ -1689,21 +1732,33 @@ async function safeLoadState(env: Env, userId: string | number, options: LoadSta
   return hydrateStateAssets(env, state);
 }
 
-async function backfillOfficialPointsLedger(env: Env, userId: string | number, state: UserState, chips: UserChipsState) {
+async function backfillOfficialPointsLedger(
+  env: Env,
+  userId: string | number,
+  state: UserState,
+  chips: UserChipsState,
+  options: BackfillOfficialPointsLedgerOptions = {}
+) {
   const transferPenalty = await getTransferPenalty(env);
-  const periods = await getOfficialPlayoffPeriods(env)
-    .then((items) => items.filter((period) => new Date(period.deadline).getTime() <= Date.now()))
-    .catch(() => []);
+  const periods =
+    options.periods ??
+    (await getOfficialPlayoffPeriods(env)
+      .then((items) => items.filter((period) => new Date(period.deadline).getTime() <= Date.now()))
+      .catch(() => []));
   const targetUser = await getPublicUserById(env, userId);
   const lineupLocks = await readLineupLockRegistry(env);
   const lineupCorrections = await readLineupCorrectionRegistry(env);
   const allowedPeriodKeys = new Set(periods.map((period) => period.key));
 
-  await pruneLeaguePointsLedgerForUser(env, userId, allowedPeriodKeys);
+  if (options.prune !== false) {
+    await pruneLeaguePointsLedgerForUser(env, userId, allowedPeriodKeys);
+  }
 
   if (!periods.length) {
-    state.overallPoints = 0;
-    state.gamedayPoints = 0;
+    if (options.prune !== false) {
+      state.overallPoints = 0;
+      state.gamedayPoints = 0;
+    }
     return {
       overallPoints: state.overallPoints,
       gamedayPoints: state.gamedayPoints
@@ -1725,7 +1780,7 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
       lineupCorrections
     );
     const preview = await buildOfficialPointsPreviewForPeriod(env, periodState, period.key, false).catch(() => null);
-    if (!preview) {
+    if (!hasCompleteLivePreview(preview) || !shouldSyncLivePreviewPoints(preview)) {
       continue;
     }
 
@@ -1752,8 +1807,12 @@ async function backfillOfficialPointsLedger(env: Env, userId: string | number, s
     latestPoints = Number(preview.finalPoints ?? latestPoints);
   }
 
-  state.overallPoints = Number(overallPoints.toFixed(1));
-  state.gamedayPoints = Number(latestPoints.toFixed(1));
+  const latestLedger = await readLeaguePointsLedger(env);
+  const ledgerTotal = sumLeagueLedgerPoints(Object.values(latestLedger[String(userId)] ?? {}));
+  state.overallPoints = Number(ledgerTotal.toFixed(1));
+  if (options.updateGamedayPoints !== false) {
+    state.gamedayPoints = Number(latestPoints.toFixed(1));
+  }
   return {
     overallPoints: state.overallPoints,
     gamedayPoints: state.gamedayPoints
